@@ -530,12 +530,12 @@
     </div>
 </div>
 
-<div class="modal fade" id="schemaModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+<div class="modal fade" id="alterDbModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="background: #1e1e24; color: #e0e0e0;">
             <div class="modal-header border-bottom border-secondary">
                 <h5 class="modal-title fw-bold text-uppercase">
-                    <i class="bi bi-database-gear me-2 text-warning"></i>Alter eData Table
+                    <i class="bi bi-database-gear me-2 text-warning"></i>Alter Database Fields
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -544,20 +544,20 @@
                 <div class="alert alert-info d-flex align-items-center mb-3">
                     <i class="bi bi-info-circle-fill fs-4 me-3"></i>
                     <div>
-                        <strong>Database Schema Update</strong><br>
+                        <strong>Alter Fields Routine</strong><br>
                         This tool will rename legacy columns (e.g., col01other -> key_id) and add missing system columns required for the new workflow.
                         <br><small class="text-muted">Safe to run multiple times (checks for existence first).</small>
                     </div>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <button class="btn btn-outline-primary" onclick="previewSchema()">
+                    <button class="btn btn-outline-primary" onclick="previewAlterDb()">
                         <i class="bi bi-code-square me-2"></i>Generate SQL Preview
                     </button>
                     
                     <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="schemaDebugToggle">
-                        <label class="form-check-label text-muted small" for="schemaDebugToggle">Debug Mode</label>
+                        <input class="form-check-input" type="checkbox" id="alterDbDebugToggle">
+                        <label class="form-check-label text-muted small" for="alterDbDebugToggle">Debug Mode</label>
                     </div>
                 </div>
 
@@ -566,12 +566,12 @@
                         SQL Execution Plan
                     </div>
                     <div class="card-body p-0 position-relative">
-                        <div id="schemaLoader" class="position-absolute w-100 h-100 d-none justify-content-center align-items-center" 
+                        <div id="alterDbLoader" class="position-absolute w-100 h-100 d-none justify-content-center align-items-center" 
                              style="background: rgba(0,0,0,0.7); z-index: 5;">
                             <div class="spinner-border text-primary" role="status"></div>
                         </div>
                         
-                        <pre id="schemaSqlPreview" class="m-0 p-3 text-success" 
+                        <pre id="alterDbSqlPreview" class="m-0 p-3 text-success" 
                              style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap;">
 -- Click 'Generate SQL Preview' to analyze the database state...
                         </pre>
@@ -581,14 +581,14 @@
 
             <div class="modal-footer border-top border-secondary justify-content-between">
                 <div class="d-flex align-items-center">
-                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="copySchemaSql()" title="Copy SQL">
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="copyAlterDbSql()" title="Copy SQL">
                         <i class="bi bi-clipboard"></i>
                     </button>
-                    <span class="text-muted small" id="schemaStatusMsg">Ready</span>
+                    <span class="text-muted small" id="alterDbStatusMsg">Ready</span>
                 </div>
                 <div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-warning fw-bold" onclick="runSchemaMigration()" id="btnRunMigration" disabled>
+                    <button type="button" class="btn btn-warning fw-bold" onclick="runAlterDbMigration()" id="btnRunAlterDb" disabled>
                         <i class="bi bi-lightning-charge-fill me-1"></i>Execute Changes
                     </button>
                 </div>

@@ -3,6 +3,8 @@ import sys
 import json
 import pyodbc
 import requests
+import time
+import threading
 from datetime import timedelta
 from cryptography.fernet import Fernet
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
@@ -21,13 +23,18 @@ from blueprints.SetupDatabaseProcedures import setup_procedures_bp
 from blueprints.SetupEDataTable import setup_edata_bp
 from blueprints.SetupKeliTables import setup_keli_bp
 from blueprints.UnindexedImages import unindexed_bp
-from blueprints.SchemaTools import schema_bp
+from blueprints.AlterDatabaseFields import alter_db_bp
 from blueprints.PatchManager import patch_bp
 from blueprints.DataCleanup import cleanup_bp
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
+
+# Configure Upload Folder for County Badge Images
+app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'images')
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 # --- INITIALIZE LOGIN MANAGER (Moved Up) ---
 login_manager = LoginManager()
@@ -48,7 +55,7 @@ app.register_blueprint(setup_procedures_bp)
 app.register_blueprint(setup_edata_bp)
 app.register_blueprint(setup_keli_bp)
 app.register_blueprint(unindexed_bp)
-app.register_blueprint(schema_bp)
+app.register_blueprint(alter_db_bp)
 app.register_blueprint(patch_bp)
 app.register_blueprint(cleanup_bp)
 
@@ -85,6 +92,28 @@ if db_config:
 else:
     print(" >>> NO DATABASE CONFIG FOUND. Redirecting to setup.")
 
+# --- MIDDLEWARE: FORCE SETUP ---
+@app.before_request
+def check_db_config():
+    """
+    Intercepts every request to ensure the database is configured.
+    If db_config.json is missing, redirect to /setup.
+    """
+    # 1. Check if the config file exists
+    config_path = os.path.join(app.root_path, 'db_config.json')
+    is_configured = os.path.exists(config_path)
+
+    # 2. Define endpoints that must remain accessible during setup
+    allowed_endpoints = ['first_time_setup', 'restart_app']
+
+    # 3. Allow access to static files (CSS/JS) and the allowed endpoints
+    if request.endpoint and ('static' in request.endpoint or request.endpoint in allowed_endpoints):
+        return
+
+    # 4. If not configured, force redirect to setup
+    if not is_configured:
+        return redirect(url_for('first_time_setup'))
+
 # --- ROUTES ---
 @app.route('/')
 @login_required
@@ -115,8 +144,47 @@ def first_time_setup():
 
 @app.route('/restart', methods=['POST'])
 def restart_app():
-    print(" >>> RESTARTING APPLICATION...")
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    # 1. Define the restart job in a separate thread
+    def restart_job():
+        # Small delay ensures the HTML response below is fully sent to the client
+        # before we kill the process.
+        time.sleep(1) 
+        print(" >>> RESTARTING APPLICATION...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    # 2. Start the restart job
+    threading.Thread(target=restart_job).start()
+
+    # 3. Return a user-friendly waiting page immediately
+    return """
+    <html>
+    <head>
+        <title>Restarting...</title>
+        <meta http-equiv="refresh" content="5;url=/">
+        <style>
+            body { 
+                background-color: #222; 
+                color: #fff; 
+                font-family: sans-serif; 
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
+                height: 100vh; 
+                margin: 0; 
+            }
+            .loader { border: 4px solid #333; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+    </head>
+    <body>
+        <div style="text-align: center;">
+            <h1>Restarting System</h1>
+            <div class="loader"></div>
+            <p>Please wait...</p>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.route('/keep-alive', methods=['POST'])
 @login_required

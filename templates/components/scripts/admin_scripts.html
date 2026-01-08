@@ -3,7 +3,7 @@
     // 3. ADMIN TOOLS & SEEDING
     // ==========================================
     
-    // --- SEEDING ---
+// --- SEEDING ---
     function showSeedConfirm(){ 
         seedConfirmModal.show(); 
     }
@@ -23,12 +23,14 @@
                 loadStateLayers(); 
                 loadCountyLayers();
             } else {
-                alert("Seeding failed: " + d.message);
+                // <--- FIX: Use showNotification instead of alert --->
+                showNotification("Seeding failed: " + d.message);
             }
         })
         .catch(e => { 
             document.getElementById('globalLoader').style.display = 'none'; 
-            alert("Error: " + e); 
+            // <--- FIX: Use showNotification instead of alert --->
+            showNotification("Error: " + e); 
         });
     }
     
@@ -544,44 +546,44 @@
         updateTransform();
     }
 
-    // ==========================================
-    // SCHEMA MIGRATION TOOLS
+// ==========================================
+    // ALTER DATABASE FIELDS TOOLS (Renamed from Schema)
     // ==========================================
 
-    const schemaModal = new bootstrap.Modal(document.getElementById('schemaModal'));
+    const alterDbModal = new bootstrap.Modal(document.getElementById('alterDbModal'));
 
-    function openSchemaTool() {
+    function openAlterDbTool() {
         closeAllModals();
         // Reset state
-        document.getElementById('schemaSqlPreview').innerText = "-- Click 'Generate SQL Preview' to analyze the database state...";
-        document.getElementById('btnRunMigration').disabled = true;
-        document.getElementById('schemaStatusMsg').innerText = "Ready";
-        document.getElementById('schemaStatusMsg').className = "text-muted small";
-        schemaModal.show();
+        document.getElementById('alterDbSqlPreview').innerText = "-- Click 'Generate SQL Preview' to analyze the database state...";
+        document.getElementById('btnRunAlterDb').disabled = true;
+        document.getElementById('alterDbStatusMsg').innerText = "Ready";
+        document.getElementById('alterDbStatusMsg').className = "text-muted small";
+        alterDbModal.show();
     }
 
-    function previewSchema() {
-        const loader = document.getElementById('schemaLoader');
-        const previewBox = document.getElementById('schemaSqlPreview');
-        const runBtn = document.getElementById('btnRunMigration');
+    function previewAlterDb() {
+        const loader = document.getElementById('alterDbLoader');
+        const previewBox = document.getElementById('alterDbSqlPreview');
+        const runBtn = document.getElementById('btnRunAlterDb');
         
         loader.classList.remove('d-none');
         
-        fetch('/api/admin/schema/preview')
+        // Updated API Endpoint
+        fetch('/api/admin/alter-db/preview')
             .then(r => r.json())
             .then(data => {
                 loader.classList.add('d-none');
                 if (data.success) {
                     previewBox.innerText = data.sql;
-                    // Check if there are actual commands to run (lines that aren't just comments)
                     const hasCode = data.sql.split('\n').some(line => line.trim() && !line.trim().startsWith('--'));
                     
                     if (hasCode) {
                         runBtn.disabled = false;
-                        setStatus("Changes detected. Ready to execute.", "text-warning");
+                        setAlterDbStatus("Changes detected. Ready to execute.", "text-warning");
                     } else {
                         runBtn.disabled = true;
-                        setStatus("Database is already up to date.", "text-success");
+                        setAlterDbStatus("Database is already up to date.", "text-success");
                     }
                 } else {
                     previewBox.innerText = "-- Error --\n" + data.message;
@@ -593,63 +595,54 @@
             });
     }
 
-    function runSchemaMigration() {
-        const debugMode = document.getElementById('schemaDebugToggle').checked;
-        const loader = document.getElementById('schemaLoader');
-        
-        if (!confirm("Are you sure you want to alter the database schema? This cannot be easily undone.")) return;
+    function runAlterDbMigration() {
+        // --- FIX: Using Custom Confirmation Popup ---
+        showConfirmation("Are you sure you want to alter the database schema? This cannot be easily undone.", () => {
+            
+            const debugMode = document.getElementById('alterDbDebugToggle').checked;
+            const loader = document.getElementById('alterDbLoader');
+            
+            loader.classList.remove('d-none');
+            setAlterDbStatus("Executing SQL...", "text-info");
 
-        loader.classList.remove('d-none');
-        setStatus("Executing SQL...", "text-info");
-
-        fetch('/api/admin/schema/execute', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ debug: debugMode })
-        })
-        .then(r => r.json())
-        .then(data => {
-            loader.classList.add('d-none');
-            if (data.success) {
-                setStatus(data.message, "text-success");
-                previewSchema(); // Refresh preview to show it's clean
-                showNotification("Schema updated successfully!");
-                // If debug mode and log returned, log it
-                if(data.debug_log) console.log(data.debug_log);
-            } else {
-                setStatus("Migration Failed.", "text-danger");
-                showNotification("Error: " + data.message);
-            }
-        })
-        .catch(err => {
-            loader.classList.add('d-none');
-            setStatus("Execution Error.", "text-danger");
+            // Updated API Endpoint
+            fetch('/api/admin/alter-db/execute', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ debug: debugMode })
+            })
+            .then(r => r.json())
+            .then(data => {
+                loader.classList.add('d-none');
+                if (data.success) {
+                    setAlterDbStatus(data.message, "text-success");
+                    previewAlterDb(); // Refresh preview to show it's clean
+                    showNotification("Database updated successfully!");
+                    if(data.debug_log) console.log(data.debug_log);
+                } else {
+                    setAlterDbStatus("Migration Failed.", "text-danger");
+                    showNotification("Error: " + data.message);
+                }
+            })
+            .catch(err => {
+                loader.classList.add('d-none');
+                setAlterDbStatus("Execution Error.", "text-danger");
+            });
         });
     }
 
-    function copySchemaSql() {
-        const text = document.getElementById('schemaSqlPreview').innerText;
+    function copyAlterDbSql() {
+        const text = document.getElementById('alterDbSqlPreview').innerText;
         navigator.clipboard.writeText(text).then(() => {
             showNotification("SQL copied to clipboard");
         });
     }
 
-    function setStatus(msg, colorClass) {
-        const el = document.getElementById('schemaStatusMsg');
+    function setAlterDbStatus(msg, colorClass) {
+        const el = document.getElementById('alterDbStatusMsg');
         el.innerText = msg;
         el.className = "small fw-bold " + colorClass;
     }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        const observer = new MutationObserver(() => {
-            adjustUnindexedModalLayout();
-        });
-        
-        const panels = document.querySelectorAll('.menu-panel');
-        panels.forEach(p => observer.observe(p, { attributes: true, attributeFilter: ['class'] }));
-
-        initPanZoom();
-    });
 
 // ==========================================
     // INITIAL DATA PREPARATION TOOL
