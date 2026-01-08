@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import datetime
 from flask import Blueprint, request, Response, stream_with_context, current_app, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import text
@@ -8,17 +9,13 @@ from extensions import db
 from models import IndexingCounties, IndexingStates
 from utils import format_error
 from werkzeug.utils import secure_filename
-import datetime
 
 cleanup_bp = Blueprint('data_cleanup', __name__)
 
 def generate_cleanup_sql(book_start=None, book_end=None):
-    """
-    Generates the SQL script steps.
-    """
+    """Generates the SQL script steps."""
     steps = []
     
-    # Header
     header = f"""
     -- ===============================================
     -- GSI INITIAL DATA PREPARATION SCRIPT
@@ -130,19 +127,14 @@ def execute_cleanup():
         try:
             with db.session.begin():
                 for i, (name, sql) in enumerate(steps):
-                    # Execute Step
                     db.session.execute(text(sql))
-                    
-                    # Calculate Progress (1-100%)
                     percent = int(((i + 1) / total_steps) * 100)
-                    
                     yield json.dumps({
                         'type': 'progress',
                         'percent': percent,
                         'message': f"{name}..."
                     }) + '\n'
-                    
-                    time.sleep(0.2) # Small delay to make progress visible
+                    time.sleep(0.2) 
 
             yield json.dumps({'type': 'complete', 'message': 'Cleanup Completed Successfully.'}) + '\n'
             

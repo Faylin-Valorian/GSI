@@ -38,7 +38,7 @@
     </div>
 </div>
 
-+<div class="modal fade" id="cleanupModal" tabindex="-1" data-bs-backdrop="static">
+<div class="modal fade" id="cleanupModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content custom-panel border-info">
             <div class="modal-header border-secondary">
@@ -53,7 +53,7 @@
                         <small class="text-muted">Runs 7 processing steps: Backup, FN Normalization, Flag Resets, OriginalValue Cleanup, Instrument ID Generation, Legal Injection, and Image Path Fixes.</small>
                     </div>
                 </div>
-                +                <div class="card bg-dark border-secondary mb-3">
+                <div class="card bg-dark border-secondary mb-3">
                     <div class="card-header border-secondary py-1 small text-muted text-uppercase fw-bold">Image Path Scope (Optional)</div>
                     <div class="card-body py-3">
                         <div class="row g-3 align-items-center">
@@ -65,7 +65,7 @@
                         </div>
                     </div>
                 </div>
-                +                <div id="cleanupDebugPanel" class="d-none mb-3">
+                <div id="cleanupDebugPanel" class="d-none mb-3">
                     <div class="d-flex justify-content-between align-items-end mb-1">
                         <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug: Generated SQL Review</label>
                         <div>
@@ -75,7 +75,7 @@
                     </div>
                     <textarea id="cleanupSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 200px; font-size: 0.8rem; resize: vertical;" readonly></textarea>
                 </div>
-                +                <div id="cleanupResult" class="text-center small mt-3"></div>
+            <div id="cleanupResult" class="text-center small mt-3"></div>
             </div>
             <div class="modal-footer border-secondary justify-content-between">
                 <div>

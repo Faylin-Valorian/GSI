@@ -658,26 +658,30 @@
         document.getElementById('cleanupSqlPreview').value = '';
         document.getElementById('cleanupResult').innerHTML = '';
         
-        // Inputs & Toggles
-        document.getElementById('cleanupToggleBook').checked = false;
-        toggleCleanupBookInputs(); // Will disable inputs and clear them
+        // Reset Inputs & Toggles (Default OFF)
+        const toggle = document.getElementById('cleanupToggleBook');
+        if(toggle) {
+            toggle.checked = false;
+            toggleCleanupBookInputs(); 
+        }
         
         // Progress Bar Reset
         document.getElementById('cleanupProgressContainer').classList.add('d-none');
         document.getElementById('cleanupProgressBar').style.width = '0%';
-        document.getElementById('cleanupProgressBar').className = "progress-bar progress-bar-striped progress-bar-animated bg-info";
         document.getElementById('cleanupProgressLabel').innerText = "Processing...";
         document.getElementById('cleanupProgressPercent').innerText = "0%";
         
         // Debug Toggle Check
         const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         const previewBtn = document.getElementById('btnCleanupPreview');
+        const debugPanel = document.getElementById('cleanupDebugPanel');
+        
         if (isDebug) { 
             previewBtn.classList.remove('d-none'); 
-            document.getElementById('cleanupDebugPanel').classList.remove('d-none');
+            debugPanel.classList.remove('d-none');
         } else { 
             previewBtn.classList.add('d-none'); 
-            document.getElementById('cleanupDebugPanel').classList.add('d-none');
+            debugPanel.classList.add('d-none');
         }
         
         cleanupModal.show();
@@ -703,19 +707,27 @@
                         startInput.value = d.start;
                         endInput.value = d.end;
                         statusTxt.innerText = "Auto-filled from server";
+                        statusTxt.className = "text-success small fst-italic";
                     } else {
                         startInput.value = '';
                         endInput.value = '';
                         statusTxt.innerText = "No images folder found";
+                        statusTxt.className = "text-danger small fst-italic";
                     }
+                })
+                .catch(e => {
+                    statusTxt.innerText = "Error fetching range";
+                    statusTxt.className = "text-danger small fst-italic";
                 });
             } else {
                 statusTxt.innerText = "Enabled";
+                statusTxt.className = "text-success small fst-italic";
             }
         } else {
             startInput.value = '---';
             endInput.value = '---';
             statusTxt.innerText = "Toggle ON to auto-fill";
+            statusTxt.className = "text-muted small fst-italic";
         }
     }
 
