@@ -1,0 +1,261 @@
+<script>
+    // ==========================================
+    // 6. UI UTILITIES & INIT
+    // ==========================================
+    
+    // --- LAYER TOGGLES ---
+    function toggleStateLayer(cb) {
+        if (cb.checked) {
+            map.addLayer(stateLayerGroup);
+            loadStateLayers(); 
+        } else {
+            map.removeLayer(stateLayerGroup);
+        }
+    }
+
+    function toggleCountyLayer(cb) {
+        if (cb.checked) {
+            map.addLayer(countyLayerGroup);
+            loadCountyLayers();
+        } else {
+            map.removeLayer(countyLayerGroup);
+        }
+    }
+
+    // --- TABLE FILTERING ---
+    function filterCountiesTable() {
+        const filter = document.getElementById('countySearchInput').value.toLowerCase();
+        const rows = document.getElementById('countiesTableBody').getElementsByTagName('tr');
+        for (let i = 0; i < rows.length; i++) {
+            const td = rows[i].getElementsByClassName("county-name")[0];
+            if (td) rows[i].style.display = (td.innerText.toLowerCase().indexOf(filter) > -1) ? "" : "none";
+        }
+    }
+
+    // --- THEME TOGGLE ---
+    function toggleTheme() {
+        const h = document.documentElement; 
+        const newTheme = h.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        h.setAttribute('data-bs-theme', newTheme);
+        
+        // Switch Map Tile Layer
+        map.removeLayer(currentLayer); 
+        currentLayer = newTheme === 'dark' ? darkLayer : lightLayer; 
+        currentLayer.addTo(map);
+
+        if(document.getElementById('layerToggleStates').checked) loadStateLayers();
+        if(document.getElementById('layerToggleCounties').checked) loadCountyLayers();
+    }
+    
+    // --- PANEL TOGGLE ---
+    let activePanelId=null;
+    function togglePanel(id, tab) {
+        const p = document.getElementById(id);
+        if(activePanelId===id){ 
+            p.classList.remove('open'); 
+            tab.classList.remove('active'); 
+            activePanelId=null; 
+        } else { 
+            document.querySelectorAll('.menu-panel').forEach(x=>x.classList.remove('open')); 
+            document.querySelectorAll('.dock-tab').forEach(x=>x.classList.remove('active')); 
+            p.classList.add('open'); 
+            tab.classList.add('active'); 
+            activePanelId=id; 
+        }
+    }
+    
+    // --- DEBUG MODE TOGGLE ---
+    function toggleDebugMode(cb) {
+        const userRole = cb.getAttribute('data-user-role');
+        const isTurningOn = cb.checked;
+
+        if (userRole === 'admin') {
+            // ADMIN: Standard Toggle
+            fetch('/api/admin/debug/toggle', {method: 'POST'})
+                .then(r => r.json())
+                .then(d => {
+                    if(d.success) console.log("Debug Mode:", d.debug_mode ? "ON" : "OFF");
+                    else { cb.checked = !cb.checked; showNotification("Action Failed"); }
+                });
+        } else {
+            // USER: Intercept
+            if (isTurningOn) {
+                // Turning ON -> Require Auth
+                cb.checked = false; // Reset visual immediately
+                openAdminAuthModal();
+            } else {
+                // Turning OFF -> Allowed
+                fetch('/api/user/debug/disable', {method: 'POST'})
+                .then(r => r.json())
+                .then(d => {
+                    if(d.success) console.log("Debug Mode Disabled");
+                });
+            }
+        }
+    }
+
+    // --- ADMIN AUTH LOGIC ---
+    function openAdminAuthModal() {
+        document.getElementById('adminAuthUser').value = '';
+        document.getElementById('adminAuthPass').value = '';
+        document.getElementById('adminAuthError').innerText = '';
+        adminAuthModal.show();
+    }
+
+    function closeAdminAuthModal() {
+        adminAuthModal.hide();
+    }
+
+    function submitAdminAuth() {
+        const u = document.getElementById('adminAuthUser').value;
+        const p = document.getElementById('adminAuthPass').value;
+        const err = document.getElementById('adminAuthError');
+
+        if(!u || !p) { err.innerText = "Please enter credentials."; return; }
+
+        fetch('/api/user/debug/auth-enable', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username: u, password: p })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                closeAdminAuthModal();
+                document.getElementById('debugModeToggle').checked = true;
+                showNotification("Debug Mode Enabled for this session.");
+            } else {
+                err.innerText = "Invalid Admin Credentials.";
+            }
+        });
+    }
+
+    function loadDebugStatus() {
+        fetch('/api/admin/debug/status')
+            .then(r => r.json())
+            .then(d => {
+                const toggle = document.getElementById('debugModeToggle');
+                if(toggle) toggle.checked = d.debug_mode;
+            });
+    }
+
+    // --- CODE VIEWER LOGIC ---
+    function closeCodeViewer() {
+        codeViewerModal.hide();
+        document.getElementById('codeViewerContent').innerText = '';
+    }
+
+    function viewActiveToolCode() {
+        let activeTool = null;
+        
+        // Detect which modal is currently showing
+        if (document.getElementById('driveModal').classList.contains('show')) activeTool = 'drive';
+        else if (document.getElementById('dbCompatModal').classList.contains('show')) activeTool = 'compat';
+        else if (document.getElementById('proceduresModal').classList.contains('show')) activeTool = 'procedures';
+        else if (document.getElementById('eDataModal').classList.contains('show')) activeTool = 'edata';
+        else if (document.getElementById('keliModal').classList.contains('show')) activeTool = 'keli';
+        else if (document.getElementById('seedConfirmModal').classList.contains('show')) activeTool = 'seed';
+        else if (document.getElementById('unindexedReviewModal').classList.contains('show')) activeTool = 'unindexed';
+        else if (document.getElementById('schemaModal').classList.contains('show')) activeTool = 'schema'; // Added Schema
+        
+        if (!activeTool) {
+            showNotification("No supported tool is currently open. Open a tool first, then click this button.");
+            return;
+        }
+
+        fetch('/api/admin/view-code', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ tool: activeTool })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                document.getElementById('codeViewerFilename').innerText = d.filename;
+                document.getElementById('codeViewerContent').innerText = d.code;
+                codeViewerModal.show();
+            } else {
+                showNotification("Error: " + d.message);
+            }
+        });
+    }
+
+    // ==========================================
+    // PATCH MANAGER LOGIC (NEW)
+    // ==========================================
+    const patchModal = new bootstrap.Modal(document.getElementById('patchModal'));
+
+    function openPatchModal() {
+        // Since it's on a sliding panel, we might want to slide it closed first for visibility, 
+        // or just ensure modal appears on top.
+        // For standard behavior:
+        document.getElementById('patchFileInput').value = '';
+        document.getElementById('patchError').innerText = '';
+        patchModal.show();
+    }
+
+    function closePatchModal() {
+        patchModal.hide();
+    }
+
+    function submitPatchFile() {
+        const input = document.getElementById('patchFileInput');
+        const file = input.files[0];
+        const err = document.getElementById('patchError');
+
+        if (!file) {
+            err.innerText = "Please select a .diff file first.";
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Show Global Loader if available
+        const loader = document.getElementById('globalLoader');
+        if (loader) loader.style.display = 'flex';
+
+        fetch('/api/admin/patch/apply', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (loader) loader.style.display = 'none';
+            
+            if (d.success) {
+                console.log("Patch Result:", d.message);
+                showNotification(d.message);
+                closePatchModal();
+                // RELOAD PAGE TO APPLY CHANGES
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                err.innerText = "Error: " + d.message;
+                showNotification("Patch Failed. See modal for details.");
+            }
+        })
+        .catch(e => {
+            if (loader) loader.style.display = 'none';
+            err.innerText = "System Error: " + e;
+        });
+    }
+
+    // --- ACTIVITY MONITOR ---
+    function resetActivity(){fetch('/keep-alive',{method:'POST'}).then(()=>startInactivityTimer())}
+    let inactT,logT;
+    function startInactivityTimer() {
+        clearTimeout(inactT); clearTimeout(logT);
+        inactT=setTimeout(()=>{ new bootstrap.Modal(document.getElementById('timeoutModal')).show(); logT=setTimeout(()=>window.location.href="/logout",6e5) },66e5);
+    }
+    document.onmousemove=function(){if(!document.querySelector('.modal.show'))startInactivityTimer()}
+
+    // --- INIT ---
+    window.onload = function() { 
+        loadStateLayers(); 
+        loadCountyLayers(); 
+        startInactivityTimer();
+        loadDebugStatus();
+    };
+</script>

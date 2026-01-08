@@ -1,0 +1,707 @@
+<div class="modal fade" id="driveModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-hdd-network me-2"></i>Network Drive Connection</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeDriveModal()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted">Drive Letter</label>
+                        <select id="driveLetter" class="form-select">
+                            <option value="Z">Z:</option><option value="Y">Y:</option><option value="X">X:</option><option value="W">W:</option><option value="V">V:</option>
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small text-muted">Network Path</label>
+                        <input type="text" id="drivePath" class="form-control" placeholder="\\Server\Share">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Username</label>
+                        <input type="text" id="driveUser" class="form-control" placeholder="Domain\User">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Password</label>
+                        <input type="password" id="drivePass" class="form-control" placeholder="******">
+                    </div>
+                </div>
+                <div id="driveResult" class="mt-3 text-center small"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeDriveModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="submitDriveConnection()">
+                    <i class="bi bi-plug-fill me-2"></i>Connect
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
++<div class="modal fade" id="cleanupModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-info"><i class="bi bi-magic me-2"></i>Initial Data Preparation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-dark border-secondary d-flex align-items-center mb-4">
+                    <i class="bi bi-info-circle-fill fs-3 me-3 text-info"></i>
+                    <div>
+                        <strong>Standardization Routine</strong><br>
+                        <small class="text-muted">Runs 7 processing steps: Backup, FN Normalization, Flag Resets, OriginalValue Cleanup, Instrument ID Generation, Legal Injection, and Image Path Fixes.</small>
+                    </div>
+                </div>
+                +                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-1 small text-muted text-uppercase fw-bold">Image Path Scope (Optional)</div>
+                    <div class="card-body py-3">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-auto"><label class="col-form-label small text-light">Book Start:</label></div>
+                            <div class="col-auto"><input type="text" id="cleanupBookStart" class="form-control form-control-sm bg-black text-light border-secondary" placeholder="e.g. 100"></div>
+                            <div class="col-auto"><label class="col-form-label small text-light">Book End:</label></div>
+                            <div class="col-auto"><input type="text" id="cleanupBookEnd" class="form-control form-control-sm bg-black text-light border-secondary" placeholder="e.g. 500"></div>
+                            <div class="col text-end"><small class="text-muted fst-italic">Leave blank to skip Step 7</small></div>
+                        </div>
+                    </div>
+                </div>
+                +                <div id="cleanupDebugPanel" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-end mb-1">
+                        <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug: Generated SQL Review</label>
+                        <div>
+                            <button class="btn btn-xs btn-outline-secondary" onclick="copyCleanupSql()">Copy</button>
+                            <button class="btn btn-xs btn-outline-secondary" onclick="downloadCleanupSql()">Save .sql</button>
+                        </div>
+                    </div>
+                    <textarea id="cleanupSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 200px; font-size: 0.8rem; resize: vertical;" readonly></textarea>
+                </div>
+                +                <div id="cleanupResult" class="text-center small mt-3"></div>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnCleanupPreview" onclick="previewCleanupSql()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-info fw-bold text-dark" onclick="runCleanupTool()" id="btnRunCleanup"><i class="bi bi-play-fill me-1"></i>Run Cleanup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="dbCompatModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-database-gear me-2"></i>SQL Compatibility</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeDbCompatModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Enter the desired Compatibility Level (e.g., 140 for SQL 2017, 150 for SQL 2019).</p>
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-transparent border-secondary text-light">Level</span>
+                    <input type="number" id="targetCompatLevel" class="form-control border-secondary bg-transparent text-light" placeholder="150">
+                </div>
+                <div id="dbCompatResult" class="text-center small"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeDbCompatModal()">Close</button>
+                <button type="button" class="btn btn-info" onclick="submitDbCompat()">Update Level</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="proceduresModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-filetype-sql me-2"></i>Update Procedures</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeProceduresModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p>This will scan the <code class="text-warning">sql/procedures</code> folder and execute all found scripts against the database.</p>
+                <p class="text-muted small">Do you wish to proceed?</p>
+                <div id="proceduresResult" class="text-center small"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeProceduresModal()">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="submitProcedures()">Yes, Execute</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="eDataModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-success">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-table me-2"></i>Setup eData Table</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeEDataModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2 text-muted small">Target Directory:</p>
+                <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                    <i class="bi bi-folder2-open me-2 text-warning"></i>
+                    <span id="eDataDisplayPath" class="text-light">Loading...</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Import Mode</label>
+                    <select id="eDataImportMode" class="form-select border-secondary bg-transparent text-light">
+                        <option value="D" selected>Overwrite Existing Data (Drop)</option>
+                        <option value="A">Append to Existing Data (Append)</option>
+                    </select>
+                    <div class="form-text text-end small fst-italic text-muted">Select 'Overwrite' to clear table before importing.</div>
+                </div>
+                <div id="eDataProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Importing...</span>
+                        <span id="eDataProgressText" class="text-light">0%</span>
+                    </div>
+                    <div class="progress" style="height: 10px; background-color: #333;">
+                        <div id="eDataProgressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+                    </div>
+                    <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                </div>
+                <div id="eDataResult" class="text-center small"></div>
+                <input type="hidden" id="eDataCountyId">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="keliModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel" style="border-color: #a370f7;">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" style="color: #a370f7;"><i class="bi bi-collection me-2"></i>Setup Keli Tables</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeKeliModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2 text-muted small">Target Directory:</p>
+                <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                    <i class="bi bi-folder-fill me-2" style="color: #a370f7;"></i>
+                    <span id="keliDisplayPath" class="text-light">Loading...</span>
+                </div>
+                <div id="keliProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Importing...</span>
+                        <span id="keliProgressText" class="text-light">0%</span>
+                    </div>
+                    <div class="progress" style="height: 10px; background-color: #333;">
+                        <div id="keliProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%; background-color: #a370f7;"></div>
+                    </div>
+                    <div id="keliCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                </div>
+                <div id="keliResult" class="text-center small"></div>
+                <input type="hidden" id="keliCountyId">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
+                <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="seedConfirmModal" tabindex="-1" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Initialize Database</h5>
+            </div>
+            <div class="modal-body">
+                <p>This will scan the map files and populate the database with all US States and Counties.</p>
+                <p class="small text-muted">This process may take a few seconds. Existing data will not be duplicated.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning fw-bold" onclick="runSeeding()">Yes, Initialize</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="seedSuccessModal" tabindex="-1" style="z-index: 1070;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-success">
+            <div class="modal-header border-secondary bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-check-circle-fill me-2"></i>Success</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="seedSuccessMessage" class="fw-bold fs-5"></p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="statesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content custom-panel">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Enable States</h5>
+                <button class="btn btn-sm btn-outline-light ms-3" onclick="showSeedConfirm()">
+                    <i class="bi bi-database-add"></i> Initialize Data
+                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>State</th><th>FIPS</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody id="statesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="countiesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content custom-panel">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Enable Counties</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label>Select Enabled State</label>
+                    <select id="countyStateSelect" class="form-select" onchange="fetchCountiesForState()"></select>
+                </div>
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-transparent border-secondary text-light"><i class="bi bi-search"></i></span>
+                    <input type="text" id="countySearchInput" class="form-control border-secondary bg-transparent text-light" placeholder="Search counties..." onkeyup="filterCountiesTable()">
+                </div>
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>County</th><th>Visibility</th><th class="text-end">Global Status / Visibility</th></tr></thead>
+                    <tbody id="countiesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="accountsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content custom-panel">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Account Management</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+                        <tbody id="userTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="timeoutModal" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark"><h5 class="modal-title">Session Expiring</h5></div>
+            <div class="modal-body">Logout in 10 minutes.</div>
+            <div class="modal-footer"><button type="button" class="btn btn-primary" onclick="resetActivity()">I'm still here</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="dbDowngradeModal" tabindex="-1" style="z-index: 1090;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Downgrade</h5>
+            </div>
+            <div class="modal-body">
+                <p id="dbDowngradeMessage" class="fw-bold">Warning: You are about to downgrade the database compatibility level.</p>
+                <p class="small text-muted mb-0">Lowering the compatibility level may disable newer SQL features and impact performance.</p>
+                <p class="small text-muted">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeDowngradeModal()">Cancel</button>
+                <button type="button" class="btn btn-warning fw-bold" onclick="confirmDowngrade()">Yes, Downgrade</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="codeViewerModal" tabindex="-1" style="z-index: 1100;">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-info">
+                    <i class="bi bi-database me-2"></i>Extracted SQL Commands
+                </h5>
+                <span id="codeViewerFilename" class="ms-3 badge bg-secondary text-light font-monospace"></span>
+                <button type="button" class="btn-close btn-close-white" onclick="closeCodeViewer()"></button>
+            </div>
+            <div class="modal-body bg-dark">
+                <pre><code id="codeViewerContent" class="text-light small" style="white-space: pre-wrap; font-family: 'Consolas', monospace;"></code></pre>
+            </div>
+            <div class="modal-footer border-secondary">
+                <small class="text-muted me-auto">
+                    <i class="bi bi-info-circle me-1"></i> Shows logical SQL commands extracted from Python.
+                </small>
+                <button type="button" class="btn btn-secondary" onclick="closeCodeViewer()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="notificationModal" tabindex="-1" style="z-index: 1150;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-info-circle-fill me-2"></i>System Message</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p id="notificationMessage" class="fs-5 mb-0"></p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-info" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="userEditModal" tabindex="-1" style="z-index: 1100;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-primary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-person-gear me-2"></i>Edit User</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeUserEditModal()"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editUserId">
+                
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Username</label>
+                    <input type="text" id="editUsername" class="form-control text-light bg-dark border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Email Address</label>
+                    <input type="email" id="editEmail" class="form-control text-light bg-dark border-secondary">
+                </div>
+                
+                <div class="d-grid mb-4">
+                    <button class="btn btn-primary btn-sm" onclick="submitUserEdit()">Save Changes</button>
+                </div>
+
+                <hr class="border-secondary">
+
+                <h6 class="text-warning small text-uppercase fw-bold mb-3"><i class="bi bi-key-fill me-2"></i>Security</h6>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-muted small">Reset Password to temporary value</span>
+                    <button class="btn btn-outline-warning btn-sm" onclick="resetUserPassword()">Generate New Password</button>
+                </div>
+                
+                <div id="resetPasswordResult" class="mt-3 d-none">
+                    <div class="alert alert-warning mb-0 py-2">
+                        <small class="d-block text-dark fw-bold mb-1">Temporary Password:</small>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="tempPassDisplay" class="form-control font-monospace text-center" readonly>
+                            <button class="btn btn-dark" onclick="navigator.clipboard.writeText(document.getElementById('tempPassDisplay').value)">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="confirmationModal" tabindex="-1" style="z-index: 1200;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-question-circle-fill me-2"></i>Confirmation Required</h5>
+                <button type="button" class="btn-close" onclick="closeConfirmationModal()"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p id="confirmationMessage" class="fs-5 mb-0 text-light"></p>
+            </div>
+            <div class="modal-footer border-secondary justify-content-center">
+                <button type="button" class="btn btn-secondary px-4" onclick="closeConfirmationModal()">Cancel</button>
+                <button type="button" class="btn btn-warning px-4 fw-bold" onclick="executeConfirmation()">Yes, Proceed</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="adminAuthModal" tabindex="-1" style="z-index: 1250;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-danger">
+            <div class="modal-header border-secondary bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-2"></i>Admin Authorization</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeAdminAuthModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">Administrator credentials are required to enable Debug Mode on this account.</p>
+                <div class="mb-3">
+                    <label class="form-label small text-light">Admin Username</label>
+                    <input type="text" id="adminAuthUser" class="form-control bg-dark text-light border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-light">Admin Password</label>
+                    <input type="password" id="adminAuthPass" class="form-control bg-dark text-light border-secondary">
+                </div>
+                <div id="adminAuthError" class="text-danger small text-center fw-bold"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeAdminAuthModal()">Cancel</button>
+                <button type="button" class="btn btn-danger fw-bold" onclick="submitAdminAuth()">Authenticate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="unindexedReviewModal" tabindex="-1" style="z-index: 1040;" data-bs-backdrop="false">
+    <div class="modal-dialog" style="margin: 0; position: absolute; right: 0; top: 0; bottom: 0; width: auto; left: 60px; max-width: none !important; transition: left 0.3s ease;" id="unindexedModalDialog">
+        <div class="modal-content custom-panel h-100 border-0 rounded-0 d-flex flex-column" style="border-left: 1px solid var(--border-color) !important;">
+            <div class="modal-header border-secondary flex-shrink-0">
+                <h5 class="modal-title text-warning">
+                    <i class="bi bi-images me-2"></i>Review Unindexed Images
+                </h5>
+                <div class="ms-4 d-flex align-items-center">
+                    <input type="text" id="scanPathInput" class="form-control form-control-sm bg-dark text-light border-secondary me-2" placeholder="Scan Path..." style="width: 300px;">
+                    
+                    <div class="form-check form-switch me-3">
+                        <input class="form-check-input" type="checkbox" id="scanSplitToggle">
+                        <label class="form-check-label small text-light" for="scanSplitToggle" title="Ignore suffixes like _001 or -1">Split Images</label>
+                    </div>
+
+                    <button class="btn btn-sm btn-warning" onclick="scanForUnindexed()">
+                        <i class="bi bi-search me-1"></i>Scan
+                    </button>
+                </div>
+                <button type="button" class="btn-close btn-close-white" onclick="closeUnindexedModal()"></button>
+            </div>
+            
+            <div class="modal-body p-0 flex-grow-1" style="overflow: hidden;">
+                <div class="row h-100 g-0">
+                    <div class="col-4 border-end border-secondary d-flex flex-column h-100 bg-dark">
+                        <div class="table-responsive flex-grow-1" style="overflow-y: auto;">
+                            <table class="table table-dark table-hover table-sm mb-0 align-middle" style="font-size: 0.85rem;">
+                                <thead class="sticky-top bg-secondary">
+                                    <tr>
+                                        <th class="ps-3">Image Reference</th>
+                                        <th class="text-center" style="width: 120px;">Require Indexing</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="unindexedTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div id="imagePanContainer" class="col-8 h-100 bg-black position-relative" style="overflow: hidden; cursor: grab; user-select: none;">
+                        <div id="imageLoader" class="spinner-border text-light position-absolute top-50 start-50 translate-middle d-none"></div>
+                        <div id="noImageMsg" class="text-muted text-center position-absolute top-50 start-50 translate-middle">
+                            <i class="bi bi-image fs-1 d-block mx-auto mb-2"></i>
+                            Select an image from the list
+                        </div>
+                        
+                        <div class="w-100 h-100 d-flex align-items-start justify-content-start pointer-events-none">
+                            <img id="unindexedImagePreview" src="" alt="Preview" style="width: 100%; height: auto; transform-origin: 0 0; pointer-events: auto; display: none; user-select: none; -webkit-user-drag: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer border-secondary py-1 flex-shrink-0">
+                <input type="hidden" id="currentReviewCountyId">
+                <small class="text-muted me-auto">Changes saved automatically.</small>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeUnindexedModal()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="schemaModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background: #1e1e24; color: #e0e0e0;">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title fw-bold text-uppercase">
+                    <i class="bi bi-database-gear me-2 text-warning"></i>Alter eData Table
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <div class="modal-body p-4">
+                <div class="alert alert-info d-flex align-items-center mb-3">
+                    <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+                    <div>
+                        <strong>Database Schema Update</strong><br>
+                        This tool will rename legacy columns (e.g., col01other -> key_id) and add missing system columns required for the new workflow.
+                        <br><small class="text-muted">Safe to run multiple times (checks for existence first).</small>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <button class="btn btn-outline-primary" onclick="previewSchema()">
+                        <i class="bi bi-code-square me-2"></i>Generate SQL Preview
+                    </button>
+                    
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="schemaDebugToggle">
+                        <label class="form-check-label text-muted small" for="schemaDebugToggle">Debug Mode</label>
+                    </div>
+                </div>
+
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-1 text-muted small text-uppercase fw-bold">
+                        SQL Execution Plan
+                    </div>
+                    <div class="card-body p-0 position-relative">
+                        <div id="schemaLoader" class="position-absolute w-100 h-100 d-none justify-content-center align-items-center" 
+                             style="background: rgba(0,0,0,0.7); z-index: 5;">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                        
+                        <pre id="schemaSqlPreview" class="m-0 p-3 text-success" 
+                             style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap;">
+-- Click 'Generate SQL Preview' to analyze the database state...
+                        </pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer border-top border-secondary justify-content-between">
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="copySchemaSql()" title="Copy SQL">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                    <span class="text-muted small" id="schemaStatusMsg">Ready</span>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-warning fw-bold" onclick="runSchemaMigration()" id="btnRunMigration" disabled>
+                        <i class="bi bi-lightning-charge-fill me-1"></i>Execute Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="patchModal" tabindex="-1" style="z-index: 1090;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-tools me-2"></i>System Updater</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closePatchModal()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-dark border-secondary small text-muted mb-3">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    Upload a <code>.diff</code> patch file to update system functionality.
+                    <br><span class="text-warning">The page will reload automatically upon success.</span>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label small text-light text-uppercase fw-bold">Select Patch File</label>
+                    <input class="form-control bg-dark text-light border-secondary" type="file" id="patchFileInput" accept=".diff">
+                </div>
+                
+                <div id="patchError" class="text-danger small fw-bold text-center"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closePatchModal()">Cancel</button>
+                <button type="button" class="btn btn-danger fw-bold" onclick="submitPatchFile()">
+                    <i class="bi bi-cloud-upload-fill me-1"></i>Apply Update
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cleanupModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-info"><i class="bi bi-magic me-2"></i>Initial Data Preparation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-dark border-secondary d-flex align-items-center mb-4">
+                    <i class="bi bi-info-circle-fill fs-3 me-3 text-info"></i>
+                    <div>
+                        <strong>Standardization Routine</strong><br>
+                        <small class="text-muted">Runs 7 processing steps: Backup, FN Normalization, Flag Resets, OriginalValue Cleanup, Instrument ID Generation, Legal Injection, and Image Path Fixes.</small>
+                    </div>
+                </div>
+
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-2 d-flex justify-content-between align-items-center">
+                        <span class="small text-muted text-uppercase fw-bold">Image Path Cleanup (Optional)</span>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="cleanupToggleBook" onchange="toggleCleanupBookInputs()">
+                            <label class="form-check-label text-light small" for="cleanupToggleBook">Enable</label>
+                        </div>
+                    </div>
+                    <div class="card-body py-3">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-auto"><label class="col-form-label small text-light">Book Start:</label></div>
+                            <div class="col-auto"><input type="text" id="cleanupBookStart" class="form-control form-control-sm bg-black text-light border-secondary" disabled placeholder="---"></div>
+                            
+                            <div class="col-auto"><label class="col-form-label small text-light">Book End:</label></div>
+                            <div class="col-auto"><input type="text" id="cleanupBookEnd" class="form-control form-control-sm bg-black text-light border-secondary" disabled placeholder="---"></div>
+                            
+                            <div class="col text-end"><small class="text-muted fst-italic" id="bookRangeStatus">Toggle ON to auto-fill</small></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cleanupProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="small text-info" id="cleanupProgressLabel">Processing...</label>
+                        <span class="small text-muted" id="cleanupProgressPercent">0%</span>
+                    </div>
+                    <div class="progress bg-dark border border-secondary" style="height: 20px;">
+                        <div id="cleanupProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div id="cleanupDebugPanel" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-end mb-1">
+                        <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug: Generated SQL Review</label>
+                        <div>
+                            <button class="btn btn-xs btn-outline-secondary" onclick="copyCleanupSql()">Copy</button>
+                            <button class="btn btn-xs btn-outline-secondary" onclick="downloadCleanupSql()">Save .sql</button>
+                        </div>
+                    </div>
+                    <textarea id="cleanupSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 200px; font-size: 0.8rem; resize: vertical;" readonly></textarea>
+                </div>
+
+                <div id="cleanupResult" class="text-center small mt-3"></div>
+            </div>
+
+            <div class="modal-footer border-secondary justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnCleanupPreview" onclick="previewCleanupSql()">
+                        <i class="bi bi-file-earmark-code me-1"></i>Generate Preview
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-info fw-bold text-dark" onclick="runCleanupTool()" id="btnRunCleanup">
+                        <i class="bi bi-play-fill me-1"></i>Run Cleanup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,56 @@
+<script>
+    // ==========================================
+    // 2. WINDOW MANAGER (MODALS)
+    // ==========================================
+    const statesModal = new bootstrap.Modal(document.getElementById('statesModal'));
+    const countiesModal = new bootstrap.Modal(document.getElementById('countiesModal'));
+    const accountsModal = new bootstrap.Modal(document.getElementById('accountsModal'));
+    const seedConfirmModal = new bootstrap.Modal(document.getElementById('seedConfirmModal'));
+    const seedSuccessModal = new bootstrap.Modal(document.getElementById('seedSuccessModal'));
+    const driveModal = new bootstrap.Modal(document.getElementById('driveModal'));
+    const dbCompatModal = new bootstrap.Modal(document.getElementById('dbCompatModal'));
+    const proceduresModal = new bootstrap.Modal(document.getElementById('proceduresModal'));
+    const eDataModal = new bootstrap.Modal(document.getElementById('eDataModal'));
+    const keliModal = new bootstrap.Modal(document.getElementById('keliModal'));
+    const dbDowngradeModal = new bootstrap.Modal(document.getElementById('dbDowngradeModal'));
+    const codeViewerModal = new bootstrap.Modal(document.getElementById('codeViewerModal'));
+    const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
+    const userEditModal = new bootstrap.Modal(document.getElementById('userEditModal'));
+    const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
+    const adminAuthModal = new bootstrap.Modal(document.getElementById('adminAuthModal'));
+    const unindexedReviewModal = new bootstrap.Modal(document.getElementById('unindexedReviewModal'));
+
+    function closeAllModals() {
+        ['statesModal', 'countiesModal', 'accountsModal', 'seedConfirmModal', 'seedSuccessModal', 'driveModal', 'dbCompatModal', 'proceduresModal', 'eDataModal', 'keliModal', 'dbDowngradeModal', 'codeViewerModal', 'notificationModal', 'userEditModal', 'confirmationModal', 'adminAuthModal', 'unindexedReviewModal'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) { const instance = bootstrap.Modal.getInstance(el); if (instance) instance.hide(); }
+        });
+    }
+
+    // --- CONFIRMATION & NOTIFICATION ---
+    let pendingConfirmationAction = null;
+
+    function showConfirmation(message, actionCallback) {
+        document.getElementById('confirmationMessage').innerText = message;
+        pendingConfirmationAction = actionCallback; 
+        confirmationModal.show();
+    }
+
+    function executeConfirmation() {
+        if (pendingConfirmationAction) {
+            pendingConfirmationAction(); 
+            pendingConfirmationAction = null; 
+        }
+        confirmationModal.hide();
+    }
+
+    function closeConfirmationModal() {
+        pendingConfirmationAction = null;
+        confirmationModal.hide();
+    }
+
+    function showNotification(message) {
+        document.getElementById('notificationMessage').innerText = message;
+        notificationModal.show();
+    }
+</script>

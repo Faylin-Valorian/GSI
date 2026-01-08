@@ -1,0 +1,815 @@
+<script>
+    // ==========================================
+    // 3. ADMIN TOOLS & SEEDING
+    // ==========================================
+    
+    // --- SEEDING ---
+    function showSeedConfirm(){ 
+        seedConfirmModal.show(); 
+    }
+    
+    function runSeeding(){
+        seedConfirmModal.hide(); 
+        document.getElementById('globalLoader').style.display='flex';
+        
+        fetch('/api/admin/seed', {method:'POST'})
+        .then(r=>r.json())
+        .then(d=>{
+            document.getElementById('globalLoader').style.display='none';
+            if(d.success){ 
+                document.getElementById('seedSuccessMessage').innerText = d.message;
+                seedSuccessModal.show();
+                fetchStates(); 
+                loadStateLayers(); 
+                loadCountyLayers();
+            } else {
+                alert("Seeding failed: " + d.message);
+            }
+        })
+        .catch(e => { 
+            document.getElementById('globalLoader').style.display = 'none'; 
+            alert("Error: " + e); 
+        });
+    }
+    
+    // --- STATES MANAGEMENT ---
+    function openStatesModal(){ 
+        closeAllModals(); 
+        statesModal.show(); 
+        fetchStates(); 
+    }
+    
+    function fetchStates() {
+        fetch('/api/admin/states')
+        .then(r=>r.json())
+        .then(data => {
+            let h = ''; 
+            data.forEach(s => { 
+                const statusBadge = s.is_enabled 
+                    ? '<span class="badge bg-success">Enabled</span>' 
+                    : '<span class="badge bg-secondary">Disabled</span>';
+                
+                const toggleBtn = `<button class="btn btn-sm ${s.is_enabled?'btn-warning':'btn-success'} me-1" onclick="toggleState(${s.id})">
+                    ${s.is_enabled?'Disable':'Enable'}
+                </button>`;
+
+                h += `<tr>
+                    <td>${s.name}</td>
+                    <td>${s.fips}</td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end">${toggleBtn}</td>
+                </tr>`; 
+            });
+            document.getElementById('statesTableBody').innerHTML = h;
+        });
+    }
+
+    function toggleState(id) { 
+        fetch(`/api/admin/state/${id}/toggle`, {method:'POST'})
+        .then(r=>r.json())
+        .then(d=>{
+            if(d.success){
+                fetchStates(); 
+                loadStateLayers(); 
+                loadCountyLayers();
+            } else {
+                showNotification(d.message);
+            }
+        }); 
+    }
+
+    // --- COUNTIES MANAGEMENT ---
+    function openCountiesModal(){ 
+        closeAllModals(); 
+        countiesModal.show(); 
+        
+        // Load States Dropdown first
+        fetch('/api/admin/states').then(r=>r.json()).then(data => {
+            let h = '<option value="">Select State...</option>';
+            data.filter(s=>s.is_enabled).forEach(s => {
+                h += `<option value="${s.fips}">${s.name}</option>`;
+            });
+            document.getElementById('countyStateSelect').innerHTML = h;
+            document.getElementById('countiesTableBody').innerHTML = '';
+        });
+    }
+
+    function fetchCountiesForState() {
+        const fips = document.getElementById('countyStateSelect').value; 
+        if(!fips) return;
+        
+        fetch(`/api/admin/counties/${fips}`)
+        .then(r=>r.json())
+        .then(data => {
+            let h = ''; 
+            data.forEach(c => { 
+                const enableBtn = `<button class="btn btn-sm ${c.is_enabled?'btn-outline-warning':'btn-outline-secondary'} me-1" onclick="toggleCounty(${c.id})" title="${c.is_enabled?'Hide from Map':'Show on Map'}"><i class="bi ${c.is_enabled?'bi-eye-fill':'bi-eye-slash'}"></i></button>`;
+                const activeBtn = `<button class="btn btn-sm ${c.is_active?'btn-success':'btn-danger'} me-1" onclick="toggleGlobalActive(${c.id})" title="${c.is_active?'Mark Inactive':'Mark Active'}">${c.is_active?'Active':'Inactive'}</button>`;
+
+                h += `<tr>
+                    <td class="county-name">${c.name}</td>
+                    <td>${c.is_enabled?'<span class="badge bg-info">Visible</span>':'<span class="badge bg-secondary">Hidden</span>'}</td>
+                    <td class="text-end">
+                        ${activeBtn}
+                        ${enableBtn}
+                    </td>
+                </tr>`; 
+            });
+            document.getElementById('countiesTableBody').innerHTML = h;
+        });
+    }
+
+    function toggleCounty(id) { 
+        fetch(`/api/admin/county/${id}/toggle`, {method:'POST'})
+        .then(r=>r.json())
+        .then(d=>{
+            if(d.success){
+                fetchCountiesForState(); 
+                loadCountyLayers();
+            }
+        }); 
+    }
+    
+    function toggleGlobalActive(id) {
+        fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'})
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                fetchCountiesForState(); 
+                loadCountyLayers();      
+            } else {
+                showNotification("Error: " + d.message);
+            }
+        });
+    }
+
+    // ==========================================
+    // ACCOUNT MANAGEMENT
+    // ==========================================
+
+    function openAccountsModal(){
+        closeAllModals(); 
+        accountsModal.show();
+        fetch('/api/users')
+            .then(r => r.json())
+            .then(users => {
+                let h = ''; 
+                users.forEach(u => {
+                    const isAdmin = u.role === 'admin';
+                    
+                    const editBtn = `<button class="btn btn-sm btn-outline-primary me-1" onclick="openUserEditModal(${u.id}, '${u.username}', '${u.email}')" title="Edit Details"><i class="bi bi-pencil-fill"></i></button>`;
+                    const roleBtn = `<button class="btn btn-sm ${isAdmin ? 'btn-outline-custom-purple' : 'btn-outline-secondary'} me-1" onclick="toggleUserRole(${u.id})" title="Toggle Admin Role"><i class="bi ${isAdmin ? 'bi-shield-lock-fill' : 'bi-person-fill'}"></i></button>`;
+                    const isLocked = u.is_locked;
+                    const lockBtn = `<button class="btn btn-sm ${isLocked ? 'btn-warning' : 'btn-outline-warning'} me-1" onclick="toggleUserLock(${u.id})" title="${isLocked ? 'Unlock Account' : 'Lock Account'}"><i class="bi ${isLocked ? 'bi-lock-fill' : 'bi-unlock-fill'}"></i></button>`;
+                    const deleteBtn = `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${u.username}')" title="Delete User"><i class="bi bi-trash-fill"></i></button>`;
+
+                    h += `<tr>
+                        <td class="fw-bold">${u.username}</td>
+                        <td class="text-muted small">${u.email}</td>
+                        <td>${isAdmin ? '<span class="badge bg-custom-purple">Admin</span>' : '<span class="badge bg-secondary">User</span>'}</td>
+                        <td>
+                            ${u.is_locked ? '<span class="badge bg-danger">Locked</span>' : 
+                              (u.is_verified ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-warning text-dark">Pending</span>')}
+                        </td>
+                        <td class="text-end" style="min-width: 160px;">
+                            ${editBtn}${roleBtn}${lockBtn}${deleteBtn}
+                        </td>
+                    </tr>`;
+                });
+                document.getElementById('userTableBody').innerHTML = h;
+            });
+    }
+
+    // --- USER EDIT MODAL FUNCTIONS ---
+
+    function openUserEditModal(id, username, email) {
+        document.getElementById('editUserId').value = id;
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editEmail').value = email;
+        document.getElementById('resetPasswordResult').classList.add('d-none');
+        document.getElementById('tempPassDisplay').value = '';
+        userEditModal.show();
+    }
+
+    function closeUserEditModal() {
+        userEditModal.hide();
+        openAccountsModal();
+    }
+
+    function submitUserEdit() {
+        const id = document.getElementById('editUserId').value;
+        const username = document.getElementById('editUsername').value;
+        const email = document.getElementById('editEmail').value;
+
+        fetch(`/api/admin/user/${id}/update`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ username: username, email: email })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                showNotification("User updated successfully.");
+                closeUserEditModal();
+            } else {
+                showNotification("Error: " + d.message);
+            }
+        });
+    }
+
+    function resetUserPassword() {
+        const id = document.getElementById('editUserId').value;
+        
+        showConfirmation("Are you sure you want to generate a new temporary password for this user?", () => {
+            fetch(`/api/admin/user/${id}/reset-password`, {method: 'POST'})
+            .then(r => r.json())
+            .then(d => {
+                if(d.success) {
+                    document.getElementById('resetPasswordResult').classList.remove('d-none');
+                    document.getElementById('tempPassDisplay').value = d.temp_pass;
+                } else {
+                    showNotification("Error: " + d.message);
+                }
+            });
+        });
+    }
+
+    // --- OTHER USER ACTIONS ---
+
+    function toggleUserLock(id) {
+        fetch(`/api/admin/user/${id}/toggle-lock`, {method: 'POST'})
+        .then(r => r.json()).then(d => {
+            if(d.success) openAccountsModal(); 
+            else showNotification(d.message);
+        });
+    }
+
+    function toggleUserRole(id) {
+        showConfirmation("Are you sure you want to change this user's role?", () => {
+            fetch(`/api/admin/user/${id}/toggle-role`, {method: 'POST'})
+            .then(r => r.json()).then(d => {
+                if(d.success) openAccountsModal();
+                else showNotification(d.message);
+            });
+        });
+    }
+
+    function deleteUser(id, username) {
+        showConfirmation(`DANGER: Are you sure you want to PERMANENTLY delete user "${username}"?`, () => {
+            fetch(`/api/admin/user/${id}/delete`, {method: 'POST'})
+            .then(r => r.json()).then(d => {
+                if(d.success) openAccountsModal();
+                else showNotification(d.message);
+            });
+        });
+    }
+
+    // ==========================================
+    // MAP INTERACTION (POPUP ACTIONS)
+    // ==========================================
+
+    function toggleUserWorkingCounty(id, isChecked) {
+        fetch('/api/user/set-working-county', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: id, toggle_on: isChecked })
+        })
+        .then(r=>r.json()).then(d => {
+            if(d.success) { 
+                loadCountyLayers(); 
+            } 
+            else { 
+                showNotification("Action Failed: " + d.message);
+                loadCountyLayers(); 
+            }
+        });
+    }
+    
+    function saveNotes(id) {
+        const text = document.getElementById(`notes-${id}`).value;
+        fetch(`/api/county/${id}/save-notes`, {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ notes: text })
+        });
+    }
+
+    function triggerUpload(id, isWorking) {
+        if (!isWorking) {
+            showNotification("You must set this county as 'Working On' (Blue Toggle) before uploading images.");
+            return;
+        }
+        document.getElementById(`upload-${id}`).click();
+    }
+
+    function uploadImage(id, input) {
+        const file = input.files[0];
+        if(!file) return;
+        const formData = new FormData(); 
+        formData.append('file', file);
+        fetch(`/api/county/${id}/upload-image`, {method: 'POST', body: formData})
+        .then(r => r.json()).then(d => {
+            if(d.success) { loadCountyLayers(); } 
+            else { showNotification("Upload failed: " + d.message); }
+        });
+    }
+
+    // ==========================================
+    // UNINDEXED IMAGES REVIEW (SIDEBAR AWARE)
+    // ==========================================
+
+    function openUnindexedReview(countyId, stateName, countyName) {
+        closeAllModals();
+        document.getElementById('currentReviewCountyId').value = countyId;
+        
+        // 1. Default Path Logic: data/State/County/Images
+        const defaultPath = `data/${stateName}/${countyName}/Images`;
+        document.getElementById('scanPathInput').value = defaultPath;
+        
+        // 2. Reset View
+        document.getElementById('unindexedTableBody').innerHTML = '';
+        document.getElementById('unindexedImagePreview').style.display = 'none';
+        document.getElementById('noImageMsg').style.display = 'block';
+        document.getElementById('scanSplitToggle').checked = false; // Reset toggle
+        
+        // Reset debug toggle if present
+        const debugToggle = document.getElementById('scanDebugToggle');
+        if(debugToggle) debugToggle.checked = false;
+        
+        // 3. Show & Load
+        unindexedReviewModal.show();
+        loadUnindexedTable(countyId);
+        
+        // 4. Force layout check immediately
+        adjustUnindexedModalLayout();
+    }
+
+    function closeUnindexedModal() {
+        unindexedReviewModal.hide();
+    }
+
+    function scanForUnindexed() {
+        const countyId = document.getElementById('currentReviewCountyId').value;
+        const path = document.getElementById('scanPathInput').value;
+        const checkSplit = document.getElementById('scanSplitToggle').checked;
+        const debugMode = document.getElementById('scanDebugToggle') ? document.getElementById('scanDebugToggle').checked : false; 
+        
+        if(!path) { showNotification("Please enter a directory path to scan."); return; }
+        
+        document.getElementById('globalLoader').style.display = 'flex';
+        
+        fetch('/api/edata/scan-unindexed', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                county_id: countyId, 
+                scan_path: path,
+                check_split: checkSplit,
+                debug: debugMode // Send to API
+            })
+        })
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('globalLoader').style.display = 'none';
+            if(d.success) {
+                showNotification(d.message);
+                loadUnindexedTable(countyId);
+            } else {
+                showNotification("Scan Failed: " + d.message);
+            }
+        });
+    }
+
+    function loadUnindexedTable(countyId) {
+        fetch(`/api/edata/unindexed-list/${countyId}`)
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('unindexedTableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach(img => {
+                const tr = document.createElement('tr');
+                tr.onclick = () => selectUnindexedRow(tr, img.id);
+                tr.style.cursor = 'pointer';
+                
+                // Column 1: Path/Name
+                const tdName = document.createElement('td');
+                tdName.className = "ps-3 text-truncate";
+                tdName.style.maxWidth = "200px";
+                tdName.title = img.path;
+                tdName.innerText = img.display_name;
+                
+                // Column 2: Toggle
+                const tdAction = document.createElement('td');
+                tdAction.className = "text-center";
+                tdAction.onclick = (e) => e.stopPropagation(); 
+                
+                const select = document.createElement('select');
+                select.className = "form-select form-select-sm bg-transparent text-light border-0 text-center fw-bold";
+                select.style.cursor = "pointer";
+                select.innerHTML = `
+                    <option value="false" ${!img.require_indexing ? 'selected' : ''}>False</option>
+                    <option value="true" ${img.require_indexing ? 'selected' : ''}>True</option>
+                `;
+                select.style.color = img.require_indexing ? '#198754' : '#6c757d'; 
+                select.onchange = (e) => {
+                    const val = e.target.value === 'true';
+                    updateUnindexedStatus(img.id, val, select);
+                };
+                
+                tdAction.appendChild(select);
+                tr.appendChild(tdName);
+                tr.appendChild(tdAction);
+                tbody.appendChild(tr);
+            });
+        });
+    }
+
+    function selectUnindexedRow(tr, imgId) {
+        const rows = document.getElementById('unindexedTableBody').querySelectorAll('tr');
+        rows.forEach(r => r.classList.remove('table-active', 'border-primary', 'border-start', 'border-3'));
+        tr.classList.add('table-active', 'border-primary', 'border-start', 'border-3');
+        
+        const imgEl = document.getElementById('unindexedImagePreview');
+        const noImg = document.getElementById('noImageMsg');
+        const loader = document.getElementById('imageLoader');
+        
+        noImg.style.display = 'none';
+        imgEl.style.display = 'none';
+        loader.classList.remove('d-none');
+        
+        resetPanZoom();
+
+        // Check debug toggle to enable verbose backend logs for this image
+        const debugMode = document.getElementById('scanDebugToggle') ? document.getElementById('scanDebugToggle').checked : false;
+        
+        // Add debug param if checked
+        imgEl.src = `/api/edata/view-image/${imgId}?t=${new Date().getTime()}${debugMode ? '&debug=true' : ''}`;
+        
+        imgEl.onload = () => {
+            loader.classList.add('d-none');
+            imgEl.style.display = 'block';
+        };
+        imgEl.onerror = () => {
+            loader.classList.add('d-none');
+            showNotification("Could not load image file.");
+        };
+    }
+
+    function updateUnindexedStatus(id, status, selectEl) {
+        fetch('/api/edata/update-image-status', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: id, require_indexing: status })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                selectEl.style.color = status ? '#198754' : '#6c757d';
+            } else {
+                showNotification("Update Failed");
+                selectEl.value = (!status).toString();
+            }
+        });
+    }
+
+    function adjustUnindexedModalLayout() {
+        const modalDialog = document.getElementById('unindexedModalDialog');
+        if (!modalDialog || !unindexedReviewModal._isShown) return;
+
+        const isSidebarOpen = document.querySelector('.menu-panel.open') !== null;
+        const newLeft = isSidebarOpen ? '250px' : '60px';
+        modalDialog.style.left = newLeft;
+        modalDialog.style.maxWidth = 'none';
+    }
+
+    // --- PAN & ZOOM LOGIC (Drag based) ---
+    let zoomLevel = 1;
+    let panX = 0;
+    let panY = 0;
+    let isPanning = false;
+    let startX = 0;
+    let startY = 0;
+
+    function initPanZoom() {
+        const container = document.getElementById('imagePanContainer');
+        if(!container) return; 
+
+        const img = document.getElementById('unindexedImagePreview');
+        if (img) {
+            img.addEventListener('dragstart', (e) => e.preventDefault());
+        }
+
+        container.addEventListener('wheel', (e) => {
+            if(!img || img.style.display === 'none') return;
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            zoomLevel = Math.min(Math.max(0.1, zoomLevel + delta), 5);
+            updateTransform();
+        });
+
+        container.addEventListener('mousedown', (e) => {
+            if(!img || img.style.display === 'none') return;
+            isPanning = true;
+            startX = e.clientX - panX;
+            startY = e.clientY - panY;
+            container.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isPanning) return;
+            e.preventDefault();
+            panX = e.clientX - startX;
+            panY = e.clientY - startY;
+            updateTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            if(isPanning) {
+                isPanning = false;
+                if(container) container.style.cursor = 'grab';
+            }
+        });
+    }
+
+    function updateTransform() {
+        const img = document.getElementById('unindexedImagePreview');
+        if(img) img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+    }
+
+    function resetPanZoom() {
+        zoomLevel = 1;
+        panX = 0;
+        panY = 0;
+        updateTransform();
+    }
+
+    // ==========================================
+    // SCHEMA MIGRATION TOOLS
+    // ==========================================
+
+    const schemaModal = new bootstrap.Modal(document.getElementById('schemaModal'));
+
+    function openSchemaTool() {
+        closeAllModals();
+        // Reset state
+        document.getElementById('schemaSqlPreview').innerText = "-- Click 'Generate SQL Preview' to analyze the database state...";
+        document.getElementById('btnRunMigration').disabled = true;
+        document.getElementById('schemaStatusMsg').innerText = "Ready";
+        document.getElementById('schemaStatusMsg').className = "text-muted small";
+        schemaModal.show();
+    }
+
+    function previewSchema() {
+        const loader = document.getElementById('schemaLoader');
+        const previewBox = document.getElementById('schemaSqlPreview');
+        const runBtn = document.getElementById('btnRunMigration');
+        
+        loader.classList.remove('d-none');
+        
+        fetch('/api/admin/schema/preview')
+            .then(r => r.json())
+            .then(data => {
+                loader.classList.add('d-none');
+                if (data.success) {
+                    previewBox.innerText = data.sql;
+                    // Check if there are actual commands to run (lines that aren't just comments)
+                    const hasCode = data.sql.split('\n').some(line => line.trim() && !line.trim().startsWith('--'));
+                    
+                    if (hasCode) {
+                        runBtn.disabled = false;
+                        setStatus("Changes detected. Ready to execute.", "text-warning");
+                    } else {
+                        runBtn.disabled = true;
+                        setStatus("Database is already up to date.", "text-success");
+                    }
+                } else {
+                    previewBox.innerText = "-- Error --\n" + data.message;
+                }
+            })
+            .catch(err => {
+                loader.classList.add('d-none');
+                previewBox.innerText = "Connection Error: " + err;
+            });
+    }
+
+    function runSchemaMigration() {
+        const debugMode = document.getElementById('schemaDebugToggle').checked;
+        const loader = document.getElementById('schemaLoader');
+        
+        if (!confirm("Are you sure you want to alter the database schema? This cannot be easily undone.")) return;
+
+        loader.classList.remove('d-none');
+        setStatus("Executing SQL...", "text-info");
+
+        fetch('/api/admin/schema/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ debug: debugMode })
+        })
+        .then(r => r.json())
+        .then(data => {
+            loader.classList.add('d-none');
+            if (data.success) {
+                setStatus(data.message, "text-success");
+                previewSchema(); // Refresh preview to show it's clean
+                showNotification("Schema updated successfully!");
+                // If debug mode and log returned, log it
+                if(data.debug_log) console.log(data.debug_log);
+            } else {
+                setStatus("Migration Failed.", "text-danger");
+                showNotification("Error: " + data.message);
+            }
+        })
+        .catch(err => {
+            loader.classList.add('d-none');
+            setStatus("Execution Error.", "text-danger");
+        });
+    }
+
+    function copySchemaSql() {
+        const text = document.getElementById('schemaSqlPreview').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification("SQL copied to clipboard");
+        });
+    }
+
+    function setStatus(msg, colorClass) {
+        const el = document.getElementById('schemaStatusMsg');
+        el.innerText = msg;
+        el.className = "small fw-bold " + colorClass;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const observer = new MutationObserver(() => {
+            adjustUnindexedModalLayout();
+        });
+        
+        const panels = document.querySelectorAll('.menu-panel');
+        panels.forEach(p => observer.observe(p, { attributes: true, attributeFilter: ['class'] }));
+
+        initPanZoom();
+    });
+
+// ==========================================
+    // INITIAL DATA PREPARATION TOOL
+    // ==========================================
+    const cleanupModal = new bootstrap.Modal(document.getElementById('cleanupModal'));
+    let currentCleanupCountyId = null;
+
+    function openCleanupTool(id) {
+        closeAllModals();
+        currentCleanupCountyId = id;
+        
+        // Reset UI
+        document.getElementById('cleanupSqlPreview').value = '';
+        document.getElementById('cleanupResult').innerHTML = '';
+        
+        // Inputs & Toggles
+        document.getElementById('cleanupToggleBook').checked = false;
+        toggleCleanupBookInputs(); // Will disable inputs and clear them
+        
+        // Progress Bar Reset
+        document.getElementById('cleanupProgressContainer').classList.add('d-none');
+        document.getElementById('cleanupProgressBar').style.width = '0%';
+        document.getElementById('cleanupProgressBar').className = "progress-bar progress-bar-striped progress-bar-animated bg-info";
+        document.getElementById('cleanupProgressLabel').innerText = "Processing...";
+        document.getElementById('cleanupProgressPercent').innerText = "0%";
+        
+        // Debug Toggle Check
+        const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
+        const previewBtn = document.getElementById('btnCleanupPreview');
+        if (isDebug) { 
+            previewBtn.classList.remove('d-none'); 
+            document.getElementById('cleanupDebugPanel').classList.remove('d-none');
+        } else { 
+            previewBtn.classList.add('d-none'); 
+            document.getElementById('cleanupDebugPanel').classList.add('d-none');
+        }
+        
+        cleanupModal.show();
+    }
+
+    function toggleCleanupBookInputs() {
+        const isChecked = document.getElementById('cleanupToggleBook').checked;
+        const startInput = document.getElementById('cleanupBookStart');
+        const endInput = document.getElementById('cleanupBookEnd');
+        const statusTxt = document.getElementById('bookRangeStatus');
+
+        startInput.disabled = !isChecked;
+        endInput.disabled = !isChecked;
+
+        if (isChecked) {
+            // Auto-Fill if empty
+            if (startInput.value === '' || startInput.value === '---') {
+                statusTxt.innerText = "Fetching range...";
+                fetch('/api/tools/cleanup/get-book-range/' + currentCleanupCountyId)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.found) {
+                        startInput.value = d.start;
+                        endInput.value = d.end;
+                        statusTxt.innerText = "Auto-filled from server";
+                    } else {
+                        startInput.value = '';
+                        endInput.value = '';
+                        statusTxt.innerText = "No images folder found";
+                    }
+                });
+            } else {
+                statusTxt.innerText = "Enabled";
+            }
+        } else {
+            startInput.value = '---';
+            endInput.value = '---';
+            statusTxt.innerText = "Toggle ON to auto-fill";
+        }
+    }
+
+    function previewCleanupSql() {
+        const isBook = document.getElementById('cleanupToggleBook').checked;
+        const pStart = isBook ? document.getElementById('cleanupBookStart').value : null;
+        const pEnd = isBook ? document.getElementById('cleanupBookEnd').value : null;
+        
+        document.getElementById('cleanupSqlPreview').value = "-- Generating...";
+        
+        fetch('/api/tools/cleanup/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ book_start: pStart, book_end: pEnd })
+        }).then(r => r.json()).then(d => { document.getElementById('cleanupSqlPreview').value = d.success ? d.sql : "-- Error generating preview."; });
+    }
+
+    function copyCleanupSql() { navigator.clipboard.writeText(document.getElementById('cleanupSqlPreview').value).then(() => showNotification("SQL Copied")); }
+    function downloadCleanupSql() { const blob = new Blob([document.getElementById('cleanupSqlPreview').value], { type: "text/plain" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "cleanup_preview.sql"; a.click(); }
+
+    async function runCleanupTool() {
+        if (!confirm("This will modify the database. Backup will be created. Proceed?")) return;
+        
+        const btn = document.getElementById('btnRunCleanup');
+        const resultDiv = document.getElementById('cleanupResult');
+        const progContainer = document.getElementById('cleanupProgressContainer');
+        const progBar = document.getElementById('cleanupProgressBar');
+        const progLabel = document.getElementById('cleanupProgressLabel');
+        const progPercent = document.getElementById('cleanupProgressPercent');
+        
+        // Get Inputs (Null if disabled)
+        const isBook = document.getElementById('cleanupToggleBook').checked;
+        const pStart = isBook ? document.getElementById('cleanupBookStart').value : null;
+        const pEnd = isBook ? document.getElementById('cleanupBookEnd').value : null;
+
+        // UI Reset
+        btn.disabled = true; 
+        resultDiv.innerHTML = '';
+        progContainer.classList.remove('d-none');
+        progBar.style.width = '5%';
+        progLabel.innerText = "Initializing...";
+
+        try {
+            const response = await fetch('/api/tools/cleanup/execute', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ book_start: pStart, book_end: pEnd })
+            });
+            
+            const reader = response.body.getReader(); 
+            const decoder = new TextDecoder("utf-8"); 
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read(); 
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true }); 
+                const lines = buffer.split('\n'); 
+                buffer = lines.pop();
+                
+                for (const line of lines) { 
+                    if (!line.trim()) continue; 
+                    try { 
+                        const data = JSON.parse(line);
+                        
+                        if (data.type === 'progress') {
+                            progBar.style.width = data.percent + '%';
+                            progLabel.innerText = data.message;
+                            progPercent.innerText = data.percent + '%';
+                        } 
+                        else if (data.type === 'complete') {
+                            progBar.style.width = '100%';
+                            progBar.classList.remove('progress-bar-animated');
+                            progBar.classList.add('bg-success');
+                            progLabel.innerText = "Done";
+                            progPercent.innerText = "100%";
+                            resultDiv.innerHTML = `<div class="alert alert-success py-2 mt-3"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                        } 
+                        else if (data.type === 'error') {
+                            progBar.classList.add('bg-danger');
+                            resultDiv.innerHTML = `<div class="alert alert-danger py-2 mt-3">${data.message}</div>`;
+                        }
+                    } catch (e) {} 
+                }
+            }
+        } catch (e) { 
+            resultDiv.innerHTML = `<div class="text-danger">System Error</div>`; 
+        } finally { 
+            btn.disabled = false; 
+        }
+    }
+</script>

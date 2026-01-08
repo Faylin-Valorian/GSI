@@ -1,0 +1,159 @@
+<script>
+    // ==========================================
+    // 5. IMPORT TOOLS (eDATA & KELI)
+    // ==========================================
+    
+    // --- eDATA ---
+    function openEDataModal(id, stateName, countyName) { 
+        document.getElementById('eDataCountyId').value = id;
+        const displayPath = `/data/${stateName}/${countyName}/eData Files`;
+        document.getElementById('eDataDisplayPath').innerText = displayPath;
+        eDataModal.show(); 
+    }
+
+    function closeEDataModal() { 
+        eDataModal.hide(); 
+        document.getElementById('eDataResult').innerHTML = ''; 
+    }
+
+    async function submitEDataSetup() {
+        const btn = document.querySelector('#eDataModal .btn-success');
+        const resultDiv = document.getElementById('eDataResult');
+        const idVal = document.getElementById('eDataCountyId').value;
+        const mode = document.getElementById('eDataImportMode').value;
+        
+        const progressContainer = document.getElementById('eDataProgressContainer');
+        const progressBar = document.getElementById('eDataProgressBar');
+        const progressText = document.getElementById('eDataProgressText');
+        const currentFileText = document.getElementById('eDataCurrentFile');
+
+        btn.disabled = true; 
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...'; 
+        resultDiv.innerHTML = '';
+        progressContainer.classList.remove('d-none');
+        progressBar.style.width = '0%';
+        progressText.innerText = '0%';
+        currentFileText.innerText = 'Starting...';
+
+        try {
+            const response = await fetch('/api/tools/setup-edata', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ county_id: idVal, mode: mode })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'progress') {
+                            const pct = data.percent + '%';
+                            progressBar.style.width = pct;
+                            progressText.innerText = pct;
+                            if(data.filename) currentFileText.innerText = `Processing: ${data.filename}`;
+                        } else if (data.type === 'complete') {
+                            progressBar.classList.remove('progress-bar-animated');
+                            resultDiv.innerHTML = `<div class="alert alert-success mt-3 mb-0 py-2"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                        } else if (data.type === 'error') {
+                            progressBar.classList.add('bg-danger');
+                            resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">${data.message}</div>`;
+                        }
+                    } catch (e) { console.error("Stream parse error", e); }
+                }
+            }
+        } catch (e) {
+            resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">Connection Lost</div>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Run Import';
+        }
+    }
+
+    // --- KELI ---
+    function openKeliModal(id, stateName, countyName) { 
+        document.getElementById('keliCountyId').value = id;
+        const displayPath = `/data/${stateName}/${countyName}/Keli Files`;
+        document.getElementById('keliDisplayPath').innerText = displayPath;
+        keliModal.show(); 
+    }
+
+    function closeKeliModal() { 
+        keliModal.hide(); 
+        document.getElementById('keliResult').innerHTML = ''; 
+        document.getElementById('keliProgressContainer').classList.add('d-none');
+    }
+
+    async function submitKeliSetup() {
+        const btn = document.querySelector('#keliModal .btn[onclick="submitKeliSetup()"]');
+        const resultDiv = document.getElementById('keliResult');
+        const idVal = document.getElementById('keliCountyId').value;
+        
+        const progressContainer = document.getElementById('keliProgressContainer');
+        const progressBar = document.getElementById('keliProgressBar');
+        const progressText = document.getElementById('keliProgressText');
+        const currentFileText = document.getElementById('keliCurrentFile');
+
+        btn.disabled = true; 
+        resultDiv.innerHTML = '';
+        progressContainer.classList.remove('d-none');
+        progressBar.style.width = '0%';
+        progressText.innerText = '0%';
+        currentFileText.innerText = 'Starting...';
+
+        try {
+            const response = await fetch('/api/tools/setup-keli', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ county_id: idVal })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.type === 'progress') {
+                            const pct = data.percent + '%';
+                            progressBar.style.width = pct;
+                            progressText.innerText = pct;
+                            if(data.filename) currentFileText.innerText = `Processing: ${data.filename}`;
+                        } 
+                        else if (data.type === 'complete') {
+                            progressBar.classList.remove('progress-bar-animated');
+                            resultDiv.innerHTML = `<div class="alert alert-success mt-3 mb-0 py-2"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                        } 
+                        else if (data.type === 'error') {
+                            progressBar.style.backgroundColor = '#dc3545';
+                            resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">${data.message}</div>`;
+                        }
+                    } catch (e) { console.error(e); }
+                }
+            }
+        } catch (e) {
+            resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">Connection Lost</div>`;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+</script>

@@ -1,0 +1,118 @@
+diff --git a/blueprints/DataCleanup.py b/blueprints/DataCleanup.py
+--- a/blueprints/DataCleanup.py
++++ b/blueprints/DataCleanup.py
+@@ -1,8 +1,11 @@
++import os
+ from flask import Blueprint, jsonify, request, Response, stream_with_context, current_app
+ from flask_login import login_required, current_user
+ from sqlalchemy import text
+ from extensions import db
++from models import IndexingCounties, IndexingStates
+ from utils import format_error
++from werkzeug.utils import secure_filename
+ import datetime
+ 
+ cleanup_bp = Blueprint('data_cleanup', __name__)
+@@ -118,3 +121,22 @@
+             yield jsonify({'type': 'error', 'message': err_msg}) + '\n'
+ 
+     return Response(stream_with_context(generate_stream()), mimetype='application/json')
++
++@cleanup_bp.route('/api/tools/cleanup/get-book-range/<int:county_id>', methods=['GET'])
++@login_required
++def get_book_range(county_id):
++    if current_user.role != 'admin': return jsonify({'success': False})
++    try:
++        c = db.session.get(IndexingCounties, county_id)
++        if not c: return jsonify({'success': False})
++        
++        s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
++        if not s: return jsonify({'success': False})
++        
++        path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'Images')
++        if not os.path.exists(path): return jsonify({'success': True, 'start': '', 'end': ''})
++        
++        folders = sorted([f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))])
++        if not folders: return jsonify({'success': True, 'start': '', 'end': ''})
++        
++        return jsonify({'success': True, 'start': folders[0], 'end': folders[-1]})
++    except Exception as e:
++        return jsonify({'success': False, 'message': str(e)})
+
+diff --git a/templates/components/modals.html b/templates/components/modals.html
+--- a/templates/components/modals.html
++++ b/templates/components/modals.html
+@@ -254,7 +254,7 @@
+     <div class="modal-dialog modal-lg modal-dialog-centered">
+         <div class="modal-content custom-panel border-info">
+             <div class="modal-header border-secondary">
+-                <h5 class="modal-title text-info"><i class="bi bi-magic me-2"></i>Data Cleanup & Normalization</h5>
++                <h5 class="modal-title text-info"><i class="bi bi-magic me-2"></i>Initial Data Preparation</h5>
+                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+             </div>
+             <div class="modal-body p-4">
+
+diff --git a/templates/components/scripts/admin_scripts.html b/templates/components/scripts/admin_scripts.html
+--- a/templates/components/scripts/admin_scripts.html
++++ b/templates/components/scripts/admin_scripts.html
+@@ -170,12 +170,11 @@
+     // ==========================================
+     const cleanupModal = new bootstrap.Modal(document.getElementById('cleanupModal'));
+ 
+-    function openCleanupTool() {
++    function openCleanupTool(id) {
+         closeAllModals();
+-        document.getElementById('cleanupBookStart').value = '';
+-        document.getElementById('cleanupBookEnd').value = '';
+         document.getElementById('cleanupSqlPreview').value = '';
+         document.getElementById('cleanupResult').innerHTML = '';
++        document.getElementById('cleanupBookStart').value = '...';
++        document.getElementById('cleanupBookEnd').value = '...';
+         document.getElementById('cleanupDebugPanel').classList.add('d-none');
+         
+         // Debug Toggle Check
+@@ -183,6 +182,14 @@
+         const previewBtn = document.getElementById('btnCleanupPreview');
+         if (isDebug) previewBtn.classList.remove('d-none'); else previewBtn.classList.add('d-none');
+         
++        // Auto-Fill Range
++        fetch('/api/tools/cleanup/get-book-range/' + id)
++        .then(r => r.json())
++        .then(d => {
++            document.getElementById('cleanupBookStart').value = d.success ? d.start : '';
++            document.getElementById('cleanupBookEnd').value = d.success ? d.end : '';
++        });
++
+         cleanupModal.show();
+     }
+ 
+
+diff --git a/templates/components/scripts/map_logic.html b/templates/components/scripts/map_logic.html
+--- a/templates/components/scripts/map_logic.html
++++ b/templates/components/scripts/map_logic.html
+@@ -176,6 +176,11 @@
+                             onclick="openSchemaTool()">
+                             <i class="bi bi-database-exclamation me-2"></i>Alter eData Table
+                         </button>
++
++                        <button class="btn btn-sm btn-outline-info" ${disabledAttr} ${tooltipTitle} 
++                            onclick="openCleanupTool(${data.id})">
++                            <i class="bi bi-magic me-2"></i>Initial Data Preparation
++                        </button>
+                     </div>
+                 </div>
+ 
+
+diff --git a/templates/components/sidebar.html b/templates/components/sidebar.html
+--- a/templates/components/sidebar.html
++++ b/templates/components/sidebar.html
+@@ -79,9 +79,6 @@
+                 <button class="btn btn-outline-danger text-start mt-2" onclick="openPatchModal()">
+                     <i class="bi bi-tools me-2"></i> System Patcher
+                 </button>
+-                <button class="btn btn-outline-info text-start mt-2" onclick="openCleanupTool()">
+-                    <i class="bi bi-magic me-2"></i> Data Cleanup
+-                </button>
+             </div>
+             
+             <button class="btn btn-outline-light text-start w-100 mb-3" onclick="viewActiveToolCode()">

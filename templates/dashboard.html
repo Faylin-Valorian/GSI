@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    {% include 'components/sidebar.html' %}
+
+    <div id="map"></div>
+
+    {% include 'components/modals.html' %}
+{% endblock %}
+
+{% block scripts %}
+    {% include 'components/scripts.html' %}
+{% endblock %}

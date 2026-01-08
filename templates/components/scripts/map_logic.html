@@ -1,0 +1,261 @@
+<script>
+    // ==========================================
+    // 1. MAP INITIALIZATION & LAYERS
+    // ==========================================
+    var map = L.map('map', { zoomControl: false }).setView([38, -97], 5);
+    
+    // Define Tile Layers
+    const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { 
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' 
+    });
+    const lightLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' 
+    });
+    
+    // Set Default Layer
+    let currentLayer = darkLayer; 
+    currentLayer.addTo(map);
+
+    // Custom Panes for Z-Index Control
+    // State Pane (Lower)
+    map.createPane('statePane');
+    map.getPane('statePane').style.zIndex = 350; 
+    
+    // County Pane (Higher)
+    map.createPane('countyPane');
+    map.getPane('countyPane').style.zIndex = 450;
+    
+    // Layer Groups
+    let stateLayerGroup = L.layerGroup().addTo(map);
+    let countyLayerGroup = L.layerGroup().addTo(map);
+    
+    // Data Storage
+    let selectedGeoId = null;
+    let countyMap = {}; 
+    
+    // GeoJSON URLs
+    const stateGeoJsonUrl = "/static/us-states.json";
+    const countyGeoJsonUrl = "/static/us-counties.json";
+
+    // --- STYLE FUNCTION ---
+    function getStyle(type, data) {
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        
+        if(type === 'state') {
+            return isDark ? {color:"#00d4ff", weight:1, opacity:1, fillColor:"#00d4ff", fillOpacity:0.15} 
+                          : {color:"#000", weight:1, opacity:0.8, fillColor:"#000", fillOpacity:0.1};
+        }
+
+        // 1. User Selection (Blue) - I am working on this
+        if (data && data.is_user_selected) {
+            return {color: '#0d6efd', weight: 3, opacity: 1, fillColor: '#0d6efd', fillOpacity: 0.5};
+        }
+
+        // 2. Occupied by Other (Orange) - Someone else is working on this
+        if (data && data.is_occupied) {
+            return {color: '#fd7e14', weight: 2, opacity: 0.9, fillColor: '#fd7e14', fillOpacity: 0.4};
+        }
+        
+        // 3. Global Active (Green) - Available
+        if (data && data.is_active) {
+            return {color: '#28a745', weight: 2, opacity: 0.9, fillColor: '#28a745', fillOpacity: 0.3};
+        }
+        
+        // 4. Global Inactive (Red) - Closed
+        return {color: '#dc3545', weight: 2, opacity: 0.9, fillColor: '#dc3545', fillOpacity: 0.1};
+    }
+
+    // --- LOAD LAYERS ---
+    function loadStateLayers() {
+        fetch('/api/layers/states').then(r=>r.json()).then(activeFips => {
+            const safeFips = activeFips.map(c => String(c).trim());
+            fetch(stateGeoJsonUrl).then(r=>r.json()).then(geo => {
+                const filtered = geo.features.filter(f => safeFips.includes(String(f.properties.STATE).trim()));
+                stateLayerGroup.clearLayers();
+                stateLayerGroup.addLayer(L.geoJSON(filtered, { 
+                    pane: 'statePane', 
+                    style: getStyle('state') 
+                }));
+            });
+        });
+    }
+
+    function loadCountyLayers() {
+        fetch('/api/layers/counties').then(r=>r.json()).then(dbCounties => {
+            countyMap = {}; 
+            dbCounties.forEach(c => countyMap[c.geo_id] = c);
+            
+            if(dbCounties.length === 0) { 
+                countyLayerGroup.clearLayers(); 
+                return; 
+            }
+            
+            fetch(countyGeoJsonUrl).then(r=>r.json()).then(geo => {
+                const filtered = geo.features.filter(f => countyMap[f.properties.GEO_ID]);
+                countyLayerGroup.clearLayers();
+                
+                const layer = L.geoJSON(filtered, {
+                    pane: 'countyPane',
+                    style: f => getStyle('county', countyMap[f.properties.GEO_ID]),
+                    onEachFeature: (feature, layer) => {
+                        layer.on('click', function(e) {
+                            selectedGeoId = feature.properties.GEO_ID;
+                            const dbData = countyMap[selectedGeoId];
+                            
+                            fetch(`/api/county/${dbData.id}/details`)
+                                .then(r => r.json())
+                                .then(details => {
+                                    if(details.success) {
+                                        details.is_user_selected = dbData.is_user_selected;
+                                        details.is_occupied = dbData.is_occupied; 
+                                        details.is_active = dbData.is_active; 
+                                        layer.bindPopup(buildPopupContent(details), { minWidth: 450 }).openPopup();
+                                    }
+                                });
+                        });
+                    }
+                });
+                countyLayerGroup.addLayer(layer);
+
+                if(selectedGeoId) {
+                    layer.eachLayer(l => {
+                        if (l.feature.properties.GEO_ID === selectedGeoId) {
+                            setTimeout(() => { l.fire('click'); }, 100);
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // --- POPUP BUILDER ---
+    function buildPopupContent(data) {
+        // 1. Status Logic
+        let toggleState = data.is_user_selected ? 'checked' : '';
+        let statusText, statusColor;
+        let isToggleDisabled = false;
+
+        if (data.is_user_selected) {
+            statusText = 'WORKING ON (YOU)';
+            statusColor = 'text-primary';
+        } 
+        else if (data.is_occupied) {
+            statusText = `LOCKED BY: ${data.occupied_by ? data.occupied_by.toUpperCase() : 'ANOTHER USER'}`;
+            statusColor = 'text-warning';
+            isToggleDisabled = true; 
+        }
+        else if (data.is_active) {
+            statusText = 'AVAILABLE';
+            statusColor = 'text-success';
+        } 
+        else {
+            statusText = 'INACTIVE (Admin Only)';
+            statusColor = 'text-danger';
+            isToggleDisabled = true;
+        }
+
+        let toggleAttr = isToggleDisabled ? 'disabled' : '';
+
+        // 2. Permission Logic
+        const isWorking = data.is_user_selected;
+        const disabledAttr = isWorking ? '' : 'disabled';
+        const tooltipTitle = isWorking ? '' : 'title="Set as \'Working On\' to use this tool."';
+        const isEditable = isWorking ? '' : 'disabled placeholder="Set as \'Working On\' to edit notes"';
+        
+        const imgHtml = data.image_url 
+            ? `<img src="${data.image_url}?t=${new Date().getTime()}">` 
+            : `<i class="bi bi-camera-fill fs-2 text-muted"></i>`;
+        
+        // 3. HTML Construction
+        return `
+        <div class="popup-container">
+            <div class="popup-header">
+                <div>
+                    <h6 class="mb-0 fw-bold text-uppercase">${data.name}</h6>
+                    <span class="small fw-bold ${statusColor}" style="font-size: 0.7rem;">${statusText}</span>
+                </div>
+                <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" id="popup-toggle-${data.id}" 
+                        ${toggleState} ${toggleAttr}
+                        onchange="toggleUserWorkingCounty(${data.id}, this.checked)">
+                </div>
+            </div>
+            <div class="popup-body">
+                <div class="popup-notes">
+                    <textarea id="notes-${data.id}" ${isEditable} onblur="saveNotes(${data.id})">${data.notes}</textarea>
+                </div>
+                <div class="popup-image" id="img-wrapper-${data.id}" onclick="triggerUpload(${data.id}, ${isWorking})">
+                    ${imgHtml}
+                    <div class="popup-image-overlay">Click to Upload</div>
+                    <input type="file" id="upload-${data.id}" hidden accept="image/*" onchange="uploadImage(${data.id}, this)">
+                </div>
+            </div>
+            <div class="popup-tabs">
+                <ul class="nav nav-pills nav-fill" role="tablist">
+                    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-county-${data.id}">County</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-db-${data.id}">Database</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-edata-${data.id}">eData</a></li>
+                    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-keli-${data.id}">Keli</a></li>
+                </ul>
+            </div>
+            <div class="tab-content popup-tab-content">
+                <div class="tab-pane fade show active" id="tab-county-${data.id}">
+                    <small class="text-muted">
+                        ${data.is_occupied ? 'This county is currently being worked on by another user.' : 
+                          data.is_active ? 'Use the toggle above to mark this county as your current workspace.' : 
+                          'This county is currently marked Inactive by Admins.'}
+                    </small>
+                </div>
+
+                <div class="tab-pane fade" id="tab-db-${data.id}">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-primary" ${disabledAttr} ${tooltipTitle} onclick="openDriveModal()">
+                            <i class="bi bi-hdd-network me-2"></i>Open Drive Connection
+                        </button>
+                        
+                        <button class="btn btn-sm btn-outline-info" ${disabledAttr} ${tooltipTitle} onclick="openDbCompatModal()">
+                            <i class="bi bi-database-gear me-2"></i>Database Compatibility Level
+                        </button>
+                        
+                        <button class="btn btn-sm btn-outline-warning" ${disabledAttr} ${tooltipTitle} onclick="openProceduresModal()">
+                            <i class="bi bi-filetype-sql me-2"></i>Setup Database Procedures
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="tab-edata-${data.id}">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-success" ${disabledAttr} ${tooltipTitle} 
+                            onclick="openEDataModal(${data.id}, '${data.state_name}', '${data.name}')">
+                            <i class="bi bi-table me-2"></i>Setup eData Table
+                        </button>
+                        
+                        <button class="btn btn-sm btn-outline-warning" ${disabledAttr} ${tooltipTitle} 
+                            onclick="openUnindexedReview(${data.id}, '${data.state_name}', '${data.name}')">
+                            <i class="bi bi-images me-2"></i>Review Unindexed Images
+                        </button>
+                        
+                        <button class="btn btn-sm btn-outline-danger" ${disabledAttr} ${tooltipTitle} 
+                            onclick="openSchemaTool()">
+                            <i class="bi bi-database-exclamation me-2"></i>Alter eData Table
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-info" ${disabledAttr} ${tooltipTitle} 
+                            onclick="openCleanupTool(${data.id})">
+                            <i class="bi bi-magic me-2"></i>Initial Data Preparation
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="tab-keli-${data.id}">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-custom-purple" ${disabledAttr} ${tooltipTitle} 
+                            onclick="openKeliModal(${data.id}, '${data.state_name}', '${data.name}')">
+                            <i class="bi bi-collection me-2"></i>Setup Keli Tables
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+</script>

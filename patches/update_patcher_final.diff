@@ -1,0 +1,52 @@
+diff --git a/blueprints/PatchManager.py b/blueprints/PatchManager.py
+--- a/blueprints/PatchManager.py
++++ b/blueprints/PatchManager.py
+@@ -37,7 +37,7 @@
+                 # Parse Hunk Lines
+                 while i < len(lines):
+                     h_line = lines[i]
+-                    if h_line.startswith('diff ') or h_line.startswith('--- '):
++                    if h_line.startswith('diff ') or h_line.startswith('--- ') or h_line.startswith('+++ '):
+                         break # End of hunk, start of next file
+                     
+                     # Logic:
+@@ -86,13 +86,17 @@
+                 with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                     content = f.read()
+                 
+-                # Check if already applied
++                # Check if already applied (Smart Reverse)
+                 if hunk['replace'] in content:
+-                    results.append(f"Skipped hunk in {hunk['file']} (Already applied)")
++                    # Attempt Revert (Swap Replace -> Search)
++                    new_content = content.replace(hunk['replace'], hunk['search'], 1)
++                    with open(full_path, 'w', encoding='utf-8', newline='') as f:
++                        f.write(new_content)
++                    results.append(f"Reverted patch in {hunk['file']}")
+                     continue
+                 
+                 # Attempt Replacement
+-                # We try to match the 'search' block. 
++                # Normal Apply
+                 if hunk['search'] in content:
+                     new_content = content.replace(hunk['search'], hunk['replace'], 1)
+                     
+@@ -124,11 +128,13 @@
+         patcher = SimplePatcher()
+         logs = patcher.apply(patch_content, current_app.root_path)
+         
+-        # Check if any success
+-        success = any("Patched" in log for log in logs)
++        # Check success (Patched OR Reverted)
++        success = any("Patched" in log or "Reverted" in log for log in logs)
++        msg = "\n".join(logs)
+         
++        # LOG TO CMD CONSOLE
++        print(f"\n >>> PATCH LOG:\n{msg}\n")
++
+         if success:
+-            return jsonify({'success': True, 'message': "Update Applied.\n" + "\n".join(logs)})
++            return jsonify({'success': True, 'message': "Update Applied.\n" + msg})
+         else:
+-            return jsonify({'success': False, 'message': "Update Failed or No Changes Needed.\n" + "\n".join(logs)})
++            return jsonify({'success': False, 'message': "Update Failed or No Changes Needed.\n" + msg})

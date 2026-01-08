@@ -1,0 +1,100 @@
+<script>
+    // ==========================================
+    // 4. DATABASE TOOLS (Drive, Compat, Proc)
+    // ==========================================
+    
+    // --- DRIVE CONNECTION ---
+    function openDriveModal() { driveModal.show(); }
+    function closeDriveModal() { driveModal.hide(); document.getElementById('driveResult').innerHTML = ''; }
+    function submitDriveConnection() {
+        const btn = document.querySelector('#driveModal .btn-primary');
+        const resultDiv = document.getElementById('driveResult');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Connecting...'; resultDiv.innerHTML = '';
+
+        const payload = {
+            drive_letter: document.getElementById('driveLetter').value,
+            network_path: document.getElementById('drivePath').value,
+            username: document.getElementById('driveUser').value,
+            password: document.getElementById('drivePass').value
+        };
+
+        fetch('/api/tools/connect-drive', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json()).then(d => {
+            btn.disabled = false; btn.innerHTML = '<i class="bi bi-plug-fill me-2"></i>Connect';
+            if (d.success) {
+                resultDiv.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle me-2"></i>${d.message}</span>`;
+                setTimeout(closeDriveModal, 2000);
+            } else {
+                resultDiv.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-2"></i>${d.message}</span>`;
+            }
+        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<span class="text-danger">Request Failed</span>`; });
+    }
+
+    // --- DB COMPATIBILITY ---
+    function openDbCompatModal() { dbCompatModal.show(); }
+    function closeDbCompatModal() { dbCompatModal.hide(); document.getElementById('dbCompatResult').innerHTML = ''; document.getElementById('targetCompatLevel').value = ''; }
+    
+    function closeDowngradeModal() {
+        dbDowngradeModal.hide();
+        document.getElementById('dbCompatResult').innerHTML = `<div class="alert alert-secondary mt-2 mb-0 py-2">Action Cancelled</div>`;
+    }
+
+    function confirmDowngrade() {
+        dbDowngradeModal.hide();
+        submitDbCompat(true); 
+    }
+
+    function submitDbCompat(isConfirmed = false) {
+        const btn = document.querySelector('#dbCompatModal .btn-info');
+        const resultDiv = document.getElementById('dbCompatResult');
+        const levelVal = document.getElementById('targetCompatLevel').value;
+        
+        if(!levelVal) { resultDiv.innerHTML = '<span class="text-warning">Please enter a value.</span>'; return; }
+
+        btn.disabled = true; 
+        if(!isConfirmed) btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
+        else btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Updating...';
+        
+        resultDiv.innerHTML = '';
+
+        fetch('/api/tools/db-compatibility', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ target_level: levelVal, confirmed: isConfirmed }) 
+        })
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false; btn.innerText = 'Update Level';
+            
+            if (d.success) { 
+                resultDiv.innerHTML = `<div class="alert alert-success mt-2 mb-0 py-2"><i class="bi bi-check-circle me-2"></i>${d.message}</div>`; 
+            } 
+            else if (d.requires_confirmation) {
+                document.getElementById('dbDowngradeMessage').innerText = d.message;
+                dbDowngradeModal.show();
+            }
+            else { 
+                resultDiv.innerHTML = `<div class="alert alert-warning mt-2 mb-0 py-2"><i class="bi bi-info-circle me-2"></i>${d.message}</div>`; 
+            }
+        }).catch(e => { 
+            btn.disabled = false; btn.innerText = 'Update Level';
+            resultDiv.innerHTML = `<div class="alert alert-danger mt-2 mb-0 py-2">Request Failed</div>`; 
+        });
+    }
+
+    // --- PROCEDURES ---
+    function openProceduresModal() { proceduresModal.show(); }
+    function closeProceduresModal() { proceduresModal.hide(); document.getElementById('proceduresResult').innerHTML = ''; }
+    function submitProcedures() {
+        const btn = document.querySelector('#proceduresModal .btn-warning');
+        const resultDiv = document.getElementById('proceduresResult');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...'; resultDiv.innerHTML = '';
+
+        fetch('/api/tools/setup-procedures', { method: 'POST' })
+        .then(r => r.json()).then(d => {
+            btn.disabled = false; btn.innerText = 'Yes, Execute';
+            if (d.success) { resultDiv.innerHTML = `<div class="alert alert-success mt-3 mb-0 py-2"><i class="bi bi-check-circle me-2"></i>${d.message}</div>`; } 
+            else { resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2"><i class="bi bi-exclamation-triangle me-2"></i>${d.message}</div>`; }
+        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">System Error</div>`; });
+    }
+</script>
