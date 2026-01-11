@@ -241,8 +241,12 @@
                         </button>
 
                         <button class="btn btn-sm btn-outline-info" ${disabledAttr} ${tooltipTitle} 
-                            onclick="openCleanupTool(${data.id})">
-                            <i class="bi bi-magic me-2"></i>Initial Data Preparation
+                            onclick="openInitialPrepTool(${data.id})">
+                            <i class="bi bi-magic me-2"></i>Initial Preparation Tool
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" ${disabledAttr} ${tooltipTitle} 
+                            onclick="openInstCorrectionTool(${data.id})">
+                            <i class="bi bi-pencil-square me-2"></i>Instrument Type Corrections
                         </button>
                     </div>
                 </div>

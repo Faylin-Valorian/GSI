@@ -645,38 +645,36 @@
     }
 
 // ==========================================
-    // INITIAL DATA PREPARATION TOOL
+    // INITIAL PREPARATION TOOL (RENAMED)
     // ==========================================
-    const cleanupModal = new bootstrap.Modal(document.getElementById('cleanupModal'));
-    let currentCleanupCountyId = null;
+    const initialPrepModal = new bootstrap.Modal(document.getElementById('initialPrepModal'));
+    let currentPrepCountyId = null;
 
-    function openCleanupTool(id) {
+    function openInitialPrepTool(id) {
         closeAllModals();
-        currentCleanupCountyId = id;
+        currentPrepCountyId = id;
         
-        // Reset UI
-        document.getElementById('cleanupSqlPreview').value = '';
-        document.getElementById('cleanupResult').innerHTML = '';
+        // 1. Reset UI
+        document.getElementById('prepResult').innerHTML = '';
+        document.getElementById('prepSqlPreview').value = '';
+        document.getElementById('prepProgressContainer').classList.add('d-none');
+        document.getElementById('prepProgressBar').style.width = '0%';
         
-        // Reset Inputs & Toggles (Default OFF)
-        const toggle = document.getElementById('cleanupToggleBook');
+        // 2. Reset Toggle & Visibility
+        const toggle = document.getElementById('prepToggleBook');
         if(toggle) {
             toggle.checked = false;
-            toggleCleanupBookInputs(); 
+            document.getElementById('prepBookInputsContainer').classList.add('d-none');
+            document.getElementById('prepBookStart').value = '';
+            document.getElementById('prepBookEnd').value = '';
         }
         
-        // Progress Bar Reset
-        document.getElementById('cleanupProgressContainer').classList.add('d-none');
-        document.getElementById('cleanupProgressBar').style.width = '0%';
-        document.getElementById('cleanupProgressLabel').innerText = "Processing...";
-        document.getElementById('cleanupProgressPercent').innerText = "0%";
+        // 3. Debug Visibility
+        const isGlobalDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
+        const previewBtn = document.getElementById('btnPrepPreview');
+        const debugPanel = document.getElementById('prepDebugPanel');
         
-        // Debug Toggle Check
-        const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
-        const previewBtn = document.getElementById('btnCleanupPreview');
-        const debugPanel = document.getElementById('cleanupDebugPanel');
-        
-        if (isDebug) { 
+        if (isGlobalDebug) { 
             previewBtn.classList.remove('d-none'); 
             debugPanel.classList.remove('d-none');
         } else { 
@@ -684,137 +682,355 @@
             debugPanel.classList.add('d-none');
         }
         
-        cleanupModal.show();
+        initialPrepModal.show();
     }
 
-    function toggleCleanupBookInputs() {
-        const isChecked = document.getElementById('cleanupToggleBook').checked;
-        const startInput = document.getElementById('cleanupBookStart');
-        const endInput = document.getElementById('cleanupBookEnd');
-        const statusTxt = document.getElementById('bookRangeStatus');
-
-        startInput.disabled = !isChecked;
-        endInput.disabled = !isChecked;
+    function togglePrepBookInputs() {
+        const isChecked = document.getElementById('prepToggleBook').checked;
+        const container = document.getElementById('prepBookInputsContainer');
+        const startInput = document.getElementById('prepBookStart');
+        const endInput = document.getElementById('prepBookEnd');
+        const statusTxt = document.getElementById('prepBookStatus');
 
         if (isChecked) {
-            // Auto-Fill if empty
+            container.classList.remove('d-none');
+            // Auto-Fill
             if (startInput.value === '' || startInput.value === '---') {
-                statusTxt.innerText = "Fetching range...";
-                fetch('/api/tools/cleanup/get-book-range/' + currentCleanupCountyId)
+                statusTxt.innerText = "Scanning folders...";
+                statusTxt.className = "text-warning small fst-italic";
+                
+                fetch('/api/tools/initial-prep/get-book-range/' + currentPrepCountyId)
                 .then(r => r.json())
                 .then(d => {
                     if (d.success && d.found) {
                         startInput.value = d.start;
                         endInput.value = d.end;
-                        statusTxt.innerText = "Auto-filled from server";
+                        statusTxt.innerText = "Auto-filled detected range";
                         statusTxt.className = "text-success small fst-italic";
                     } else {
-                        startInput.value = '';
-                        endInput.value = '';
                         statusTxt.innerText = "No images folder found";
                         statusTxt.className = "text-danger small fst-italic";
                     }
                 })
                 .catch(e => {
-                    statusTxt.innerText = "Error fetching range";
+                    statusTxt.innerText = "Error scanning folders";
                     statusTxt.className = "text-danger small fst-italic";
                 });
-            } else {
-                statusTxt.innerText = "Enabled";
-                statusTxt.className = "text-success small fst-italic";
             }
         } else {
-            startInput.value = '---';
-            endInput.value = '---';
-            statusTxt.innerText = "Toggle ON to auto-fill";
-            statusTxt.className = "text-muted small fst-italic";
+            container.classList.add('d-none');
+            startInput.value = '';
+            endInput.value = '';
         }
     }
 
-    function previewCleanupSql() {
-        const isBook = document.getElementById('cleanupToggleBook').checked;
-        const pStart = isBook ? document.getElementById('cleanupBookStart').value : null;
-        const pEnd = isBook ? document.getElementById('cleanupBookEnd').value : null;
+    function previewPrepSql() {
+        const isBook = document.getElementById('prepToggleBook').checked;
+        const pStart = isBook ? document.getElementById('prepBookStart').value : null;
+        const pEnd = isBook ? document.getElementById('prepBookEnd').value : null;
         
-        document.getElementById('cleanupSqlPreview').value = "-- Generating...";
+        document.getElementById('prepSqlPreview').value = "-- Generating...";
         
-        fetch('/api/tools/cleanup/preview', {
+        fetch('/api/tools/initial-prep/preview', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ book_start: pStart, book_end: pEnd })
-        }).then(r => r.json()).then(d => { document.getElementById('cleanupSqlPreview').value = d.success ? d.sql : "-- Error generating preview."; });
+            body: JSON.stringify({ county_id: currentPrepCountyId, book_start: pStart, book_end: pEnd })
+        }).then(r => r.json()).then(d => { document.getElementById('prepSqlPreview').value = d.success ? d.sql : "-- Error generating preview."; });
     }
 
-    function copyCleanupSql() { navigator.clipboard.writeText(document.getElementById('cleanupSqlPreview').value).then(() => showNotification("SQL Copied")); }
-    function downloadCleanupSql() { const blob = new Blob([document.getElementById('cleanupSqlPreview').value], { type: "text/plain" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "cleanup_preview.sql"; a.click(); }
+    function copyPrepSql() { navigator.clipboard.writeText(document.getElementById('prepSqlPreview').value).then(() => showNotification("SQL Copied")); }
 
-    async function runCleanupTool() {
-        if (!confirm("This will modify the database. Backup will be created. Proceed?")) return;
-        
-        const btn = document.getElementById('btnRunCleanup');
-        const resultDiv = document.getElementById('cleanupResult');
-        const progContainer = document.getElementById('cleanupProgressContainer');
-        const progBar = document.getElementById('cleanupProgressBar');
-        const progLabel = document.getElementById('cleanupProgressLabel');
-        const progPercent = document.getElementById('cleanupProgressPercent');
-        
-        // Get Inputs (Null if disabled)
-        const isBook = document.getElementById('cleanupToggleBook').checked;
-        const pStart = isBook ? document.getElementById('cleanupBookStart').value : null;
-        const pEnd = isBook ? document.getElementById('cleanupBookEnd').value : null;
-
-        // UI Reset
-        btn.disabled = true; 
-        resultDiv.innerHTML = '';
-        progContainer.classList.remove('d-none');
-        progBar.style.width = '5%';
-        progLabel.innerText = "Initializing...";
-
-        try {
-            const response = await fetch('/api/tools/cleanup/execute', {
-                method: 'POST', headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ book_start: pStart, book_end: pEnd })
-            });
+    function runPrepTool() {
+        showConfirmation("This will modify the database. Backup will be created. Proceed?", async () => {
+            const btn = document.getElementById('btnRunPrep');
+            const resultDiv = document.getElementById('prepResult');
+            const progContainer = document.getElementById('prepProgressContainer');
+            const progBar = document.getElementById('prepProgressBar');
+            const progLabel = document.getElementById('prepProgressLabel');
+            const progPercent = document.getElementById('prepProgressPercent');
             
-            const reader = response.body.getReader(); 
-            const decoder = new TextDecoder("utf-8"); 
-            let buffer = '';
-            
-            while (true) {
-                const { done, value } = await reader.read(); 
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true }); 
-                const lines = buffer.split('\n'); 
-                buffer = lines.pop();
+            const isBook = document.getElementById('prepToggleBook').checked;
+            const pStart = isBook ? document.getElementById('prepBookStart').value : null;
+            const pEnd = isBook ? document.getElementById('prepBookEnd').value : null;
+    
+            btn.disabled = true; 
+            resultDiv.innerHTML = '';
+            progContainer.classList.remove('d-none');
+            progBar.style.width = '1%';
+            progLabel.innerText = "Initializing...";
+            progPercent.innerText = "1%";
+    
+            try {
+                const response = await fetch('/api/tools/initial-prep/execute', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ county_id: currentPrepCountyId, book_start: pStart, book_end: pEnd })
+                });
                 
-                for (const line of lines) { 
-                    if (!line.trim()) continue; 
-                    try { 
-                        const data = JSON.parse(line);
-                        
-                        if (data.type === 'progress') {
-                            progBar.style.width = data.percent + '%';
-                            progLabel.innerText = data.message;
-                            progPercent.innerText = data.percent + '%';
-                        } 
-                        else if (data.type === 'complete') {
-                            progBar.style.width = '100%';
-                            progBar.classList.remove('progress-bar-animated');
-                            progBar.classList.add('bg-success');
-                            progLabel.innerText = "Done";
-                            progPercent.innerText = "100%";
-                            resultDiv.innerHTML = `<div class="alert alert-success py-2 mt-3"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
-                        } 
-                        else if (data.type === 'error') {
-                            progBar.classList.add('bg-danger');
-                            resultDiv.innerHTML = `<div class="alert alert-danger py-2 mt-3">${data.message}</div>`;
-                        }
-                    } catch (e) {} 
+                const reader = response.body.getReader(); 
+                const decoder = new TextDecoder("utf-8"); 
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read(); 
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true }); 
+                    const lines = buffer.split('\n'); 
+                    buffer = lines.pop();
+                    for (const line of lines) { 
+                        if (!line.trim()) continue; 
+                        try { 
+                            const data = JSON.parse(line);
+                            if (data.type === 'progress') {
+                                progBar.style.width = data.percent + '%';
+                                progLabel.innerText = data.message;
+                                progPercent.innerText = data.percent + '%';
+                            } 
+                            else if (data.type === 'complete') {
+                                progBar.style.width = '100%';
+                                progBar.classList.remove('progress-bar-animated');
+                                progBar.classList.add('bg-success');
+                                progLabel.innerText = "Done";
+                                progPercent.innerText = "100%";
+                                resultDiv.innerHTML = `<div class="alert alert-success py-2 mt-3"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                            } 
+                            else if (data.type === 'error') {
+                                progBar.classList.add('bg-danger');
+                                resultDiv.innerHTML = `<div class="alert alert-danger py-2 mt-3">${data.message}</div>`;
+                            }
+                        } catch (e) {} 
+                    }
                 }
+            } catch (e) { 
+                resultDiv.innerHTML = `<div class="text-danger">Connection Error</div>`; 
+            } finally { 
+                btn.disabled = false; 
             }
-        } catch (e) { 
-            resultDiv.innerHTML = `<div class="text-danger">System Error</div>`; 
-        } finally { 
-            btn.disabled = false; 
+        });
+    }
+
+// ==========================================
+    // INSTRUMENT TYPE CORRECTIONS TOOL (Updated)
+    // ==========================================
+    const instCorrectionModal = new bootstrap.Modal(document.getElementById('instCorrectionModal'));
+    let itcCountyId = null;
+    let itcImages = [];
+    let itcImgIndex = 0;
+    
+    // Tracking current edit
+    let itcActiveRecordId = null; 
+    let itcActiveOriginalVal = null;
+
+    function openInstCorrectionTool(id) {
+        closeAllModals();
+        itcCountyId = id;
+        
+        // Reset UI & Toggle
+        document.getElementById('itcRecordList').innerHTML = '';
+        document.getElementById('itcListStatus').innerText = "Initializing...";
+        document.getElementById('itcThumbnailStrip').innerHTML = '';
+        document.getElementById('itcMainImage').style.display = 'none';
+        document.getElementById('itcNoImage').classList.remove('d-none');
+        document.getElementById('itcHideCompleted').checked = true; // Default ON
+        itcHidePopover();
+
+        instCorrectionModal.show();
+        
+        fetch('/api/tools/inst-corrections/init', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: itcCountyId })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) itcFetchList();
+            else showNotification("Error initializing: " + d.message);
+        });
+    }
+
+    function itcFetchList() {
+        const hideCompleted = document.getElementById('itcHideCompleted').checked;
+        document.getElementById('itcListStatus').innerText = "Loading records...";
+        
+        fetch('/api/tools/inst-corrections/list', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: itcCountyId, hide_completed: hideCompleted })
+        })
+        .then(r => r.json())
+        .then(d => {
+            const listEl = document.getElementById('itcRecordList');
+            listEl.innerHTML = '';
+            
+            if (d.records.length === 0) {
+                document.getElementById('itcListStatus').innerText = "No records found.";
+                return;
+            }
+            
+            document.getElementById('itcListStatus').innerText = `${d.records.length} records found`;
+            
+            d.records.forEach(rec => {
+                const item = document.createElement('div');
+                item.className = 'd-flex align-items-center border-bottom border-secondary p-2 hover-bg-dark';
+                item.id = `itc-row-${rec.id}`;
+                
+                // Visuals for Completed Items
+                const isDone = !!rec.corrected;
+                const textColor = isDone ? 'text-success' : 'text-warning';
+                const statusIcon = isDone ? '<i class="bi bi-check-circle-fill me-2 text-success"></i>' : '';
+                // Pass existing correction to the edit button if available
+                const valToEdit = isDone ? rec.corrected : ''; 
+
+                // Click row -> Load Images
+                item.onclick = (e) => {
+                    if(e.target.closest('.itc-edit-btn')) return;
+                    itcLoadImages(rec.value);
+                    document.querySelectorAll('#itcRecordList > div').forEach(el => el.classList.remove('bg-secondary'));
+                    item.classList.add('bg-secondary');
+                };
+
+                item.innerHTML = `
+                    <div class="flex-grow-1 text-truncate pe-2 ${textColor} font-monospace" title="${rec.value}">
+                        ${statusIcon}${rec.value}
+                    </div>
+                    <button class="btn btn-sm btn-outline-light itc-edit-btn" 
+                            onclick="itcShowPopover(event, ${rec.id}, '${rec.value.replace(/'/g, "\\'")}', '${valToEdit.replace(/'/g, "\\'")}')">
+                        <i class="bi bi-pencil-fill"></i>
+                    </button>
+                `;
+                listEl.appendChild(item);
+            });
+        });
+    }
+
+    function itcLoadImages(val) {
+        fetch('/api/tools/inst-corrections/images', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: itcCountyId, value: val })
+        })
+        .then(r => r.json())
+        .then(d => {
+            itcImages = d.images || [];
+            itcImgIndex = 0;
+            itcUpdateImageView();
+        });
+    }
+
+    function itcUpdateImageView() {
+        const imgEl = document.getElementById('itcMainImage');
+        const strip = document.getElementById('itcThumbnailStrip');
+        const noImg = document.getElementById('itcNoImage');
+        
+        if (itcImages.length === 0) {
+            imgEl.style.display = 'none';
+            noImg.classList.remove('d-none');
+            noImg.innerText = "No images found for this type.";
+            strip.innerHTML = '';
+            return;
         }
+        
+        imgEl.style.display = 'block';
+        noImg.classList.add('d-none');
+        imgEl.src = itcImages[itcImgIndex];
+        
+        let start = Math.max(0, Math.min(itcImgIndex - 2, itcImages.length - 5));
+        let end = Math.min(start + 5, itcImages.length);
+        let html = '';
+        for (let i = start; i < end; i++) {
+            let activeClass = (i === itcImgIndex) ? 'border-warning opacity-100' : 'border-secondary opacity-50';
+            html += `<img src="${itcImages[i]}" class="border ${activeClass}" 
+                     style="height: 60px; width: 60px; object-fit: cover; cursor: pointer;"
+                     onclick="itcJumpTo(${i})">`;
+        }
+        strip.innerHTML = html;
+    }
+    
+    function itcNextImage() { if(itcImages.length) { itcImgIndex = (itcImgIndex + 1) % itcImages.length; itcUpdateImageView(); } }
+    function itcPrevImage() { if(itcImages.length) { itcImgIndex = (itcImgIndex - 1 + itcImages.length) % itcImages.length; itcUpdateImageView(); } }
+    function itcJumpTo(i) { itcImgIndex = i; itcUpdateImageView(); }
+
+    function itcShowPopover(event, id, originalVal, currentCorrected) {
+        event.stopPropagation();
+        itcActiveRecordId = id;
+        itcActiveOriginalVal = originalVal;
+        
+        const pop = document.getElementById('itcPopover');
+        const searchIn = document.getElementById('itcPopSearch');
+        const results = document.getElementById('itcPopResults');
+        
+        const rect = event.target.getBoundingClientRect();
+        pop.style.top = (rect.top + window.scrollY + 10) + 'px';
+        pop.style.left = (rect.left + window.scrollX + 10) + 'px';
+        
+        pop.classList.remove('d-none');
+        
+        // If editing an existing correction, pre-fill search? 
+        // Or keep empty to search new? Let's keep empty but maybe log it.
+        searchIn.value = currentCorrected || ''; 
+        searchIn.focus();
+        if(currentCorrected) itcPopSearch(); // Auto-search existing value
+        else results.innerHTML = '<div class="text-muted p-2 small">Type to search...</div>';
+    }
+
+    function itcHidePopover() {
+        document.getElementById('itcPopover').classList.add('d-none');
+        itcActiveRecordId = null;
+    }
+
+    function itcPopSearch() {
+        const term = document.getElementById('itcPopSearch').value;
+        const mode = document.querySelector('input[name="itcPopMode"]:checked').value;
+        const results = document.getElementById('itcPopResults');
+        
+        if (term.length < 2) return;
+        
+        fetch('/api/tools/inst-corrections/search', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: itcCountyId, term: term, mode: mode })
+        })
+        .then(r => r.json())
+        .then(data => {
+            results.innerHTML = '';
+            if (data.length === 0) {
+                results.innerHTML = '<div class="text-danger p-2 small">No matches found.</div>';
+                return;
+            }
+            data.forEach(val => {
+                const row = document.createElement('div');
+                row.className = 'p-2 border-bottom border-secondary text-white hover-bg-secondary cursor-pointer small';
+                row.innerText = val;
+                row.onclick = () => itcApplyCorrection(val);
+                results.appendChild(row);
+            });
+        });
+    }
+
+    function itcApplyCorrection(correctedVal) {
+        if (!itcActiveRecordId) return;
+        
+        const hideCompleted = document.getElementById('itcHideCompleted').checked;
+        const row = document.getElementById(`itc-row-${itcActiveRecordId}`);
+        
+        itcHidePopover();
+        
+        fetch('/api/tools/inst-corrections/save', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                county_id: itcCountyId,
+                id: itcActiveRecordId,
+                original: itcActiveOriginalVal,
+                corrected: correctedVal
+            })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                showNotification("Correction Saved", "success");
+                // If hiding completed, remove row. If showing, update it.
+                if (hideCompleted) {
+                    if(row) row.remove();
+                } else {
+                    itcFetchList(); // Reload to show green checkmark
+                }
+            } else {
+                showNotification("Save Failed: " + d.message);
+            }
+        });
     }
 </script>

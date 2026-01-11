@@ -25,7 +25,8 @@ from blueprints.SetupKeliTables import setup_keli_bp
 from blueprints.UnindexedImages import unindexed_bp
 from blueprints.AlterDatabaseFields import alter_db_bp
 from blueprints.PatchManager import patch_bp
-from blueprints.DataCleanup import cleanup_bp
+from blueprints.InitialPreparation import initial_prep_bp
+from blueprints.InstrumentTypeCorrections import inst_type_bp
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
@@ -57,7 +58,8 @@ app.register_blueprint(setup_keli_bp)
 app.register_blueprint(unindexed_bp)
 app.register_blueprint(alter_db_bp)
 app.register_blueprint(patch_bp)
-app.register_blueprint(cleanup_bp)
+app.register_blueprint(initial_prep_bp)
+app.register_blueprint(inst_type_bp)
 
 # --- DB CONFIG LOAD ---
 def load_db_config():
