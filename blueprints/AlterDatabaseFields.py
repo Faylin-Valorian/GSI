@@ -31,7 +31,9 @@ COLUMN_MAPPINGS = {
 }
 
 # 2. DEFINE NEW COLUMNS
+# instTypeOriginal added FIRST as requested
 ADD_COLUMNS_SQL = [
+    ("instTypeOriginal", "varchar(1000)", "--Add instTypeOriginal To GenericDataImport"),
     ("instrumentid", "int", "--Add instrumentid To GenericDataImport"),
     ("deleteFlag", "varchar(1000)", "--Add deleteFlag To GenericDataImport"),
     ("change_script_locations", "varchar(1000)", "--Add change_script_locations To GenericDataImport"),
@@ -69,7 +71,7 @@ def generate_safe_sql():
             sql_statements.append(f"ALTER TABLE GenericDataImport ADD {col_name} {col_type};")
         else:
             sql_statements.append(f"-- SKIPPING: {col_name} (Column already exists)")
-            
+
     return sql_statements
 
 # --- UPDATED ROUTES ---

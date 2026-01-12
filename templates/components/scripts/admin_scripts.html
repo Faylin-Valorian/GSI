@@ -808,31 +808,57 @@
     }
 
 // ==========================================
-    // INSTRUMENT TYPE CORRECTIONS TOOL (Updated)
+    // INSTRUMENT TYPE CORRECTIONS TOOL
     // ==========================================
     const instCorrectionModal = new bootstrap.Modal(document.getElementById('instCorrectionModal'));
     let itcCountyId = null;
     let itcImages = [];
     let itcImgIndex = 0;
     
-    // Tracking current edit
+    // Pan/Zoom State
+    let itcZoom = 1;
+    let itcPanX = 0;
+    let itcPanY = 0;
+    let itcIsPanning = false;
+    let itcStartX = 0;
+    let itcStartY = 0;
+    
+    // Resizer State
+    let itcIsResizing = false;
+    
+    // Edit State
     let itcActiveRecordId = null; 
     let itcActiveOriginalVal = null;
 
-    function openInstCorrectionTool(id) {
+    function openInstCorrectionTool(id, stateName, countyName) {
         closeAllModals();
         itcCountyId = id;
         
-        // Reset UI & Toggle
+        // 1. Auto-Fill Path
+        // Backend handles joining this with root path if relative
+        const defaultPath = `data/${stateName}/${countyName}/Images`;
+        document.getElementById('itcPathInput').value = defaultPath;
+
+        // 2. Reset UI
         document.getElementById('itcRecordList').innerHTML = '';
         document.getElementById('itcListStatus').innerText = "Initializing...";
         document.getElementById('itcThumbnailStrip').innerHTML = '';
         document.getElementById('itcMainImage').style.display = 'none';
         document.getElementById('itcNoImage').classList.remove('d-none');
-        document.getElementById('itcHideCompleted').checked = true; // Default ON
+        document.getElementById('itcHideCompleted').checked = true;
+        
+        document.getElementById('itcHeaderDisplay').innerText = "---";
+        document.getElementById('itcOriginalDisplay').innerText = "---";
+        document.getElementById('itcCurrentDisplay').innerText = "---";
+        
         itcHidePopover();
+        itcResetPanZoom();
 
+        // 3. Show & Initialize Layout Tools
         instCorrectionModal.show();
+        adjustItcModalLayout(); // Position based on sidebar
+        itcInitPanZoom();       // Image controls
+        itcInitResizer();       // Resizer controls
         
         fetch('/api/tools/inst-corrections/init', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -845,6 +871,54 @@
         });
     }
 
+    function adjustItcModalLayout() {
+        const modalDialog = document.getElementById('itcModalDialog');
+        if (!modalDialog) return;
+        const isSidebarOpen = document.querySelector('.menu-panel.open') !== null;
+        modalDialog.style.left = isSidebarOpen ? '250px' : '60px';
+    }
+
+    // --- RESIZER LOGIC (Expandable Panel) ---
+    function itcInitResizer() {
+        const resizer = document.getElementById('itcResizer');
+        const leftPanel = document.getElementById('itcLeftPanel');
+        const modalBody = document.getElementById('itcModalBody');
+        
+        if(!resizer || !leftPanel || !modalBody) return;
+
+        if (resizer.dataset.initialized === 'true') return;
+        resizer.dataset.initialized = 'true';
+
+        resizer.addEventListener('mousedown', (e) => {
+            itcIsResizing = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none'; 
+            resizer.classList.add('bg-primary');
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!itcIsResizing) return;
+            
+            const bodyRect = modalBody.getBoundingClientRect();
+            let newWidth = e.clientX - bodyRect.left;
+            const maxWidth = bodyRect.width * 0.6;
+            
+            if (newWidth > 250 && newWidth < maxWidth) {
+                leftPanel.style.width = newWidth + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if(itcIsResizing) {
+                itcIsResizing = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                resizer.classList.remove('bg-primary');
+            }
+        });
+    }
+
+    // --- DATA LOADING ---
     function itcFetchList() {
         const hideCompleted = document.getElementById('itcHideCompleted').checked;
         document.getElementById('itcListStatus').innerText = "Loading records...";
@@ -870,24 +944,28 @@
                 item.className = 'd-flex align-items-center border-bottom border-secondary p-2 hover-bg-dark';
                 item.id = `itc-row-${rec.id}`;
                 
-                // Visuals for Completed Items
                 const isDone = !!rec.corrected;
-                const textColor = isDone ? 'text-success' : 'text-warning';
                 const statusIcon = isDone ? '<i class="bi bi-check-circle-fill me-2 text-success"></i>' : '';
-                // Pass existing correction to the edit button if available
                 const valToEdit = isDone ? rec.corrected : ''; 
+                
+                let labelHtml = `<span class="text-white">${rec.value}</span>`;
+                if(isDone) labelHtml += ` <i class="bi bi-arrow-right text-muted mx-1"></i> <span class="text-success">${rec.corrected}</span>`;
 
-                // Click row -> Load Images
                 item.onclick = (e) => {
                     if(e.target.closest('.itc-edit-btn')) return;
+                    
+                    document.getElementById('itcOriginalDisplay').innerText = rec.value;
+                    document.getElementById('itcCurrentDisplay').innerText = rec.corrected || rec.value;
+                    document.getElementById('itcHeaderDisplay').innerText = "Loading...";
+                    
                     itcLoadImages(rec.value);
                     document.querySelectorAll('#itcRecordList > div').forEach(el => el.classList.remove('bg-secondary'));
                     item.classList.add('bg-secondary');
                 };
 
                 item.innerHTML = `
-                    <div class="flex-grow-1 text-truncate pe-2 ${textColor} font-monospace" title="${rec.value}">
-                        ${statusIcon}${rec.value}
+                    <div class="flex-grow-1 text-truncate pe-2 font-monospace small" title="${rec.value}">
+                        ${statusIcon}${labelHtml}
                     </div>
                     <button class="btn btn-sm btn-outline-light itc-edit-btn" 
                             onclick="itcShowPopover(event, ${rec.id}, '${rec.value.replace(/'/g, "\\'")}', '${valToEdit.replace(/'/g, "\\'")}')">
@@ -900,14 +978,22 @@
     }
 
     function itcLoadImages(val) {
+        const path = document.getElementById('itcPathInput').value;
+        itcResetPanZoom(); 
+        
         fetch('/api/tools/inst-corrections/images', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ county_id: itcCountyId, value: val })
+            body: JSON.stringify({ 
+                county_id: itcCountyId, 
+                value: val,
+                base_path: path 
+            })
         })
         .then(r => r.json())
         .then(d => {
             itcImages = d.images || [];
             itcImgIndex = 0;
+            document.getElementById('itcHeaderDisplay').innerText = d.header_text || "No Header Found";
             itcUpdateImageView();
         });
     }
@@ -927,24 +1013,99 @@
         
         imgEl.style.display = 'block';
         noImg.classList.add('d-none');
-        imgEl.src = itcImages[itcImgIndex];
+        
+        const currentObj = itcImages[itcImgIndex];
+        imgEl.src = currentObj.src;
+        imgEl.title = currentObj.path;
+        
+        itcUpdateTransform();
         
         let start = Math.max(0, Math.min(itcImgIndex - 2, itcImages.length - 5));
         let end = Math.min(start + 5, itcImages.length);
         let html = '';
         for (let i = start; i < end; i++) {
             let activeClass = (i === itcImgIndex) ? 'border-warning opacity-100' : 'border-secondary opacity-50';
-            html += `<img src="${itcImages[i]}" class="border ${activeClass}" 
+            html += `<img src="${itcImages[i].src}" class="border ${activeClass}" 
                      style="height: 60px; width: 60px; object-fit: cover; cursor: pointer;"
-                     onclick="itcJumpTo(${i})">`;
+                     onclick="itcJumpTo(${i})" title="${itcImages[i].path}">`;
         }
         strip.innerHTML = html;
+    }
+
+    // --- PAN/ZOOM LOGIC ---
+    function itcInitPanZoom() {
+        const container = document.getElementById('itcImagePanContainer');
+        const img = document.getElementById('itcMainImage');
+        if(!container || !img) return;
+        
+        img.addEventListener('dragstart', (e) => e.preventDefault());
+
+        container.onwheel = (e) => {
+            if(img.style.display === 'none') return;
+            e.preventDefault();
+
+            if (itcIsPanning) {
+                // ZOOM (Mouse Held + Wheel)
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                const newZoom = Math.min(Math.max(0.1, itcZoom + delta), 10); 
+                if (newZoom !== itcZoom) {
+                    const scale = newZoom / itcZoom;
+                    itcPanX = mouseX - (mouseX - itcPanX) * scale;
+                    itcPanY = mouseY - (mouseY - itcPanY) * scale;
+                    itcZoom = newZoom;
+                    itcUpdateTransform();
+                }
+            } else {
+                // SCROLL (Wheel Only)
+                itcPanY -= (e.deltaY * 1.0);
+                itcUpdateTransform();
+            }
+        };
+
+        container.onmousedown = (e) => {
+            if(img.style.display === 'none') return;
+            if(e.target.closest('.position-absolute') && !e.target.closest('#itcNoImage')) return;
+            
+            itcIsPanning = true;
+            itcStartX = e.clientX - itcPanX;
+            itcStartY = e.clientY - itcPanY;
+            container.style.cursor = 'grabbing';
+        };
+
+        window.onmousemove = (e) => {
+            if (!itcIsPanning) return;
+            e.preventDefault();
+            itcPanX = e.clientX - itcStartX;
+            itcPanY = e.clientY - itcStartY;
+            itcUpdateTransform();
+        };
+
+        window.onmouseup = () => {
+            if(itcIsPanning) {
+                itcIsPanning = false;
+                if(container) container.style.cursor = 'grab';
+            }
+        };
+    }
+
+    function itcUpdateTransform() {
+        const img = document.getElementById('itcMainImage');
+        if(img) img.style.transform = `translate(${itcPanX}px, ${itcPanY}px) scale(${itcZoom})`;
+    }
+
+    function itcResetPanZoom() {
+        itcZoom = 1; itcPanX = 0; itcPanY = 0; itcIsPanning = false;
+        itcUpdateTransform();
     }
     
     function itcNextImage() { if(itcImages.length) { itcImgIndex = (itcImgIndex + 1) % itcImages.length; itcUpdateImageView(); } }
     function itcPrevImage() { if(itcImages.length) { itcImgIndex = (itcImgIndex - 1 + itcImages.length) % itcImages.length; itcUpdateImageView(); } }
     function itcJumpTo(i) { itcImgIndex = i; itcUpdateImageView(); }
 
+    // --- POPOVER LOGIC ---
     function itcShowPopover(event, id, originalVal, currentCorrected) {
         event.stopPropagation();
         itcActiveRecordId = id;
@@ -953,18 +1114,27 @@
         const pop = document.getElementById('itcPopover');
         const searchIn = document.getElementById('itcPopSearch');
         const results = document.getElementById('itcPopResults');
+        const modalBody = document.querySelector('#instCorrectionModal .modal-body');
+
+        const btnRect = event.target.getBoundingClientRect();
+        const bodyRect = modalBody.getBoundingClientRect();
         
-        const rect = event.target.getBoundingClientRect();
-        pop.style.top = (rect.top + window.scrollY + 10) + 'px';
-        pop.style.left = (rect.left + window.scrollX + 10) + 'px';
+        const top = btnRect.top - bodyRect.top;
+        const left = btnRect.left - bodyRect.left;
+        
+        pop.style.top = (top + 10) + 'px';
+        if (left > bodyRect.width - 320) {
+             pop.style.left = (left - 300) + 'px';
+        } else {
+             pop.style.left = (left + 10) + 'px';
+        }
         
         pop.classList.remove('d-none');
         
-        // If editing an existing correction, pre-fill search? 
-        // Or keep empty to search new? Let's keep empty but maybe log it.
         searchIn.value = currentCorrected || ''; 
-        searchIn.focus();
-        if(currentCorrected) itcPopSearch(); // Auto-search existing value
+        setTimeout(() => searchIn.focus(), 100);
+
+        if(currentCorrected) itcPopSearch(); 
         else results.innerHTML = '<div class="text-muted p-2 small">Type to search...</div>';
     }
 
@@ -975,14 +1145,13 @@
 
     function itcPopSearch() {
         const term = document.getElementById('itcPopSearch').value;
-        const mode = document.querySelector('input[name="itcPopMode"]:checked').value;
         const results = document.getElementById('itcPopResults');
         
         if (term.length < 2) return;
         
         fetch('/api/tools/inst-corrections/search', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ county_id: itcCountyId, term: term, mode: mode })
+            body: JSON.stringify({ county_id: itcCountyId, term: term })
         })
         .then(r => r.json())
         .then(data => {
@@ -994,8 +1163,13 @@
             data.forEach(val => {
                 const row = document.createElement('div');
                 row.className = 'p-2 border-bottom border-secondary text-white hover-bg-secondary cursor-pointer small';
-                row.innerText = val;
-                row.onclick = () => itcApplyCorrection(val);
+                
+                let html = `<div class="fw-bold">${val.name}</div>`;
+                if(val.desc) html += `<div class="text-muted x-small">${val.desc}</div>`;
+                if(val.type) html += `<div class="text-info x-small fst-italic mt-1"><i class="bi bi-tag me-1"></i>${val.type}</div>`;
+                
+                row.innerHTML = html;
+                row.onclick = () => itcApplyCorrection(val.name);
                 results.appendChild(row);
             });
         });
@@ -1022,11 +1196,22 @@
         .then(d => {
             if(d.success) {
                 showNotification("Correction Saved", "success");
-                // If hiding completed, remove row. If showing, update it.
+                
+                // Update Info Display Immediately
+                document.getElementById('itcCurrentDisplay').innerText = correctedVal;
+
+                // Handle List UI (Hide or Update)
                 if (hideCompleted) {
                     if(row) row.remove();
+                    // Auto-select next row
+                    const nextRow = document.querySelector('#itcRecordList > div');
+                    if(nextRow) nextRow.click();
+                    else {
+                         document.getElementById('itcMainImage').style.display = 'none';
+                         document.getElementById('itcNoImage').classList.remove('d-none');
+                    }
                 } else {
-                    itcFetchList(); // Reload to show green checkmark
+                    itcFetchList(); 
                 }
             } else {
                 showNotification("Save Failed: " + d.message);

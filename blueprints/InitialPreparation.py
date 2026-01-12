@@ -63,7 +63,17 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     """
     steps.append(('Cleaning Original Values', sql_orig))
 
-    # 5. INSTRUMENT ID GENERATION
+    # 5. POPULATE ORIGINAL INSTRUMENT TYPE (Requested Step)
+    # The column was added in SetupEData but populated with NULL.
+    # We populate it now with the current col03varchar before IDs are generated.
+    sql_inst_orig = """
+    UPDATE GenericDataImport 
+    SET instTypeOriginal = col03varchar 
+    WHERE instTypeOriginal IS NULL OR instTypeOriginal = '';
+    """
+    steps.append(('Preserving Original Instrument Types', sql_inst_orig))
+
+    # 6. INSTRUMENT ID GENERATION
     sql_inst = """
     DECLARE @numbering TABLE (id INT IDENTITY(1,1), fn VARCHAR(200), col01varchar VARCHAR(200));
     INSERT INTO @numbering (fn, col01varchar) 
@@ -79,14 +89,14 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
 
     # --- NEW STEPS FOR KEYORIGINALVALUE ---
 
-    # 6. KEY ORIGINAL VALUE - HEADER CLEANUP
+    # 7. KEY ORIGINAL VALUE - HEADER CLEANUP
     sql_kov_header = """
     UPDATE GenericDataImport SET keyOriginalValue = '' WHERE fn LIKE '%header%';
     """
     steps.append(('Initializing Header KeyOriginalValue', sql_kov_header))
 
-    # 7. KEY ORIGINAL VALUE - ASSIGNMENT
-    # Depends on InstrumentID (Step 5)
+    # 8. KEY ORIGINAL VALUE - ASSIGNMENT
+    # Depends on InstrumentID (Step 6)
     sql_kov_assign = """
     UPDATE a 
     SET keyOriginalValue = b.OriginalValue 
@@ -99,7 +109,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
 
     # --------------------------------------
 
-    # 8. INSERT 'OTHER' LEGALS
+    # 9. INSERT 'OTHER' LEGALS
     sql_legal = """
     INSERT INTO GenericDataImport (fn, col01varchar, stech_image_path, legal_type, col20other, deleteFlag, instrumentid) 
     SELECT REPLACE(fn, 'HEADER', 'Legal'), col01varchar, stech_image_path, 'Other', 'NO LEGAL', 'FALSE', instrumentid 
@@ -109,7 +119,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     """
     steps.append(('Inserting Placeholder Legals', sql_legal))
 
-    # 9. IMAGE PATH UPDATE (Optional)
+    # 10. IMAGE PATH UPDATE (Optional)
     if book_start and book_end:
         sql_img = f"""
         UPDATE GenericDataImport 
@@ -121,7 +131,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
 
     # --- EXTERNAL TABLES ---
 
-    # 10. Manifest (Renamed)
+    # 11. Manifest (Renamed)
     raw_manifest = """
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'fromkellprocombined_manifest')
     CREATE TABLE fromkellprocombined_manifest (
@@ -130,35 +140,35 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     """
     steps.append(('Creating Manifest Table', rename_table(raw_manifest, 'fromkellprocombined_manifest', 'combined_manifest')))
 
-    # 11. InstTypesMerge
+    # 12. InstTypesMerge
     raw_merge = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'InstTypesMerge') DROP TABLE InstTypesMerge
     CREATE TABLE InstTypesMerge (Abbr varchar(1000), tFull varchar(1000))
     """
     steps.append(('Creating InstTypesMerge', raw_merge))
 
-    # 12. KeliAdditionsExternals (Renamed)
+    # 13. KeliAdditionsExternals (Renamed)
     raw_additions = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliAdditionsExternals') DROP TABLE KeliAdditionsExternals
     CREATE TABLE KeliAdditionsExternals (AddID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, AdditionName VARCHAR(500))
     """
     steps.append(('Creating Additions Externals', rename_table(raw_additions, 'KeliAdditionsExternals', 'Additions_Externals')))
 
-    # 13. KeliInstTypesExternals (Renamed)
+    # 14. KeliInstTypesExternals (Renamed)
     raw_inst_types = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliInstTypesExternals') DROP TABLE KeliInstTypesExternals
     CREATE TABLE KeliInstTypesExternals (InstID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, InstTypeName VARCHAR(500))
     """
     steps.append(('Creating InstTypes Externals', rename_table(raw_inst_types, 'KeliInstTypesExternals', 'InstTypes_Externals')))
 
-    # 14. KeliSeriesExternals (Renamed)
+    # 15. KeliSeriesExternals (Renamed)
     raw_series = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliSeriesExternals') DROP TABLE KeliSeriesExternals
     CREATE TABLE KeliSeriesExternals (SeriesID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, SeriesDate VARCHAR(100))
     """
     steps.append(('Creating Series Externals', rename_table(raw_series, 'KeliSeriesExternals', 'Series_Externals')))
 
-    # 15. KeliTownshipRangeExternals (Renamed)
+    # 16. KeliTownshipRangeExternals (Renamed)
     raw_tr = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliTownshipRangeExternals') DROP TABLE KeliTownshipRangeExternals
     CREATE TABLE KeliTownshipRangeExternals (TownshipRangeID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, Township VARCHAR(100), Range VARCHAR(100), Active INT)
