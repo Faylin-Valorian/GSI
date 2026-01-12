@@ -1218,4 +1218,147 @@
             }
         });
     }
+
+// ==========================================
+    // INITIAL KELI LINKUP TOOL
+    // ==========================================
+    
+    const linkupModal = new bootstrap.Modal(document.getElementById('keliLinkupModal'));
+    let linkupSqlCache = "";
+
+    function openLinkupModal() {
+        // 1. Try to get the ID from the global variable or hidden inputs
+        let countyId = null;
+        
+        if (typeof selectedCountyId !== 'undefined' && selectedCountyId) {
+            countyId = selectedCountyId;
+        } else if (document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
+            countyId = document.getElementById('eDataCountyId').value;
+        }
+
+        // 2. Validate
+        if (!countyId) {
+            showNotification("Please select a county first.");
+            return;
+        }
+
+        // 3. Reset and Show Modal
+        document.getElementById('linkupResult').innerHTML = '';
+        document.getElementById('linkupProgressContainer').classList.add('d-none');
+        document.getElementById('linkupDebugPanel').classList.add('d-none');
+        
+        // Clear previous inputs
+        document.getElementById('linkupBookStart').value = '';
+        document.getElementById('linkupBookEnd').value = '';
+        document.getElementById('linkupImgPath').value = '';
+
+        linkupModal.show();
+    }
+
+    function getLinkupPayload() {
+        // Ensure we capture the ID dynamically at the moment of execution
+        let countyId = typeof selectedCountyId !== 'undefined' ? selectedCountyId : document.getElementById('eDataCountyId').value;
+
+        return {
+            county_id: countyId,
+            book_start: document.getElementById('linkupBookStart').value.trim() || null,
+            book_end: document.getElementById('linkupBookEnd').value.trim() || null,
+            image_path_prefix: document.getElementById('linkupImgPath').value.trim() || ''
+        };
+    }
+
+    function previewLinkupSql() {
+        const btn = document.querySelector('#keliLinkupModal .btn-outline-warning');
+        const debugPanel = document.getElementById('linkupDebugPanel');
+        const previewText = document.getElementById('linkupSqlPreview');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gen...';
+        
+        fetch('/api/tools/initial-keli-linkup/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(getLinkupPayload())
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-file-earmark-code me-1"></i>Generate Preview';
+            
+            if (data.success) {
+                linkupSqlCache = data.sql;
+                previewText.value = data.sql;
+                debugPanel.classList.remove('d-none');
+            } else {
+                showNotification(data.message);
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            showNotification("Preview failed: " + err);
+        });
+    }
+
+    function copyLinkupSql() {
+        navigator.clipboard.writeText(linkupSqlCache);
+        showNotification("SQL copied to clipboard");
+    }
+
+    function runLinkupTool() {
+        const btn = document.getElementById('btnRunLinkup');
+        const progressContainer = document.getElementById('linkupProgressContainer');
+        const progressBar = document.getElementById('linkupProgressBar');
+        const progressLabel = document.getElementById('linkupProgressLabel');
+        const percentLabel = document.getElementById('linkupProgressPercent');
+        const resultDiv = document.getElementById('linkupResult');
+        
+        btn.disabled = true;
+        progressContainer.classList.remove('d-none');
+        resultDiv.innerHTML = '';
+        progressBar.style.width = '0%';
+        
+        fetch('/api/tools/initial-keli-linkup/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(getLinkupPayload())
+        }).then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function readStream() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        btn.disabled = false;
+                        return;
+                    }
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.type === 'progress') {
+                                progressBar.style.width = data.percent + '%';
+                                progressLabel.innerText = data.message;
+                                percentLabel.innerText = data.percent + '%';
+                            } else if (data.type === 'complete') {
+                                progressBar.style.width = '100%';
+                                resultDiv.innerHTML = `<div class="alert alert-success mt-2 py-2"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                            } else if (data.type === 'error') {
+                                resultDiv.innerHTML = `<div class="alert alert-danger mt-2 py-2">${data.message}</div>`;
+                                btn.disabled = false;
+                            }
+                        } catch (e) { console.error(e); }
+                    });
+                    readStream();
+                });
+            }
+            readStream();
+        }).catch(err => {
+            btn.disabled = false;
+            resultDiv.innerHTML = `<div class="alert alert-danger">Connection Error</div>`;
+        });
+    }
 </script>
