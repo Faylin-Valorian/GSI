@@ -23,13 +23,11 @@
                 loadStateLayers(); 
                 loadCountyLayers();
             } else {
-                // <--- FIX: Use showNotification instead of alert --->
                 showNotification("Seeding failed: " + d.message);
             }
         })
         .catch(e => { 
             document.getElementById('globalLoader').style.display = 'none'; 
-            // <--- FIX: Use showNotification instead of alert --->
             showNotification("Error: " + e); 
         });
     }
@@ -1225,14 +1223,16 @@
     
     const linkupModal = new bootstrap.Modal(document.getElementById('keliLinkupModal'));
     let linkupSqlCache = "";
+    let currentLinkupCountyId = null;
 
-    function openLinkupModal() {
-        // 1. Try to get the ID from the global variable or hidden inputs
-        let countyId = null;
+    function openLinkupModal(passedId) {
+        // 1. Try to get the ID from argument or existing vars
+        let countyId = passedId;
         
-        if (typeof selectedCountyId !== 'undefined' && selectedCountyId) {
+        // Fallback checks (e.g. if opened via sidebar where no ID is passed)
+        if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
             countyId = selectedCountyId;
-        } else if (document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
+        } else if (!countyId && document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
             countyId = document.getElementById('eDataCountyId').value;
         }
 
@@ -1241,6 +1241,8 @@
             showNotification("Please select a county first.");
             return;
         }
+        
+        currentLinkupCountyId = countyId;
 
         // 3. Reset and Show Modal
         document.getElementById('linkupResult').innerHTML = '';
@@ -1256,11 +1258,8 @@
     }
 
     function getLinkupPayload() {
-        // Ensure we capture the ID dynamically at the moment of execution
-        let countyId = typeof selectedCountyId !== 'undefined' ? selectedCountyId : document.getElementById('eDataCountyId').value;
-
         return {
-            county_id: countyId,
+            county_id: currentLinkupCountyId,
             book_start: document.getElementById('linkupBookStart').value.trim() || null,
             book_end: document.getElementById('linkupBookEnd').value.trim() || null,
             image_path_prefix: document.getElementById('linkupImgPath').value.trim() || ''

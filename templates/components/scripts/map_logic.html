@@ -68,7 +68,9 @@
     // --- LOAD LAYERS ---
     function loadStateLayers() {
         fetch('/api/layers/states').then(r=>r.json()).then(activeFips => {
-            const safeFips = activeFips.map(c => String(c).trim());
+            // FIX: Pad FIPS codes with leading zero to match GeoJSON format (e.g. '5' -> '05')
+            const safeFips = activeFips.map(c => String(c).trim().padStart(2, '0'));
+            
             fetch(stateGeoJsonUrl).then(r=>r.json()).then(geo => {
                 const filtered = geo.features.filter(f => safeFips.includes(String(f.properties.STATE).trim()));
                 stateLayerGroup.clearLayers();
@@ -248,7 +250,7 @@
                             onclick="openInstCorrectionTool(${data.id}, '${data.state_name}', '${data.name}')">
                             <i class="bi bi-pencil-square me-2"></i>Instrument Type Corrections
                         </button>
-                        <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openLinkupModal()">
+                        <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openLinkupModal(${data.id})">
                             <i class="bi bi-link-45deg me-2" style="color: #d63384;"></i>Initial Keli Linkup
                         </button>
                     </div>
