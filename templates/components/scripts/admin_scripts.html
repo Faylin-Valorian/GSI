@@ -1360,4 +1360,136 @@
             resultDiv.innerHTML = `<div class="alert alert-danger">Connection Error</div>`;
         });
     }
+
+// ==========================================
+    // eDATA ERRORS TOOL
+    // ==========================================
+    
+    const edataErrorsModal = new bootstrap.Modal(document.getElementById('edataErrorsModal'));
+    let currentEdeCountyId = null;
+
+    function openEdataErrorsModal(passedId) {
+        // 1. Resolve ID
+        let countyId = passedId;
+        if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
+            countyId = selectedCountyId;
+        } else if (!countyId && document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
+            countyId = document.getElementById('eDataCountyId').value;
+        }
+
+        if (!countyId) {
+            showNotification("Please select a county first.");
+            return;
+        }
+        
+        currentEdeCountyId = countyId;
+
+        // 2. Reset UI
+        document.getElementById('edeResult').innerHTML = '';
+        document.getElementById('edeProgressContainer').classList.add('d-none');
+        document.getElementById('edeLogBox').innerHTML = '';
+        
+        // 3. Set Loading State & Open
+        document.getElementById('edeBookStart').value = 'Loading...';
+        document.getElementById('edeBookEnd').value = 'Loading...';
+        document.getElementById('edeTownships').value = 'Loading...';
+        
+        edataErrorsModal.show();
+
+        // 4. Fetch Defaults
+        fetch(`/api/tools/edata-errors/get-defaults/${countyId}`)
+            .then(r => r.json())
+            .then(data => {
+                if(data.success) {
+                    document.getElementById('edeBookStart').value = data.book_start;
+                    document.getElementById('edeBookEnd').value = data.book_end;
+                    document.getElementById('edeTownships').value = data.townships;
+                } else {
+                    document.getElementById('edeBookStart').value = '';
+                    document.getElementById('edeBookEnd').value = '';
+                    document.getElementById('edeTownships').value = '';
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('edeBookStart').value = '';
+                document.getElementById('edeBookEnd').value = '';
+                document.getElementById('edeTownships').value = '';
+            });
+    }
+
+    function runEdataErrors() {
+        const btn = document.getElementById('btnRunEde');
+        const progressContainer = document.getElementById('edeProgressContainer');
+        const progressBar = document.getElementById('edeProgressBar');
+        const progressLabel = document.getElementById('edeProgressLabel');
+        const percentLabel = document.getElementById('edeProgressPercent');
+        const logBox = document.getElementById('edeLogBox');
+        const resultDiv = document.getElementById('edeResult');
+        
+        const payload = {
+            county_id: currentEdeCountyId,
+            book_start: document.getElementById('edeBookStart').value.trim(),
+            book_end: document.getElementById('edeBookEnd').value.trim(),
+            townships: document.getElementById('edeTownships').value.trim(),
+            split_images: document.getElementById('edeSplitImages').checked // <--- Added
+        };
+
+        btn.disabled = true;
+        progressContainer.classList.remove('d-none');
+        resultDiv.innerHTML = '';
+        progressBar.style.width = '0%';
+        logBox.innerHTML = '<div>Initializing...</div>';
+        
+        fetch('/api/tools/edata-errors/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function readStream() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        btn.disabled = false;
+                        return;
+                    }
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.type === 'progress') {
+                                progressBar.style.width = data.percent + '%';
+                                progressLabel.innerText = data.message;
+                                percentLabel.innerText = data.percent + '%';
+                            } else if (data.type === 'log') {
+                                const entry = document.createElement('div');
+                                entry.innerText = "> " + data.message;
+                                logBox.appendChild(entry);
+                                logBox.scrollTop = logBox.scrollHeight;
+                            } else if (data.type === 'complete') {
+                                progressBar.style.width = '100%';
+                                resultDiv.innerHTML = `<div class="alert alert-success mt-2 py-2"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                            } else if (data.type === 'error') {
+                                const entry = document.createElement('div');
+                                entry.style.color = '#dc3545';
+                                entry.innerText = "ERR: " + data.message;
+                                logBox.appendChild(entry);
+                            }
+                        } catch (e) { console.error(e); }
+                    });
+                    readStream();
+                });
+            }
+            readStream();
+        }).catch(err => {
+            btn.disabled = false;
+            resultDiv.innerHTML = `<div class="alert alert-danger">Connection Error</div>`;
+        });
+    }
 </script>

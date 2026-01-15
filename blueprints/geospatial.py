@@ -12,7 +12,7 @@ geo_bp = Blueprint('geospatial', __name__)
 
 # --- HELPER: FOLDER MANAGEMENT ---
 def ensure_folders(state_name, county_name=None):
-    """Creates the standard directory structure including Images."""
+    """Creates the standard directory structure including Images and Error folders."""
     root = os.path.join(current_app.root_path, 'data')
     
     s_clean = secure_filename(state_name)
@@ -27,14 +27,19 @@ def ensure_folders(state_name, county_name=None):
         if not os.path.exists(county_path):
             os.makedirs(county_path)
             
-        # Ensure subdirectories exist
-        edata = os.path.join(county_path, 'eData Files')
-        keli = os.path.join(county_path, 'Keli Files')
-        images = os.path.join(county_path, 'Images') 
+        # Standard Folders
+        folders_to_create = [
+            'eData Files',
+            'Keli Files',
+            'Images',
+            'eData Errors',
+            'Keli Errors'
+        ]
         
-        if not os.path.exists(edata): os.makedirs(edata)
-        if not os.path.exists(keli): os.makedirs(keli)
-        if not os.path.exists(images): os.makedirs(images)
+        for folder in folders_to_create:
+            path = os.path.join(county_path, folder)
+            if not os.path.exists(path):
+                os.makedirs(path)
 
 # --- DEBUG TOGGLE (ADMIN) ---
 @geo_bp.route('/api/admin/debug/toggle', methods=['POST'])

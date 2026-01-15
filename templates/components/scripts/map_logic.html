@@ -250,6 +250,11 @@
                             onclick="openInstCorrectionTool(${data.id}, '${data.state_name}', '${data.name}')">
                             <i class="bi bi-pencil-square me-2"></i>Instrument Type Corrections
                         </button>
+                        
+                        <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openEdataErrorsModal(${data.id})">
+                            <i class="bi bi-exclamation-triangle me-2" style="color: #dc3545;"></i>eData Errors
+                        </button>
+
                         <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openLinkupModal(${data.id})">
                             <i class="bi bi-link-45deg me-2" style="color: #d63384;"></i>Initial Keli Linkup
                         </button>
