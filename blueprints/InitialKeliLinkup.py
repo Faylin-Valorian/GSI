@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import datetime
@@ -5,22 +6,22 @@ from flask import Blueprint, request, Response, stream_with_context, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import text
 from extensions import db
-from models import IndexingCounties
+from models import IndexingCounties, IndexingStates
 from utils import format_error
+from werkzeug.utils import secure_filename
 
 initial_linkup_bp = Blueprint('initial_keli_linkup', __name__)
 
-def generate_linkup_sql(county_name, book_start=None, book_end=None, image_path_prefix=''):
+def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book_end=None, use_path=False, image_path_prefix=''):
     """
     Generates the SQL script steps for the Initial Keli Linkup Tool.
-    Dynamically renames Keli tables and injects parameters.
+    Dynamically renames Keli tables and injects parameters based on toggles.
     """
     steps = []
     
     # --- HELPER: Dynamic Table Renaming ---
     def process_sql(sql_content, step_name):
         # 1. Rename External Tables to match SetupKeliTables.py convention
-        # Pattern: {CountyName}_keli_{Suffix}
         
         # fromkellproinstrument_types -> instrument_types
         sql_content = sql_content.replace('fromkellproinstrument_types', f"{county_name}_keli_instrument_types")
@@ -39,13 +40,13 @@ def generate_linkup_sql(county_name, book_start=None, book_end=None, image_path_
 
         # 2. Inject Parameters
         # Handle Book Range {0}, {1}
-        if '{0}' in sql_content and book_start is not None:
-            # Check if it also needs {1} (End)
+        if use_book_range and '{0}' in sql_content and book_start is not None:
             if '{1}' in sql_content and book_end is not None:
                 sql_content = sql_content.replace('{0}', str(book_start)).replace('{1}', str(book_end))
-            # Handle Single Parameter (Image Path)
-            else:
-                sql_content = sql_content.replace('{0}', str(image_path_prefix))
+        
+        # Handle Single Parameter (Image Path)
+        if use_path and '{0}' in sql_content and image_path_prefix is not None:
+             sql_content = sql_content.replace('{0}', str(image_path_prefix))
 
         return (step_name, sql_content)
 
@@ -102,7 +103,7 @@ def generate_linkup_sql(county_name, book_start=None, book_end=None, image_path_
     """
     steps.append(process_sql(sql_6, 'Linking Addition IDs'))
 
-    if book_start and book_end:
+    if use_book_range and book_start and book_end:
         sql_7 = """
         --Update GenericDataImport key_id Alternate (Retired)
         update GenericDataImport set key_id = case when len(col03varchar) < 20 then ''
@@ -127,14 +128,14 @@ def generate_linkup_sql(county_name, book_start=None, book_end=None, image_path_
 
     # --- BATCH 2 QUERIES ---
 
-    if image_path_prefix:
+    if use_path and image_path_prefix:
         sql_10 = """
         --Update GenericDataImport stech_image_path
         UPDATE GenericDataImport SET stech_image_path = '{0}' + col03varchar where fn like '%image%'
         """
         steps.append(process_sql(sql_10, 'Setting Stech Image Paths'))
 
-    if book_start and book_end:
+    if use_book_range and book_start and book_end:
         # Note: Using raw string r'' for backslash safety in python
         sql_11 = r"""
         --Update GenericDataImport keli_image_path From Combined Manifest (If Images Come From KellPro)
@@ -156,6 +157,51 @@ def generate_linkup_sql(county_name, book_start=None, book_end=None, image_path_
     
     return steps
 
+@initial_linkup_bp.route('/api/tools/initial-keli-linkup/defaults/<int:county_id>', methods=['GET'])
+@login_required
+def get_linkup_defaults(county_id):
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    try:
+        c = db.session.get(IndexingCounties, county_id)
+        if not c: return jsonify({'success': False, 'message': 'County not found'})
+        s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+        if not s: return jsonify({'success': False, 'message': 'State not found'})
+        
+        # Path: data/State/County/Images
+        state_dir = secure_filename(s.state_name)
+        county_dir = secure_filename(c.county_name)
+        images_path = os.path.join(current_app.root_path, 'data', state_dir, county_dir, 'Images')
+        
+        book_start = ""
+        book_end = ""
+        full_path_str = ""
+        found = False
+
+        if os.path.exists(images_path):
+            found = True
+            # Scan for book folders (same logic as eData tool)
+            folders = sorted([f for f in os.listdir(images_path) if os.path.isdir(os.path.join(images_path, f))])
+            if folders:
+                book_start = folders[0]
+                book_end = folders[-1]
+            
+            # Format path for display/use
+            full_path_str = images_path
+            # Ensure trailing slash if needed for common path concatenation
+            if not full_path_str.endswith(os.sep):
+                full_path_str += os.sep
+
+        return jsonify({
+            'success': True,
+            'found': found,
+            'path_prefix': full_path_str,
+            'book_start': book_start,
+            'book_end': book_end
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 @initial_linkup_bp.route('/api/tools/initial-keli-linkup/preview', methods=['POST'])
 @login_required
 def preview_linkup():
@@ -169,8 +215,10 @@ def preview_linkup():
     
     steps = generate_linkup_sql(
         c.county_name, 
+        data.get('use_book_range', False),
         data.get('book_start'), 
         data.get('book_end'),
+        data.get('use_path', False),
         data.get('image_path_prefix')
     )
     full_script = "\n".join([s[1] for s in steps])
@@ -189,8 +237,10 @@ def execute_linkup():
 
     steps = generate_linkup_sql(
         c.county_name, 
+        data.get('use_book_range', False),
         data.get('book_start'), 
         data.get('book_end'),
+        data.get('use_path', False),
         data.get('image_path_prefix')
     )
     total_steps = len(steps)

@@ -1226,17 +1226,15 @@
     let currentLinkupCountyId = null;
 
     function openLinkupModal(passedId) {
-        // 1. Try to get the ID from argument or existing vars
         let countyId = passedId;
         
-        // Fallback checks (e.g. if opened via sidebar where no ID is passed)
+        // Handle calling from sidebar or other contexts
         if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
             countyId = selectedCountyId;
         } else if (!countyId && document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
             countyId = document.getElementById('eDataCountyId').value;
         }
 
-        // 2. Validate
         if (!countyId) {
             showNotification("Please select a county first.");
             return;
@@ -1244,30 +1242,77 @@
         
         currentLinkupCountyId = countyId;
 
-        // 3. Reset and Show Modal
+        // Reset UI
         document.getElementById('linkupResult').innerHTML = '';
         document.getElementById('linkupProgressContainer').classList.add('d-none');
         document.getElementById('linkupDebugPanel').classList.add('d-none');
+        document.getElementById('linkupAutoStatus').innerText = "Scanning defaults...";
         
-        // Clear previous inputs
+        // Reset Inputs
         document.getElementById('linkupBookStart').value = '';
         document.getElementById('linkupBookEnd').value = '';
         document.getElementById('linkupImgPath').value = '';
+        
+        // Reset Toggles & Hide Containers (Default: Off/Hidden)
+        document.getElementById('linkupTogglePath').checked = false;
+        document.getElementById('linkupPathContainer').classList.add('d-none');
+        
+        document.getElementById('linkupToggleBook').checked = false;
+        document.getElementById('linkupBookContainer').classList.add('d-none');
+
+        // Check Debug for Preview Button Visibility
+        const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
+        if(isDebug) document.getElementById('btnLinkupPreview').classList.remove('d-none');
+        else document.getElementById('btnLinkupPreview').classList.add('d-none');
 
         linkupModal.show();
+        
+        // Fetch Defaults
+        fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`)
+        .then(r => r.json())
+        .then(d => {
+            if(d.success && d.found) {
+                document.getElementById('linkupBookStart').value = d.book_start;
+                document.getElementById('linkupBookEnd').value = d.book_end;
+                document.getElementById('linkupImgPath').value = d.path_prefix;
+                document.getElementById('linkupAutoStatus').innerText = "Defaults Loaded";
+                document.getElementById('linkupAutoStatus').className = "text-success small fst-italic";
+            } else {
+                document.getElementById('linkupAutoStatus').innerText = "No defaults found.";
+                document.getElementById('linkupAutoStatus').className = "text-muted small fst-italic";
+            }
+        })
+        .catch(err => {
+             console.error(err);
+             document.getElementById('linkupAutoStatus').innerText = "Error loading defaults.";
+        });
+    }
+
+    function toggleLinkupPathInput() {
+        const isChecked = document.getElementById('linkupTogglePath').checked;
+        const el = document.getElementById('linkupPathContainer');
+        if(isChecked) el.classList.remove('d-none'); else el.classList.add('d-none');
+    }
+
+    function toggleLinkupBookInputs() {
+        const isChecked = document.getElementById('linkupToggleBook').checked;
+        const el = document.getElementById('linkupBookContainer');
+        if(isChecked) el.classList.remove('d-none'); else el.classList.add('d-none');
     }
 
     function getLinkupPayload() {
         return {
             county_id: currentLinkupCountyId,
+            use_book_range: document.getElementById('linkupToggleBook').checked,
             book_start: document.getElementById('linkupBookStart').value.trim() || null,
             book_end: document.getElementById('linkupBookEnd').value.trim() || null,
+            use_path: document.getElementById('linkupTogglePath').checked,
             image_path_prefix: document.getElementById('linkupImgPath').value.trim() || ''
         };
     }
 
     function previewLinkupSql() {
-        const btn = document.querySelector('#keliLinkupModal .btn-outline-warning');
+        const btn = document.getElementById('btnLinkupPreview');
         const debugPanel = document.getElementById('linkupDebugPanel');
         const previewText = document.getElementById('linkupSqlPreview');
         
