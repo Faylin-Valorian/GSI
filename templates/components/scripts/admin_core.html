@@ -1,0 +1,140 @@
+<script>
+    // ==========================================
+    // 1. CORE ADMIN & INITIALIZATION
+    // ==========================================
+
+    // --- GLOBAL VARIABLES (Accessible by all other script files) ---
+    let seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal;
+    let unindexedReviewModal, alterDbModal, patchModal, initialPrepModal, instCorrectionModal;
+    let linkupModal, edataErrorsModal, importEdeModal, dbCompatModal, proceduresModal, cleanupModal, dbDowngradeModal;
+
+    // --- SAFE INITIALIZATION (THE FIX) ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const init = (id) => {
+            const el = document.getElementById(id);
+            return el ? new bootstrap.Modal(el) : null;
+        };
+
+        // Core Modals
+        seedConfirmModal = init('seedConfirmModal');
+        seedSuccessModal = init('seedSuccessModal');
+        statesModal = init('statesModal');
+        countiesModal = init('countiesModal');
+        accountsModal = init('accountsModal');
+        userEditModal = init('userEditModal');
+        
+        // Maintenance Modals
+        dbCompatModal = init('dbCompatModal');
+        dbDowngradeModal = init('dbDowngradeModal');
+        proceduresModal = init('proceduresModal');
+        patchModal = init('patchModal');
+        alterDbModal = init('alterDbModal');
+
+        // Tool Modals
+        cleanupModal = init('cleanupModal');
+        initialPrepModal = init('initialPrepModal');
+        edataErrorsModal = init('edataErrorsModal');
+        importEdeModal = init('importEDataErrorsModal');
+        linkupModal = init('keliLinkupModal');
+        
+        // Complex/Dynamic Modals
+        unindexedReviewModal = init('unindexedModalDialog') || init('unindexedReviewModal');
+        instCorrectionModal = document.getElementById('itcModalDialog') ? 
+            new bootstrap.Modal(document.getElementById('instCorrectionModal')) : init('instCorrectionModal');
+            
+        console.log("Admin Tools Initialized");
+    });
+
+    // --- HELPER: CLOSE ALL MODALS ---
+    function closeAllModals() {
+        if (typeof window.closeAllModals === 'function' && window.closeAllModals !== closeAllModals) {
+            window.closeAllModals(); 
+            return;
+        }
+        const all = [seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, instCorrectionModal];
+        all.forEach(m => { if(m) m.hide(); });
+    }
+
+    // --- SEEDING ---
+    function showSeedConfirm(){ if(seedConfirmModal) seedConfirmModal.show(); }
+    
+    function runSeeding(){
+        if(seedConfirmModal) seedConfirmModal.hide(); 
+        document.getElementById('globalLoader').style.display='flex';
+        fetch('/api/admin/seed', {method:'POST'}).then(r=>r.json()).then(d=>{
+            document.getElementById('globalLoader').style.display='none';
+            if(d.success){ 
+                document.getElementById('seedSuccessMessage').innerText = d.message;
+                if(seedSuccessModal) seedSuccessModal.show();
+                fetchStates(); 
+                if(typeof loadStateLayers === 'function') loadStateLayers(); 
+            } else { showNotification("Seeding failed: " + d.message); }
+        });
+    }
+
+    // --- STATES & COUNTIES ---
+    function openStatesModal(){ closeAllModals(); if(statesModal) statesModal.show(); fetchStates(); }
+    function fetchStates() {
+        fetch('/api/admin/states').then(r=>r.json()).then(data => {
+            let h = ''; 
+            data.forEach(s => { 
+                const btn = `<button class="btn btn-sm ${s.is_enabled?'btn-warning':'btn-success'} me-1" onclick="toggleState(${s.id})">${s.is_enabled?'Disable':'Enable'}</button>`;
+                h += `<tr><td>${s.name}</td><td>${s.fips}</td><td>${s.is_enabled?'Enabled':'Disabled'}</td><td class="text-end">${btn}</td></tr>`; 
+            });
+            document.getElementById('statesTableBody').innerHTML = h;
+        });
+    }
+    function toggleState(id) { fetch(`/api/admin/state/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ fetchStates(); if(typeof loadStateLayers==='function') loadStateLayers(); } }); }
+
+    function openCountiesModal(){ 
+        closeAllModals(); if(countiesModal) countiesModal.show(); 
+        fetch('/api/admin/states').then(r=>r.json()).then(data => {
+            let h = '<option value="">Select State...</option>';
+            data.filter(s=>s.is_enabled).forEach(s => { h += `<option value="${s.fips}">${s.name}</option>`; });
+            document.getElementById('countyStateSelect').innerHTML = h;
+        });
+    }
+    function fetchCountiesForState() {
+        const fips = document.getElementById('countyStateSelect').value; 
+        if(!fips) return;
+        fetch(`/api/admin/counties/${fips}`).then(r=>r.json()).then(data => {
+            let h = ''; 
+            data.forEach(c => { 
+                const enBtn = `<button class="btn btn-sm ${c.is_enabled?'btn-outline-warning':'btn-outline-secondary'} me-1" onclick="toggleCounty(${c.id})"><i class="bi ${c.is_enabled?'bi-eye-fill':'bi-eye-slash'}"></i></button>`;
+                const actBtn = `<button class="btn btn-sm ${c.is_active?'btn-success':'btn-danger'} me-1" onclick="toggleGlobalActive(${c.id})">${c.is_active?'Active':'Inactive'}</button>`;
+                h += `<tr><td>${c.name}</td><td>${c.is_enabled?'Visible':'Hidden'}</td><td class="text-end">${actBtn}${enBtn}</td></tr>`; 
+            });
+            document.getElementById('countiesTableBody').innerHTML = h;
+        });
+    }
+    function toggleCounty(id) { fetch(`/api/admin/county/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ fetchCountiesForState(); if(typeof loadCountyLayers==='function') loadCountyLayers(); } }); }
+    function toggleGlobalActive(id) { fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'}).then(r => r.json()).then(d => { if(d.success) { fetchCountiesForState(); if(typeof loadCountyLayers==='function') loadCountyLayers(); } }); }
+
+    // --- ACCOUNTS ---
+    function openAccountsModal(){
+        closeAllModals(); if(accountsModal) accountsModal.show();
+        fetch('/api/users').then(r => r.json()).then(users => {
+            let h = ''; 
+            users.forEach(u => {
+                const editBtn = `<button class="btn btn-sm btn-outline-primary me-1" onclick="openUserEditModal(${u.id}, '${u.username}', '${u.email}')"><i class="bi bi-pencil-fill"></i></button>`;
+                const roleBtn = `<button class="btn btn-sm ${u.role==='admin' ? 'btn-outline-custom-purple' : 'btn-outline-secondary'} me-1" onclick="toggleUserRole(${u.id})"><i class="bi ${u.role==='admin' ? 'bi-shield-lock-fill' : 'bi-person-fill'}"></i></button>`;
+                const deleteBtn = `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${u.username}')"><i class="bi bi-trash-fill"></i></button>`;
+                h += `<tr><td class="fw-bold">${u.username}</td><td>${u.email}</td><td>${u.role}</td><td>${u.is_locked?'Locked':'Active'}</td><td class="text-end">${editBtn}${roleBtn}${deleteBtn}</td></tr>`;
+            });
+            document.getElementById('userTableBody').innerHTML = h;
+        });
+    }
+    function openUserEditModal(id, username, email) {
+        document.getElementById('editUserId').value = id;
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editEmail').value = email;
+        if(userEditModal) userEditModal.show();
+    }
+    function submitUserEdit() {
+        const id = document.getElementById('editUserId').value;
+        fetch(`/api/admin/user/${id}/update`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: document.getElementById('editUsername').value, email: document.getElementById('editEmail').value }) })
+        .then(r => r.json()).then(d => { if(d.success) { showNotification("Updated"); if(userEditModal) userEditModal.hide(); openAccountsModal(); } else { showNotification(d.message); } });
+    }
+    function toggleUserRole(id) { showConfirmation("Change Role?", () => { fetch(`/api/admin/user/${id}/toggle-role`, {method: 'POST'}).then(r=>r.json()).then(d => { if(d.success) openAccountsModal(); }); }); }
+    function deleteUser(id, u) { showConfirmation(`Delete ${u}?`, () => { fetch(`/api/admin/user/${id}/delete`, {method: 'POST'}).then(r=>r.json()).then(d => { if(d.success) openAccountsModal(); }); }); }
+</script>

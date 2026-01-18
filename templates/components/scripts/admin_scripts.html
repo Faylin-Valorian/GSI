@@ -1,23 +1,60 @@
 <script>
     // ==========================================
-    // 3. ADMIN TOOLS & SEEDING
+    // ADMIN SCRIPTS (Restored & Fixed)
     // ==========================================
     
-    // --- INITIALIZE MODALS ---
-    const seedConfirmModal = new bootstrap.Modal(document.getElementById('seedConfirmModal'));
-    const seedSuccessModal = new bootstrap.Modal(document.getElementById('seedSuccessModal'));
-    const statesModal = new bootstrap.Modal(document.getElementById('statesModal'));
-    const countiesModal = new bootstrap.Modal(document.getElementById('countiesModal'));
-    const accountsModal = new bootstrap.Modal(document.getElementById('accountsModal'));
-    const userEditModal = new bootstrap.Modal(document.getElementById('userEditModal'));
+    // --- GLOBAL MODAL VARIABLES ---
+    // Defined globally so all functions can access them
+    let seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal;
+    let unindexedReviewModal, alterDbModal, patchModal, initialPrepModal, instCorrectionModal;
+    let linkupModal, edataErrorsModal, importEdeModal;
 
-    // --- SEEDING ---
+    // --- SAFE INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Helper: Tries to get element, returns undefined if missing (prevents crash)
+        const init = (id) => {
+            const el = document.getElementById(id);
+            return el ? new bootstrap.Modal(el) : null;
+        };
+
+        seedConfirmModal = init('seedConfirmModal');
+        seedSuccessModal = init('seedSuccessModal');
+        statesModal = init('statesModal');
+        countiesModal = init('countiesModal');
+        accountsModal = init('accountsModal');
+        userEditModal = init('userEditModal');
+        
+        unindexedReviewModal = init('unindexedModalDialog'); // Note: ID match check
+        if (!unindexedReviewModal) unindexedReviewModal = init('unindexedReviewModal'); // Fallback
+
+        alterDbModal = init('alterDbModal');
+        patchModal = init('patchModal');
+        initialPrepModal = init('initialPrepModal');
+        
+        // Handle ITC which might have a wrapper ID issue
+        instCorrectionModal = document.getElementById('itcModalDialog') ? new bootstrap.Modal(document.getElementById('instCorrectionModal')) : init('instCorrectionModal');
+        
+        linkupModal = init('keliLinkupModal');
+        edataErrorsModal = init('edataErrorsModal');
+        importEdeModal = init('importEDataErrorsModal');
+    });
+
+    // --- HELPER: CLOSE ALL ---
+    function closeAllModals() {
+        const all = [seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, unindexedReviewModal, alterDbModal, patchModal, initialPrepModal, instCorrectionModal, linkupModal, edataErrorsModal, importEdeModal];
+        all.forEach(m => { if(m) m.hide(); });
+    }
+
+    // ==========================================
+    // 1. SEEDING & ADMIN
+    // ==========================================
+    
     function showSeedConfirm(){ 
-        seedConfirmModal.show(); 
+        if(seedConfirmModal) seedConfirmModal.show(); 
     }
     
     function runSeeding(){
-        seedConfirmModal.hide(); 
+        if(seedConfirmModal) seedConfirmModal.hide(); 
         document.getElementById('globalLoader').style.display='flex';
         
         fetch('/api/admin/seed', {method:'POST'})
@@ -26,10 +63,10 @@
             document.getElementById('globalLoader').style.display='none';
             if(d.success){ 
                 document.getElementById('seedSuccessMessage').innerText = d.message;
-                seedSuccessModal.show();
+                if(seedSuccessModal) seedSuccessModal.show();
                 fetchStates(); 
-                loadStateLayers(); 
-                loadCountyLayers();
+                if(typeof loadStateLayers === 'function') loadStateLayers(); 
+                if(typeof loadCountyLayers === 'function') loadCountyLayers();
             } else {
                 showNotification("Seeding failed: " + d.message);
             }
@@ -43,7 +80,7 @@
     // --- STATES MANAGEMENT ---
     function openStatesModal(){ 
         closeAllModals(); 
-        statesModal.show(); 
+        if(statesModal) statesModal.show(); 
         fetchStates(); 
     }
     
@@ -78,8 +115,8 @@
         .then(d=>{
             if(d.success){
                 fetchStates(); 
-                loadStateLayers(); 
-                loadCountyLayers();
+                if(typeof loadStateLayers === 'function') loadStateLayers(); 
+                if(typeof loadCountyLayers === 'function') loadCountyLayers();
             } else {
                 showNotification(d.message);
             }
@@ -89,7 +126,7 @@
     // --- COUNTIES MANAGEMENT ---
     function openCountiesModal(){ 
         closeAllModals(); 
-        countiesModal.show(); 
+        if(countiesModal) countiesModal.show(); 
         
         // Load States Dropdown first
         fetch('/api/admin/states').then(r=>r.json()).then(data => {
@@ -133,7 +170,7 @@
         .then(d=>{
             if(d.success){
                 fetchCountiesForState(); 
-                loadCountyLayers();
+                if(typeof loadCountyLayers === 'function') loadCountyLayers();
             }
         }); 
     }
@@ -144,7 +181,7 @@
         .then(d => {
             if(d.success) {
                 fetchCountiesForState(); 
-                loadCountyLayers();      
+                if(typeof loadCountyLayers === 'function') loadCountyLayers();      
             } else {
                 showNotification("Error: " + d.message);
             }
@@ -152,12 +189,12 @@
     }
 
     // ==========================================
-    // ACCOUNT MANAGEMENT
+    // 2. ACCOUNT MANAGEMENT
     // ==========================================
 
     function openAccountsModal(){
         closeAllModals(); 
-        accountsModal.show();
+        if(accountsModal) accountsModal.show();
         fetch('/api/users')
             .then(r => r.json())
             .then(users => {
@@ -188,19 +225,17 @@
             });
     }
 
-    // --- USER EDIT MODAL FUNCTIONS ---
-
     function openUserEditModal(id, username, email) {
         document.getElementById('editUserId').value = id;
         document.getElementById('editUsername').value = username;
         document.getElementById('editEmail').value = email;
         document.getElementById('resetPasswordResult').classList.add('d-none');
         document.getElementById('tempPassDisplay').value = '';
-        userEditModal.show();
+        if(userEditModal) userEditModal.show();
     }
 
     function closeUserEditModal() {
-        userEditModal.hide();
+        if(userEditModal) userEditModal.hide();
         openAccountsModal();
     }
 
@@ -242,8 +277,6 @@
         });
     }
 
-    // --- OTHER USER ACTIONS ---
-
     function toggleUserLock(id) {
         fetch(`/api/admin/user/${id}/toggle-lock`, {method: 'POST'})
         .then(r => r.json()).then(d => {
@@ -273,7 +306,7 @@
     }
 
     // ==========================================
-    // MAP INTERACTION (POPUP ACTIONS)
+    // 3. MAP INTERACTION (POPUP ACTIONS)
     // ==========================================
 
     function toggleUserWorkingCounty(id, isChecked) {
@@ -284,11 +317,11 @@
         })
         .then(r=>r.json()).then(d => {
             if(d.success) { 
-                loadCountyLayers(); 
+                if(typeof loadCountyLayers === 'function') loadCountyLayers(); 
             } 
             else { 
                 showNotification("Action Failed: " + d.message);
-                loadCountyLayers(); 
+                if(typeof loadCountyLayers === 'function') loadCountyLayers(); 
             }
         });
     }
@@ -317,13 +350,13 @@
         formData.append('file', file);
         fetch(`/api/county/${id}/upload-image`, {method: 'POST', body: formData})
         .then(r => r.json()).then(d => {
-            if(d.success) { loadCountyLayers(); } 
+            if(d.success) { if(typeof loadCountyLayers === 'function') loadCountyLayers(); } 
             else { showNotification("Upload failed: " + d.message); }
         });
     }
 
     // ==========================================
-    // UNINDEXED IMAGES REVIEW (SIDEBAR AWARE)
+    // 4. UNINDEXED IMAGES REVIEW
     // ==========================================
 
     function openUnindexedReview(countyId, stateName, countyName) {
@@ -345,7 +378,7 @@
         if(debugToggle) debugToggle.checked = false;
         
         // 3. Show & Load
-        unindexedReviewModal.show();
+        if(unindexedReviewModal) unindexedReviewModal.show();
         loadUnindexedTable(countyId);
         
         // 4. Force layout check immediately
@@ -353,7 +386,7 @@
     }
 
     function closeUnindexedModal() {
-        unindexedReviewModal.hide();
+        if(unindexedReviewModal) unindexedReviewModal.hide();
     }
 
     function scanForUnindexed() {
@@ -483,7 +516,7 @@
 
     function adjustUnindexedModalLayout() {
         const modalDialog = document.getElementById('unindexedModalDialog');
-        if (!modalDialog || !unindexedReviewModal._isShown) return;
+        if (!modalDialog || (unindexedReviewModal && !unindexedReviewModal._isShown)) return;
 
         const isSidebarOpen = document.querySelector('.menu-panel.open') !== null;
         const newLeft = isSidebarOpen ? '250px' : '60px';
@@ -491,7 +524,7 @@
         modalDialog.style.maxWidth = 'none';
     }
 
-    // --- PAN & ZOOM LOGIC (Drag based) ---
+    // --- PAN & ZOOM LOGIC ---
     let zoomLevel = 1;
     let panX = 0;
     let panY = 0;
@@ -552,11 +585,9 @@
         updateTransform();
     }
 
-// ==========================================
-    // ALTER DATABASE FIELDS TOOLS (Renamed from Schema)
     // ==========================================
-
-    const alterDbModal = new bootstrap.Modal(document.getElementById('alterDbModal'));
+    // 5. ALTER DATABASE FIELDS TOOLS
+    // ==========================================
 
     function openAlterDbTool() {
         closeAllModals();
@@ -565,7 +596,7 @@
         document.getElementById('btnRunAlterDb').disabled = true;
         document.getElementById('alterDbStatusMsg').innerText = "Ready";
         document.getElementById('alterDbStatusMsg').className = "text-muted small";
-        alterDbModal.show();
+        if(alterDbModal) alterDbModal.show();
     }
 
     function previewAlterDb() {
@@ -602,7 +633,6 @@
     }
 
     function runAlterDbMigration() {
-        // --- FIX: Using Custom Confirmation Popup ---
         showConfirmation("Are you sure you want to alter the database schema? This cannot be easily undone.", () => {
             
             const debugMode = document.getElementById('alterDbDebugToggle').checked;
@@ -650,10 +680,10 @@
         el.className = "small fw-bold " + colorClass;
     }
 
-// ==========================================
-    // INITIAL PREPARATION TOOL (RENAMED)
     // ==========================================
-    const initialPrepModal = new bootstrap.Modal(document.getElementById('initialPrepModal'));
+    // 6. INITIAL PREPARATION TOOL
+    // ==========================================
+    
     let currentPrepCountyId = null;
 
     function openInitialPrepTool(id) {
@@ -688,7 +718,7 @@
             debugPanel.classList.add('d-none');
         }
         
-        initialPrepModal.show();
+        if(initialPrepModal) initialPrepModal.show();
     }
 
     function togglePrepBookInputs() {
@@ -813,10 +843,10 @@
         });
     }
 
-// ==========================================
-    // INSTRUMENT TYPE CORRECTIONS TOOL
     // ==========================================
-    const instCorrectionModal = new bootstrap.Modal(document.getElementById('instCorrectionModal'));
+    // 7. INSTRUMENT TYPE CORRECTIONS TOOL
+    // ==========================================
+    
     let itcCountyId = null;
     let itcImages = [];
     let itcImgIndex = 0;
@@ -861,7 +891,7 @@
         itcResetPanZoom();
 
         // 3. Show & Initialize Layout Tools
-        instCorrectionModal.show();
+        if(instCorrectionModal) instCorrectionModal.show();
         adjustItcModalLayout(); // Position based on sidebar
         itcInitPanZoom();       // Image controls
         itcInitResizer();       // Resizer controls
@@ -1225,16 +1255,15 @@
         });
     }
 
-// ==========================================
-    // INITIAL KELI LINKUP TOOL
+    // ==========================================
+    // 8. INITIAL KELI LINKUP TOOL
     // ==========================================
     
-    const linkupModal = new bootstrap.Modal(document.getElementById('keliLinkupModal'));
-    let linkupSqlCache = "";
     let currentLinkupCountyId = null;
     let linkupDefaultsCache = null;
 
     function openLinkupModal(passedId) {
+        closeAllModals();
         let countyId = passedId;
         
         if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
@@ -1286,7 +1315,7 @@
             document.getElementById('btnLinkupPreview').classList.add('d-none');
         }
 
-        linkupModal.show();
+        if(linkupModal) linkupModal.show();
         
         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`)
         .then(r => r.json())
@@ -1470,14 +1499,58 @@
         });
     }
 
-// ==========================================
-    // IMPORT eDATA ERRORS TOOL
+    // ==========================================
+    // 9. EDATA ERRORS TOOL
+    // ==========================================
+    function openEdataErrorsModal(id) {
+        closeAllModals();
+        document.getElementById('eDataCountyId').value = id; 
+        if(edataErrorsModal) edataErrorsModal.show();
+        // Fetch defaults
+        fetch(`/api/tools/edata-errors/get-defaults/${id}`).then(r=>r.json()).then(d=>{
+            if(d.success) {
+                document.getElementById('edeBookStart').value = d.book_start;
+                document.getElementById('edeBookEnd').value = d.book_end;
+                document.getElementById('edeTownships').value = d.townships;
+            }
+        });
+    }
+    function runEdataErrors() {
+        const id = document.getElementById('eDataCountyId').value;
+        const btn = document.getElementById('btnRunEde'); btn.disabled=true;
+        document.getElementById('edeProgressContainer').classList.remove('d-none');
+        const payload = {
+            county_id: id,
+            book_start: document.getElementById('edeBookStart').value,
+            book_end: document.getElementById('edeBookEnd').value,
+            townships: document.getElementById('edeTownships').value,
+            split_images: document.getElementById('edeSplitImages').checked
+        };
+        
+        fetch('/api/tools/edata-errors/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+        .then(response => {
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            function read() { reader.read().then(({done, value}) => {
+                if(done) { btn.disabled=false; return; }
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l=>{ if(l) try{
+                    const d=JSON.parse(l);
+                    if(d.type==='progress') document.getElementById('edeProgressBar').style.width=d.percent+'%';
+                    if(d.type==='complete') document.getElementById('edeResult').innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                }catch(e){} });
+                read();
+            }); } read();
+        });
+    }
+
+    // ==========================================
+    // 10. IMPORT eDATA ERRORS TOOL
     // ==========================================
     
-    const importEdeModal = new bootstrap.Modal(document.getElementById('importEDataErrorsModal'));
     let currentImportEdeCountyId = null;
 
     function openImportEDataErrorsModal(passedId) {
+        closeAllModals();
         let countyId = passedId;
         if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
             countyId = selectedCountyId;
@@ -1508,7 +1581,7 @@
             document.getElementById('importEdeDebugPanel').classList.add('d-none');
         }
 
-        importEdeModal.show();
+        if(importEdeModal) importEdeModal.show();
 
         // Init - Get Path & Count
         fetch('/api/tools/import-edata-errors/init', {

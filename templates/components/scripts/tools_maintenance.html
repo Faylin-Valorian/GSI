@@ -1,0 +1,43 @@
+<script>
+    // ==========================================
+    // 4. MAINTENANCE TOOLS
+    // ==========================================
+
+    // --- DB TOOLS ---
+    function openDbCompatModal() { closeAllModals(); if(dbCompatModal) dbCompatModal.show(); }
+    function submitDbCompat() {
+        fetch('/api/admin/db-compat/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level:document.getElementById('targetCompatLevel').value})})
+        .then(r=>r.json()).then(d=>{ showNotification(d.message); if(dbCompatModal) dbCompatModal.hide(); });
+    }
+    function openDbDowngradeModal() { closeAllModals(); if(dbDowngradeModal) dbDowngradeModal.show(); }
+    function confirmDowngrade() { fetch('/api/admin/db-compat/downgrade', {method:'POST'}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(dbDowngradeModal) dbDowngradeModal.hide(); }); }
+    function openProceduresModal() { closeAllModals(); if(proceduresModal) proceduresModal.show(); }
+    function submitProcedures() { fetch('/api/admin/setup-procedures/execute', {method:'POST'}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(proceduresModal) proceduresModal.hide(); }); }
+
+    // --- PATCH MANAGER ---
+    function openPatchModal() { closeAllModals(); if(patchModal) patchModal.show(); }
+    function submitPatchFile() {
+        const file = document.getElementById('patchFileInput').files[0];
+        if (!file) return;
+        const fd = new FormData(); fd.append('patch_file', file);
+        fetch('/api/admin/patch/apply', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+            if (d.success) { showNotification("Patch Applied! Reloading..."); setTimeout(() => location.reload(), 1500); } 
+            else document.getElementById('patchError').innerText = d.message;
+        });
+    }
+
+    // --- ALTER DATABASE ---
+    function openAlterDbTool() { closeAllModals(); if(alterDbModal) alterDbModal.show(); previewAlterDb(); }
+    function previewAlterDb() {
+        fetch('/api/admin/alter-db/preview').then(r=>r.json()).then(d => {
+            document.getElementById('alterDbSqlPreview').innerText = d.success ? d.sql : d.message;
+            document.getElementById('btnRunAlterDb').disabled = !d.success;
+        });
+    }
+    function runAlterDbMigration() {
+        showConfirmation("Alter Database Schema?", () => {
+            fetch('/api/admin/alter-db/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({debug:document.getElementById('alterDbDebugToggle').checked})})
+            .then(r=>r.json()).then(d => { showNotification(d.message); if(d.success) previewAlterDb(); });
+        });
+    }
+</script>
