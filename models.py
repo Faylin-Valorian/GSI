@@ -13,7 +13,6 @@ class Users(UserMixin, db.Model):
     verification_code = db.Column(db.String(6), nullable=True)
     is_locked = db.Column(db.Boolean, default=False)
     is_temporary_password = db.Column(db.Boolean, default=False)
-    # Note: ForeignKey must match the actual table name 'indexing_counties'
     current_working_county_id = db.Column(db.Integer, db.ForeignKey('indexing_counties.id'), nullable=True)
 
     def set_password(self, password):
@@ -26,6 +25,7 @@ class IndexingStates(db.Model):
     __tablename__ = 'indexing_states'
     id = db.Column(db.Integer, primary_key=True)
     state_name = db.Column(db.String(100))
+    state_abbr = db.Column(db.String(5), nullable=True)
     fips_code = db.Column(db.String(10))
     is_enabled = db.Column(db.Boolean, default=False) 
     is_locked = db.Column(db.Boolean, default=False)

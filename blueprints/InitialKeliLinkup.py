@@ -12,10 +12,9 @@ from werkzeug.utils import secure_filename
 
 initial_linkup_bp = Blueprint('initial_keli_linkup', __name__)
 
-def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book_end=None, use_path=False, image_path_prefix=''):
+def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book_end=None, use_path=False, image_path_prefix='', linkup_mode='neither', split_images=False):
     """
     Generates the SQL script steps for the Initial Keli Linkup Tool.
-    Dynamically renames Keli tables and injects parameters based on toggles.
     """
     steps = []
     
@@ -44,6 +43,7 @@ def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book
     -- GSI INITIAL KELI LINKUP SCRIPT
     -- Target County: {county_name}
     -- Generated: {datetime.datetime.now()}
+    -- Mode: {linkup_mode.upper()} | Split Images: {split_images}
     -- ===============================================
     """
     steps.append(('Header', header))
@@ -67,27 +67,50 @@ def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book
     sql_6 = "UPDATE a SET addition_internal_id = b.id FROM GenericDataImport a LEFT JOIN fromkellproadditions b ON a.col05varchar = b.name WHERE a.fn LIKE '%legal%' AND b.name != ''"
     steps.append(process_sql(sql_6, 'Linking Addition IDs'))
 
+    # --- KEY ID UPDATES (Conditional on Mode & Split) ---
+    # NOTE: If Split Images is ON, we ignore key_id updates.
+    
     if use_book_range and book_start and book_end:
-        sql_7 = "update GenericDataImport set key_id = case when len(col03varchar) < 20 then '' when len(reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)),'FIT.',''))) = 23 then reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)),'FIT.','')) else reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)-1),'FIT.','')) end where fn like '%image%' and book between '{0}' and '{1}'"
-        steps.append(process_sql(sql_7, 'Updating Image Key IDs (Legacy)'))
+        if linkup_mode == 'legacy' and not split_images:
+            sql_7 = "update GenericDataImport set key_id = case when len(col03varchar) < 20 then '' when len(reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)),'FIT.',''))) = 23 then reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)),'FIT.','')) else reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)-1),'FIT.','')) end where fn like '%image%' and book between '{0}' and '{1}'"
+            steps.append(process_sql(sql_7, 'Updating Image Key IDs (Legacy)'))
 
-    sql_8 = "UPDATE GenericDataImport SET page_number = RIGHT('0000' + col02varchar, 5 - isnumeric(col02varchar)) WHERE fn LIKE '%image%'"
-    steps.append(process_sql(sql_8, 'Formatting Page Numbers'))
+    # --- BOOK & PAGE PARSING (Conditional on Split) ---
+    
+    if split_images:
+        # Split Logic: Page is after '\' and before '.'
+        sql_8 = r"UPDATE GenericDataImport SET page_number = SUBSTRING(col03varchar, CHARINDEX('\', col03varchar) + 1, CHARINDEX('.', col03varchar) - CHARINDEX('\', col03varchar) - 1) WHERE fn LIKE '%image%'"
+        steps.append(process_sql(sql_8, 'Formatting Page Numbers (Split)'))
+        
+        # Split Logic: Book is before '\'
+        sql_9 = r"UPDATE GenericDataImport SET book = LEFT(col03varchar, CHARINDEX('\', col03varchar) - 1) WHERE fn LIKE '%image%'"
+        steps.append(process_sql(sql_9, 'Formatting Book Numbers (Split)'))
+    else:
+        # Standard Logic
+        sql_8 = "UPDATE GenericDataImport SET page_number = RIGHT('0000' + col02varchar, 5 - isnumeric(col02varchar)) WHERE fn LIKE '%image%'"
+        steps.append(process_sql(sql_8, 'Formatting Page Numbers'))
 
-    sql_9 = "UPDATE GenericDataImport SET book = SUBSTRING(col03varchar, 0, 7) WHERE fn LIKE '%image%'"
-    steps.append(process_sql(sql_9, 'Formatting Book Numbers'))
+        sql_9 = "UPDATE GenericDataImport SET book = SUBSTRING(col03varchar, 0, 7) WHERE fn LIKE '%image%'"
+        steps.append(process_sql(sql_9, 'Formatting Book Numbers'))
 
     # --- BATCH 2 QUERIES ---
+    
     if use_path and image_path_prefix:
         sql_10 = "UPDATE GenericDataImport SET stech_image_path = '{0}' + col03varchar where fn like '%image%'"
         steps.append(process_sql(sql_10, 'Setting Stech Image Paths'))
 
+    # --- MANIFEST LOGIC (Conditional on Mode & Split) ---
+    
     if use_book_range and book_start and book_end:
-        sql_11 = r"update a set keli_image_path = b.id from GenericDataImport a, fromkellprocombined_manifest b where a.fn like '%image%' and keli_image_path = '' and b.book between '{0}' and '{1}' and a.col03varchar = replace(replace(b.path, 'MS', '00'), '/', '\')"
-        steps.append(process_sql(sql_11, 'Linking Combined Manifest IDs'))
+        if linkup_mode == 'manifest':
+            # This links the path from manifest, usually safe for split too if book matches
+            sql_11 = r"update a set keli_image_path = b.id from GenericDataImport a, fromkellprocombined_manifest b where a.fn like '%image%' and keli_image_path = '' and b.book between '{0}' and '{1}' and a.col03varchar = replace(replace(b.path, 'MS', '00'), '/', '\')"
+            steps.append(process_sql(sql_11, 'Linking Combined Manifest IDs'))
 
-        sql_12 = "UPDATE a SET key_id = b.id FROM GenericDataImport a, KeliPagesInternal b WHERE fn LIKE '%image%' and a.book between '{0}' and '{1}' AND a.key_id = b.key_id"
-        steps.append(process_sql(sql_12, 'Linking Internal Pages Key IDs'))
+            # Key ID update skipped if split
+            if not split_images:
+                sql_12 = "UPDATE a SET key_id = b.id FROM GenericDataImport a, KeliPagesInternal b WHERE fn LIKE '%image%' and a.book between '{0}' and '{1}' AND a.key_id = b.key_id"
+                steps.append(process_sql(sql_12, 'Linking Internal Pages Key IDs'))
 
     sql_13 = "UPDATE a SET stech_image_path = b.stech_image_path from GenericDataImport a, GenericDataImport b where b.fn like '%image%' and a.instrumentid = b.instrumentid"
     steps.append(process_sql(sql_13, 'Syncing Stech Paths to Instruments'))
@@ -127,7 +150,6 @@ def get_linkup_defaults(county_id):
             if not full_path_str.endswith(os.sep):
                 full_path_str += os.sep
 
-        # Return Debug Info along with data
         return jsonify({
             'success': True,
             'found': found,
@@ -163,7 +185,9 @@ def preview_linkup():
         data.get('book_start'), 
         data.get('book_end'),
         data.get('use_path', False),
-        data.get('image_path_prefix')
+        data.get('image_path_prefix'),
+        data.get('linkup_mode', 'neither'),
+        data.get('split_images', False)
     )
     full_script = "\n".join([s[1] for s in steps])
     return jsonify({'success': True, 'sql': full_script})
@@ -185,7 +209,9 @@ def execute_linkup():
         data.get('book_start'), 
         data.get('book_end'),
         data.get('use_path', False),
-        data.get('image_path_prefix')
+        data.get('image_path_prefix'),
+        data.get('linkup_mode', 'neither'),
+        data.get('split_images', False)
     )
     total_steps = len(steps)
     

@@ -29,6 +29,7 @@ from blueprints.InitialPreparation import initial_prep_bp
 from blueprints.InstrumentTypeCorrections import inst_type_bp
 from blueprints.InitialKeliLinkup import initial_linkup_bp
 from blueprints.EDataErrors import edata_errors_bp
+from blueprints.ImportEDataErrors import import_edata_errors_bp
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
@@ -63,8 +64,8 @@ app.register_blueprint(patch_bp)
 app.register_blueprint(initial_prep_bp)
 app.register_blueprint(inst_type_bp)
 app.register_blueprint(edata_errors_bp)
-# --- FIX: REGISTER MISSING BLUEPRINT ---
 app.register_blueprint(initial_linkup_bp) 
+app.register_blueprint(import_edata_errors_bp)
 
 # --- DB CONFIG LOAD ---
 def load_db_config():

@@ -49,6 +49,7 @@ IF OBJECT_ID('dbo.indexing_states', 'U') IS NOT NULL DROP TABLE dbo.indexing_sta
 CREATE TABLE indexing_states (
     id INT IDENTITY(1,1) PRIMARY KEY,
     state_name NVARCHAR(100),
+    state_abbr NVARCHAR(5),
     fips_code NVARCHAR(10),
     is_enabled BIT DEFAULT 0,
     is_locked BIT DEFAULT 0

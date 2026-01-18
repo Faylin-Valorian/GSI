@@ -173,6 +173,9 @@ SPLIT_OVERRIDES = {
         where fn like '%image%' and deleteFlag = 'FALSE' and keyOriginalValue in 
             (select OriginalValue from GenericDataImport where fn like '%header%' group by OriginalValue, col04varchar + col05varchar having count(col04varchar + col05varchar) > 1)
         order by ord, instrumentid
+    """,
+    "headerDuplicateBookPageNumber.csv": """
+        where fn like '%header%' and deleteFlag = 'FALSE' and fn = ''
     """
 }
 
@@ -201,8 +204,22 @@ def execute_edata_errors():
     # 2. Format Township List
     formatted_townships = "''" 
     if townships:
-        parts = [f"'{t.strip()}'" for t in townships.split(',') if t.strip()]
-        if parts: formatted_townships = ", ".join(parts)
+        # Use csv module to handle quoted input string (e.g. "'1N,1W', '2N,2W'") 
+        # so that internal commas in '1N,1W' are not split
+        try:
+            reader = csv.reader([townships], quotechar="'", delimiter=',', skipinitialspace=True)
+            parts = []
+            for row in reader:
+                for item in row:
+                    if item.strip():
+                        parts.append(f"'{item.strip()}'")
+            if parts:
+                formatted_townships = ", ".join(parts)
+        except Exception as e:
+            current_app.logger.error(f"Error parsing townships: {e}")
+            # Fallback to simple split if parsing fails (unsafe for commas)
+            parts = [f"'{t.strip()}'" for t in townships.split(',') if t.strip()]
+            if parts: formatted_townships = ", ".join(parts)
 
     total_queries = len(QUERIES)
 
@@ -271,7 +288,6 @@ def execute_edata_errors():
 @edata_errors_bp.route('/api/tools/edata-errors/get-defaults/<int:county_id>', methods=['GET'])
 @login_required
 def get_edata_defaults(county_id):
-    # (Same as previous version)
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     try:
         c = db.session.get(IndexingCounties, county_id)
@@ -291,7 +307,8 @@ def get_edata_defaults(county_id):
             sql = f"SELECT Township, Range FROM [{table_name}] WHERE Active = 1"
             rows = db.session.execute(text(sql)).fetchall()
             if rows:
-                t_list = [f"{r[0]},{r[1]}" for r in rows if r[0] and r[1]]
+                # Wrap values in single quotes to handle internal commas (e.g. '1N,1W')
+                t_list = [f"'{r[0]},{r[1]}'" for r in rows if r[0] and r[1]]
                 townships_str = ", ".join(t_list)
         except Exception:
             pass

@@ -251,12 +251,16 @@
                             <i class="bi bi-pencil-square me-2"></i>Instrument Type Corrections
                         </button>
                         
+                        <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openLinkupModal(${data.id})">
+                            <i class="bi bi-link-45deg me-2" style="color: #d63384;"></i>Initial Keli Linkup
+                        </button>
+
                         <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openEdataErrorsModal(${data.id})">
                             <i class="bi bi-exclamation-triangle me-2" style="color: #dc3545;"></i>eData Errors
                         </button>
 
-                        <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openLinkupModal(${data.id})">
-                            <i class="bi bi-link-45deg me-2" style="color: #d63384;"></i>Initial Keli Linkup
+                        <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openImportEDataErrorsModal(${data.id})">
+                            <i class="bi bi-box-arrow-in-down me-2" style="color: #dc3545;"></i>Import eData Errors
                         </button>
                     </div>
                 </div>
@@ -271,5 +275,119 @@
                 </div>
             </div>
         </div>`;
+    }
+
+    // ==========================================
+    // IMPORT eDATA ERRORS TOOL
+    // ==========================================
+    
+    const importEdeModal = new bootstrap.Modal(document.getElementById('importEDataErrorsModal'));
+    let currentImportEdeCountyId = null;
+
+    function openImportEDataErrorsModal(passedId) {
+        let countyId = passedId;
+        if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
+            countyId = selectedCountyId;
+        } else if (!countyId && document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
+            countyId = document.getElementById('eDataCountyId').value;
+        }
+
+        if (!countyId) {
+            showNotification("Please select a county first.");
+            return;
+        }
+        
+        currentImportEdeCountyId = countyId;
+
+        // Reset UI
+        document.getElementById('importEdeResult').innerHTML = '';
+        document.getElementById('importEdeProgressContainer').classList.add('d-none');
+        document.getElementById('importEdeDisplayPath').innerText = 'Loading...';
+        document.getElementById('importEdeFileCount').innerText = 'Scanning...';
+        document.getElementById('btnRunImportEde').disabled = true;
+
+        importEdeModal.show();
+
+        // Init - Get Path & Count
+        fetch('/api/tools/import-edata-errors/init', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: countyId })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                document.getElementById('importEdeDisplayPath').innerText = d.path;
+                document.getElementById('importEdeFileCount').innerText = d.file_count + " files found";
+                if(d.file_count > 0) {
+                    document.getElementById('btnRunImportEde').disabled = false;
+                }
+            } else {
+                document.getElementById('importEdeDisplayPath').innerText = "Error: " + d.message;
+            }
+        })
+        .catch(err => {
+            document.getElementById('importEdeDisplayPath').innerText = "Connection Error";
+        });
+    }
+
+    function runImportEDataErrors() {
+        const btn = document.getElementById('btnRunImportEde');
+        const progressContainer = document.getElementById('importEdeProgressContainer');
+        const progressBar = document.getElementById('importEdeProgressBar');
+        const progressText = document.getElementById('importEdeProgressText');
+        const currentFile = document.getElementById('importEdeCurrentFile');
+        const resultDiv = document.getElementById('importEdeResult');
+
+        btn.disabled = true;
+        progressContainer.classList.remove('d-none');
+        resultDiv.innerHTML = '';
+        progressBar.style.width = '0%';
+
+        fetch('/api/tools/import-edata-errors/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: currentImportEdeCountyId })
+        }).then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function readStream() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        btn.disabled = false;
+                        return;
+                    }
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    
+                    lines.forEach(line => {
+                        if (!line.trim()) return;
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.type === 'progress') {
+                                progressBar.style.width = data.percent + '%';
+                                progressText.innerText = data.percent + '%';
+                                currentFile.innerText = data.message;
+                            } else if (data.type === 'complete') {
+                                progressBar.style.width = '100%';
+                                progressBar.classList.add('bg-success');
+                                currentFile.innerText = "Done";
+                                resultDiv.innerHTML = `<div class="alert alert-success mt-2 py-2"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
+                            } else if (data.type === 'error') {
+                                resultDiv.innerHTML = `<div class="alert alert-danger mt-2 py-2">${data.message}</div>`;
+                                btn.disabled = false;
+                            }
+                        } catch (e) { console.error(e); }
+                    });
+                    readStream();
+                });
+            }
+            readStream();
+        }).catch(err => {
+            btn.disabled = false;
+            resultDiv.innerHTML = `<div class="alert alert-danger">Connection Error</div>`;
+        });
     }
 </script>

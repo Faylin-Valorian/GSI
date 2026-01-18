@@ -3,7 +3,15 @@
     // 3. ADMIN TOOLS & SEEDING
     // ==========================================
     
-// --- SEEDING ---
+    // --- INITIALIZE MODALS ---
+    const seedConfirmModal = new bootstrap.Modal(document.getElementById('seedConfirmModal'));
+    const seedSuccessModal = new bootstrap.Modal(document.getElementById('seedSuccessModal'));
+    const statesModal = new bootstrap.Modal(document.getElementById('statesModal'));
+    const countiesModal = new bootstrap.Modal(document.getElementById('countiesModal'));
+    const accountsModal = new bootstrap.Modal(document.getElementById('accountsModal'));
+    const userEditModal = new bootstrap.Modal(document.getElementById('userEditModal'));
+
+    // --- SEEDING ---
     function showSeedConfirm(){ 
         seedConfirmModal.show(); 
     }
@@ -1249,7 +1257,7 @@
         document.getElementById('linkupDebugPanel').classList.add('d-none');
         document.getElementById('linkupAutoStatus').innerText = "Scanning defaults...";
         document.getElementById('linkupAutoStatus').className = "text-muted small fst-italic";
-        document.getElementById('linkupDiagnostics').classList.add('d-none'); // Hide diagnostics
+        document.getElementById('linkupDiagnostics').classList.add('d-none');
         
         // Reset Inputs
         document.getElementById('linkupBookStart').value = '';
@@ -1262,12 +1270,18 @@
         
         document.getElementById('linkupToggleBook').checked = false;
         document.getElementById('linkupBookContainer').classList.add('d-none');
+        
+        // Reset Split Toggle
+        document.getElementById('linkupSplitImages').checked = false;
+        
+        // Reset Radio to Neither
+        document.getElementById('linkupModeNeither').checked = true;
 
-        // Check Global Debug Toggle
+        // Check Global Debug
         const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         if(isDebug) {
             document.getElementById('btnLinkupPreview').classList.remove('d-none');
-            document.getElementById('linkupDiagnostics').classList.remove('d-none'); // Show diagnostics if debug is on
+            document.getElementById('linkupDiagnostics').classList.remove('d-none');
         } else {
             document.getElementById('btnLinkupPreview').classList.add('d-none');
         }
@@ -1277,7 +1291,6 @@
         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`)
         .then(r => r.json())
         .then(d => {
-            // Render Debug Info if present
             if(d.debug_info && isDebug) {
                 const diagHTML = `
                     <strong>Path Tried:</strong> ${d.debug_info.tried_path}<br>
@@ -1345,13 +1358,20 @@
     }
 
     function getLinkupPayload() {
+        // Get radio value
+        let mode = 'neither';
+        if (document.getElementById('linkupModeLegacy').checked) mode = 'legacy';
+        if (document.getElementById('linkupModeManifest').checked) mode = 'manifest';
+
         return {
             county_id: currentLinkupCountyId,
             use_book_range: document.getElementById('linkupToggleBook').checked,
             book_start: document.getElementById('linkupBookStart').value.trim() || null,
             book_end: document.getElementById('linkupBookEnd').value.trim() || null,
             use_path: document.getElementById('linkupTogglePath').checked,
-            image_path_prefix: document.getElementById('linkupImgPath').value.trim() || ''
+            image_path_prefix: document.getElementById('linkupImgPath').value.trim() || '',
+            linkup_mode: mode,
+            split_images: document.getElementById('linkupSplitImages').checked
         };
     }
 
@@ -1451,14 +1471,13 @@
     }
 
 // ==========================================
-    // eDATA ERRORS TOOL
+    // IMPORT eDATA ERRORS TOOL
     // ==========================================
     
-    const edataErrorsModal = new bootstrap.Modal(document.getElementById('edataErrorsModal'));
-    let currentEdeCountyId = null;
+    const importEdeModal = new bootstrap.Modal(document.getElementById('importEDataErrorsModal'));
+    let currentImportEdeCountyId = null;
 
-    function openEdataErrorsModal(passedId) {
-        // 1. Resolve ID
+    function openImportEDataErrorsModal(passedId) {
         let countyId = passedId;
         if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
             countyId = selectedCountyId;
@@ -1471,69 +1490,71 @@
             return;
         }
         
-        currentEdeCountyId = countyId;
+        currentImportEdeCountyId = countyId;
 
-        // 2. Reset UI
-        document.getElementById('edeResult').innerHTML = '';
-        document.getElementById('edeProgressContainer').classList.add('d-none');
-        document.getElementById('edeLogBox').innerHTML = '';
-        
-        // 3. Set Loading State & Open
-        document.getElementById('edeBookStart').value = 'Loading...';
-        document.getElementById('edeBookEnd').value = 'Loading...';
-        document.getElementById('edeTownships').value = 'Loading...';
-        
-        edataErrorsModal.show();
+        // Reset UI
+        document.getElementById('importEdeResult').innerHTML = '';
+        document.getElementById('importEdeProgressContainer').classList.add('d-none');
+        document.getElementById('importEdeLogContent').innerText = '';
+        document.getElementById('importEdeDisplayPath').innerText = 'Loading...';
+        document.getElementById('importEdeFileCount').innerText = 'Scanning...';
+        document.getElementById('btnRunImportEde').disabled = true;
 
-        // 4. Fetch Defaults
-        fetch(`/api/tools/edata-errors/get-defaults/${countyId}`)
-            .then(r => r.json())
-            .then(data => {
-                if(data.success) {
-                    document.getElementById('edeBookStart').value = data.book_start;
-                    document.getElementById('edeBookEnd').value = data.book_end;
-                    document.getElementById('edeTownships').value = data.townships;
-                } else {
-                    document.getElementById('edeBookStart').value = '';
-                    document.getElementById('edeBookEnd').value = '';
-                    document.getElementById('edeTownships').value = '';
+        // Check Global Debug
+        const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
+        if(isDebug) {
+            document.getElementById('importEdeDebugPanel').classList.remove('d-none');
+        } else {
+            document.getElementById('importEdeDebugPanel').classList.add('d-none');
+        }
+
+        importEdeModal.show();
+
+        // Init - Get Path & Count
+        fetch('/api/tools/import-edata-errors/init', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: countyId })
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                document.getElementById('importEdeDisplayPath').innerText = d.path;
+                document.getElementById('importEdeFileCount').innerText = d.file_count + " files found";
+                if(d.file_count > 0) {
+                    document.getElementById('btnRunImportEde').disabled = false;
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                document.getElementById('edeBookStart').value = '';
-                document.getElementById('edeBookEnd').value = '';
-                document.getElementById('edeTownships').value = '';
-            });
+            } else {
+                document.getElementById('importEdeDisplayPath').innerText = "Error: " + d.message;
+            }
+        })
+        .catch(err => {
+            document.getElementById('importEdeDisplayPath').innerText = "Connection Error";
+        });
     }
 
-    function runEdataErrors() {
-        const btn = document.getElementById('btnRunEde');
-        const progressContainer = document.getElementById('edeProgressContainer');
-        const progressBar = document.getElementById('edeProgressBar');
-        const progressLabel = document.getElementById('edeProgressLabel');
-        const percentLabel = document.getElementById('edeProgressPercent');
-        const logBox = document.getElementById('edeLogBox');
-        const resultDiv = document.getElementById('edeResult');
-        
-        const payload = {
-            county_id: currentEdeCountyId,
-            book_start: document.getElementById('edeBookStart').value.trim(),
-            book_end: document.getElementById('edeBookEnd').value.trim(),
-            townships: document.getElementById('edeTownships').value.trim(),
-            split_images: document.getElementById('edeSplitImages').checked // <--- Added
-        };
+    function runImportEDataErrors() {
+        const btn = document.getElementById('btnRunImportEde');
+        const progressContainer = document.getElementById('importEdeProgressContainer');
+        const progressBar = document.getElementById('importEdeProgressBar');
+        const progressText = document.getElementById('importEdeProgressText');
+        const currentFile = document.getElementById('importEdeCurrentFile');
+        const resultDiv = document.getElementById('importEdeResult');
+        const logBox = document.getElementById('importEdeLogContent');
+        const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
 
         btn.disabled = true;
         progressContainer.classList.remove('d-none');
         resultDiv.innerHTML = '';
         progressBar.style.width = '0%';
-        logBox.innerHTML = '<div>Initializing...</div>';
-        
-        fetch('/api/tools/edata-errors/execute', {
+
+        fetch('/api/tools/import-edata-errors/execute', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ 
+                county_id: currentImportEdeCountyId,
+                debug: isDebug 
+            })
         }).then(response => {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -1554,21 +1575,23 @@
                             const data = JSON.parse(line);
                             if (data.type === 'progress') {
                                 progressBar.style.width = data.percent + '%';
-                                progressLabel.innerText = data.message;
-                                percentLabel.innerText = data.percent + '%';
+                                progressText.innerText = data.percent + '%';
+                                currentFile.innerText = data.message;
                             } else if (data.type === 'log') {
-                                const entry = document.createElement('div');
-                                entry.innerText = "> " + data.message;
-                                logBox.appendChild(entry);
+                                // Add to Debug Box
+                                const div = document.createElement('div');
+                                div.innerText = data.message;
+                                div.style.borderBottom = "1px solid #333";
+                                logBox.appendChild(div);
                                 logBox.scrollTop = logBox.scrollHeight;
                             } else if (data.type === 'complete') {
                                 progressBar.style.width = '100%';
+                                progressBar.classList.add('bg-success');
+                                currentFile.innerText = "Done";
                                 resultDiv.innerHTML = `<div class="alert alert-success mt-2 py-2"><i class="bi bi-check-circle me-2"></i>${data.message}</div>`;
                             } else if (data.type === 'error') {
-                                const entry = document.createElement('div');
-                                entry.style.color = '#dc3545';
-                                entry.innerText = "ERR: " + data.message;
-                                logBox.appendChild(entry);
+                                resultDiv.innerHTML = `<div class="alert alert-danger mt-2 py-2">${data.message}</div>`;
+                                btn.disabled = false;
                             }
                         } catch (e) { console.error(e); }
                     });

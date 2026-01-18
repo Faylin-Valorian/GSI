@@ -10,6 +10,21 @@ from utils import format_error
 
 geo_bp = Blueprint('geospatial', __name__)
 
+# --- STATIC MAP FOR STATE ABBREVIATIONS ---
+US_STATE_ABBR = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA', 
+    'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA', 
+    'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 
+    'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD', 
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS', 
+    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH', 
+    'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 
+    'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 
+    'Rhode Island': 'RI', 'South Carolina': 'SC', 'South Dakota': 'SD', 'Tennessee': 'TN', 
+    'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 
+    'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY'
+}
+
 # --- HELPER: FOLDER MANAGEMENT ---
 def ensure_folders(state_name, county_name=None):
     """Creates the standard directory structure including Images and Error folders."""
@@ -82,23 +97,54 @@ def get_debug_status():
 @geo_bp.route('/api/admin/seed', methods=['POST'])
 @login_required
 def seed_database():
-    if current_user.role != 'admin': return jsonify({'success': False})
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
     try:
-        with open(os.path.join(current_app.root_path, 'static/us-states.json')) as f: states = json.load(f)
-        existing_s = {s.fips_code for s in IndexingStates.query.all()}
-        new_s = [IndexingStates(state_name=f['properties']['NAME'], fips_code=f['properties']['STATE']) 
-                 for f in states['features'] if f['properties']['STATE'] not in existing_s]
-        if new_s: db.session.add_all(new_s)
+        # Load JSONs
+        with open(os.path.join(current_app.root_path, 'static/us-states.json')) as f:
+            states_geo = json.load(f)
+        with open(os.path.join(current_app.root_path, 'static/us-counties.json')) as f:
+            counties_geo = json.load(f)
 
-        with open(os.path.join(current_app.root_path, 'static/us-counties.json')) as f: counties = json.load(f)
-        existing_c = {c.geo_id for c in IndexingCounties.query.all()}
-        new_c = [IndexingCounties(county_name=f['properties']['NAME'], geo_id=f['properties']['GEO_ID'], state_fips=f['properties']['STATE']) 
-                 for f in counties['features'] if f['properties']['GEO_ID'] not in existing_c]
-        if new_c: db.session.add_all(new_c)
+        # 1. Seed States
+        existing_states = {s.fips_code for s in IndexingStates.query.all()}
+        new_states = []
+        for feat in states_geo['features']:
+            fips = feat['properties']['STATE']
+            name = feat['properties']['NAME']
+            # Lookup abbreviation, fallback to first 2 uppercase letters if not found
+            abbr = US_STATE_ABBR.get(name, name[:2].upper())
+            
+            if fips not in existing_states:
+                new_states.append(IndexingStates(state_name=name, state_abbr=abbr, fips_code=fips))
+            else:
+                # Update abbreviation if it was missing in existing record
+                s = IndexingStates.query.filter_by(fips_code=fips).first()
+                if s and not s.state_abbr:
+                    s.state_abbr = abbr
+
+        if new_states: db.session.add_all(new_states)
+        
+        # 2. Seed Counties
+        existing_counties = {c.geo_id for c in IndexingCounties.query.all()}
+        new_counties = []
+        for feat in counties_geo['features']:
+            geo_id = feat['properties']['GEO_ID']
+            if geo_id not in existing_counties:
+                new_counties.append(IndexingCounties(
+                    county_name=feat['properties']['NAME'],
+                    geo_id=geo_id,
+                    state_fips=feat['properties']['STATE']
+                ))
+        
+        if new_counties: db.session.add_all(new_counties)
         
         db.session.commit()
-        return jsonify({'success': True, 'message': f"Seeded {len(new_s)} states, {len(new_c)} counties."})
-    except Exception as e: return jsonify({'success': False, 'message': format_error(e)}), 500
+        return jsonify({'success': True, 'message': f'Database seeded. Added {len(new_states)} states, {len(new_counties)} counties.'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
 
 # --- STATES ADMIN ---
 @geo_bp.route('/api/admin/states', methods=['GET'])
@@ -313,7 +359,7 @@ def view_tool_code():
         'edata': 'blueprints/SetupEDataTable.py',
         'keli': 'blueprints/SetupKeliTables.py',
         'seed': 'blueprints/geospatial.py',
-        'unindexed': 'blueprints/UnindexedImages.py' # <--- ADDED
+        'unindexed': 'blueprints/UnindexedImages.py' 
     }
     filename = file_map.get(tool_key)
     if not filename: return jsonify({'success': False, 'message': 'Unknown Tool'})
