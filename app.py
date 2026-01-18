@@ -63,6 +63,8 @@ app.register_blueprint(patch_bp)
 app.register_blueprint(initial_prep_bp)
 app.register_blueprint(inst_type_bp)
 app.register_blueprint(edata_errors_bp)
+# --- FIX: REGISTER MISSING BLUEPRINT ---
+app.register_blueprint(initial_linkup_bp) 
 
 # --- DB CONFIG LOAD ---
 def load_db_config():

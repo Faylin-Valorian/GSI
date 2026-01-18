@@ -1224,11 +1224,11 @@
     const linkupModal = new bootstrap.Modal(document.getElementById('keliLinkupModal'));
     let linkupSqlCache = "";
     let currentLinkupCountyId = null;
+    let linkupDefaultsCache = null;
 
     function openLinkupModal(passedId) {
         let countyId = passedId;
         
-        // Handle calling from sidebar or other contexts
         if (!countyId && typeof selectedCountyId !== 'undefined' && selectedCountyId) {
             countyId = selectedCountyId;
         } else if (!countyId && document.getElementById('eDataCountyId') && document.getElementById('eDataCountyId').value) {
@@ -1241,63 +1241,107 @@
         }
         
         currentLinkupCountyId = countyId;
+        linkupDefaultsCache = null;
 
         // Reset UI
         document.getElementById('linkupResult').innerHTML = '';
         document.getElementById('linkupProgressContainer').classList.add('d-none');
         document.getElementById('linkupDebugPanel').classList.add('d-none');
         document.getElementById('linkupAutoStatus').innerText = "Scanning defaults...";
+        document.getElementById('linkupAutoStatus').className = "text-muted small fst-italic";
+        document.getElementById('linkupDiagnostics').classList.add('d-none'); // Hide diagnostics
         
         // Reset Inputs
         document.getElementById('linkupBookStart').value = '';
         document.getElementById('linkupBookEnd').value = '';
         document.getElementById('linkupImgPath').value = '';
         
-        // Reset Toggles & Hide Containers (Default: Off/Hidden)
+        // Reset Toggles
         document.getElementById('linkupTogglePath').checked = false;
         document.getElementById('linkupPathContainer').classList.add('d-none');
         
         document.getElementById('linkupToggleBook').checked = false;
         document.getElementById('linkupBookContainer').classList.add('d-none');
 
-        // Check Debug for Preview Button Visibility
+        // Check Global Debug Toggle
         const isDebug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
-        if(isDebug) document.getElementById('btnLinkupPreview').classList.remove('d-none');
-        else document.getElementById('btnLinkupPreview').classList.add('d-none');
+        if(isDebug) {
+            document.getElementById('btnLinkupPreview').classList.remove('d-none');
+            document.getElementById('linkupDiagnostics').classList.remove('d-none'); // Show diagnostics if debug is on
+        } else {
+            document.getElementById('btnLinkupPreview').classList.add('d-none');
+        }
 
         linkupModal.show();
         
-        // Fetch Defaults
         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`)
         .then(r => r.json())
         .then(d => {
+            // Render Debug Info if present
+            if(d.debug_info && isDebug) {
+                const diagHTML = `
+                    <strong>Path Tried:</strong> ${d.debug_info.tried_path}<br>
+                    <strong>Path Exists:</strong> ${d.debug_info.path_exists ? '<span class="text-success">YES</span>' : '<span class="text-danger">NO</span>'}<br>
+                    <strong>Folders Found:</strong> ${d.debug_info.folders_count}<br>
+                    <strong>State Dir:</strong> ${d.debug_info.state_dir}<br>
+                    <strong>County Dir:</strong> ${d.debug_info.county_dir}
+                `;
+                document.getElementById('linkupDiagContent').innerHTML = diagHTML;
+            }
+
             if(d.success && d.found) {
-                document.getElementById('linkupBookStart').value = d.book_start;
-                document.getElementById('linkupBookEnd').value = d.book_end;
-                document.getElementById('linkupImgPath').value = d.path_prefix;
-                document.getElementById('linkupAutoStatus').innerText = "Defaults Loaded";
-                document.getElementById('linkupAutoStatus').className = "text-success small fst-italic";
+                linkupDefaultsCache = {
+                    start: d.book_start,
+                    end: d.book_end,
+                    path: d.path_prefix
+                };
+                document.getElementById('linkupAutoStatus').innerText = "Defaults Detected";
+                document.getElementById('linkupAutoStatus').className = "text-success small fst-italic fw-bold";
             } else {
-                document.getElementById('linkupAutoStatus').innerText = "No defaults found.";
-                document.getElementById('linkupAutoStatus').className = "text-muted small fst-italic";
+                document.getElementById('linkupAutoStatus').innerText = "No defaults found on disk.";
+                document.getElementById('linkupAutoStatus').className = "text-warning small fst-italic";
             }
         })
         .catch(err => {
              console.error(err);
-             document.getElementById('linkupAutoStatus').innerText = "Error loading defaults.";
+             document.getElementById('linkupAutoStatus').innerText = "Error scanning defaults.";
+             if(isDebug) document.getElementById('linkupDiagContent').innerText = "Fetch Error: " + err;
         });
     }
 
     function toggleLinkupPathInput() {
         const isChecked = document.getElementById('linkupTogglePath').checked;
         const el = document.getElementById('linkupPathContainer');
-        if(isChecked) el.classList.remove('d-none'); else el.classList.add('d-none');
+        const input = document.getElementById('linkupImgPath');
+
+        if(isChecked) {
+            el.classList.remove('d-none');
+            if(linkupDefaultsCache && linkupDefaultsCache.path && !input.value) {
+                input.value = linkupDefaultsCache.path;
+            }
+        } else {
+            el.classList.add('d-none');
+            input.value = '';
+        }
     }
 
     function toggleLinkupBookInputs() {
         const isChecked = document.getElementById('linkupToggleBook').checked;
         const el = document.getElementById('linkupBookContainer');
-        if(isChecked) el.classList.remove('d-none'); else el.classList.add('d-none');
+        const startIn = document.getElementById('linkupBookStart');
+        const endIn = document.getElementById('linkupBookEnd');
+
+        if(isChecked) {
+            el.classList.remove('d-none');
+            if(linkupDefaultsCache) {
+                if(!startIn.value) startIn.value = linkupDefaultsCache.start;
+                if(!endIn.value) endIn.value = linkupDefaultsCache.end;
+            }
+        } else {
+            el.classList.add('d-none');
+            startIn.value = '';
+            endIn.value = '';
+        }
     }
 
     function getLinkupPayload() {
