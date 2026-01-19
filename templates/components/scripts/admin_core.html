@@ -1,23 +1,29 @@
 <script>
     // ==========================================
-    // 1. CORE ADMIN & INITIALIZATION
+    // 1. CORE ADMIN & WINDOW MANAGER (Merged)
     // ==========================================
 
     // --- GLOBAL VARIABLES ---
     let seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal;
     let unindexedReviewModal, alterDbModal, patchModal, initialPrepModal, instCorrectionModal;
     let linkupModal, edataErrorsModal, importEdeModal, dbCompatModal, proceduresModal, cleanupModal, dbDowngradeModal;
-    // Added Setup Modals:
-    let eDataModal, keliModal; 
+    let eDataModal, keliModal; // Setup Modals
+    let confirmationModal, notificationModal, adminAuthModal, codeViewerModal; // System Modals
 
-    // --- SAFE INITIALIZATION ---
+    // --- INITIALIZATION (DOMContentLoaded) ---
     document.addEventListener('DOMContentLoaded', () => {
         const init = (id) => {
             const el = document.getElementById(id);
             return el ? new bootstrap.Modal(el) : null;
         };
 
-        // Core
+        // System & Window Manager
+        confirmationModal = init('confirmationModal');
+        notificationModal = init('notificationModal');
+        adminAuthModal = init('adminAuthModal');
+        codeViewerModal = init('codeViewerModal');
+
+        // Admin Core
         seedConfirmModal = init('seedConfirmModal');
         seedSuccessModal = init('seedSuccessModal');
         statesModal = init('statesModal');
@@ -32,34 +38,67 @@
         patchModal = init('patchModal');
         alterDbModal = init('alterDbModal');
 
-        // eData Tools
-        eDataModal = init('eDataModal');
-        edataErrorsModal = init('edataErrorsModal');
-        importEdeModal = init('importEDataErrorsModal');
-        unindexedReviewModal = init('unindexedModalDialog') || init('unindexedReviewModal');
-
-        // Keli Tools
-        keliModal = init('keliModal');
+        // Tools
         cleanupModal = init('cleanupModal');
         initialPrepModal = init('initialPrepModal');
+        edataErrorsModal = init('edataErrorsModal');
+        importEdeModal = init('importEDataErrorsModal');
         linkupModal = init('keliLinkupModal');
+        eDataModal = init('eDataModal');
+        keliModal = init('keliModal');
+        
+        // Complex Wrappers
+        unindexedReviewModal = init('unindexedModalDialog') || init('unindexedReviewModal');
         instCorrectionModal = document.getElementById('itcModalDialog') ? 
             new bootstrap.Modal(document.getElementById('instCorrectionModal')) : init('instCorrectionModal');
             
-        console.log("Admin Core Initialized");
+        console.log("Core Systems Initialized");
     });
 
-    // --- HELPER: CLOSE ALL MODALS ---
+    // --- WINDOW MANAGER LOGIC ---
     function closeAllModals() {
-        if (typeof window.closeAllModals === 'function' && window.closeAllModals !== closeAllModals) {
-            window.closeAllModals(); 
-            return;
-        }
-        const all = [seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, instCorrectionModal, eDataModal, keliModal];
+        const all = [
+            seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, 
+            dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, 
+            alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, 
+            instCorrectionModal, eDataModal, keliModal, confirmationModal, notificationModal, 
+            adminAuthModal, codeViewerModal
+        ];
         all.forEach(m => { if(m) m.hide(); });
+        
+        // Cleanup backdrops
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style = '';
     }
 
-    // --- SEEDING ---
+    // --- NOTIFICATIONS & CONFIRMATIONS ---
+    let pendingConfirmationAction = null;
+
+    function showConfirmation(message, actionCallback) {
+        document.getElementById('confirmationMessage').innerText = message;
+        pendingConfirmationAction = actionCallback; 
+        if(confirmationModal) confirmationModal.show();
+    }
+
+    function executeConfirmation() {
+        if (pendingConfirmationAction) pendingConfirmationAction(); 
+        pendingConfirmationAction = null; 
+        if(confirmationModal) confirmationModal.hide();
+    }
+
+    function closeConfirmationModal() {
+        pendingConfirmationAction = null;
+        if(confirmationModal) confirmationModal.hide();
+    }
+
+    function showNotification(message) {
+        const el = document.getElementById('notificationMessage');
+        if(el) el.innerText = message;
+        if(notificationModal) notificationModal.show();
+    }
+
+    // --- CORE ADMIN FUNCTIONS (Seeding, States, Accounts) ---
     function showSeedConfirm(){ if(seedConfirmModal) seedConfirmModal.show(); }
     
     function runSeeding(){
@@ -72,12 +111,10 @@
                 if(seedSuccessModal) seedSuccessModal.show();
                 fetchStates(); 
                 if(typeof loadStateLayers === 'function') loadStateLayers(); 
-                if(typeof loadCountyLayers === 'function') loadCountyLayers();
             } else { showNotification("Seeding failed: " + d.message); }
-        });
+        }).catch(e=>{ document.getElementById('globalLoader').style.display='none'; showNotification("Error: "+e); });
     }
 
-    // --- STATES & COUNTIES ---
     function openStatesModal(){ closeAllModals(); if(statesModal) statesModal.show(); fetchStates(); }
     function fetchStates() {
         fetch('/api/admin/states').then(r=>r.json()).then(data => {
@@ -89,7 +126,7 @@
             document.getElementById('statesTableBody').innerHTML = h;
         });
     }
-    function toggleState(id) { fetch(`/api/admin/state/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ fetchStates(); if(typeof loadStateLayers==='function') loadStateLayers(); if(typeof loadCountyLayers==='function') loadCountyLayers(); } }); }
+    function toggleState(id) { fetch(`/api/admin/state/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ fetchStates(); if(typeof loadStateLayers==='function') loadStateLayers(); } }); }
 
     function openCountiesModal(){ 
         closeAllModals(); if(countiesModal) countiesModal.show(); 
@@ -115,7 +152,6 @@
     function toggleCounty(id) { fetch(`/api/admin/county/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ fetchCountiesForState(); if(typeof loadCountyLayers==='function') loadCountyLayers(); } }); }
     function toggleGlobalActive(id) { fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'}).then(r => r.json()).then(d => { if(d.success) { fetchCountiesForState(); if(typeof loadCountyLayers==='function') loadCountyLayers(); } }); }
 
-    // --- ACCOUNTS ---
     function openAccountsModal(){
         closeAllModals(); if(accountsModal) accountsModal.show();
         fetch('/api/users').then(r => r.json()).then(users => {
