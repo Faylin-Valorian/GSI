@@ -1,39 +1,73 @@
 <script>
     // ==========================================
-    // 2. WINDOW MANAGER (MODALS)
+    // 2. WINDOW MANAGER (Helpers Only)
     // ==========================================
-    const statesModal = new bootstrap.Modal(document.getElementById('statesModal'));
-    const countiesModal = new bootstrap.Modal(document.getElementById('countiesModal'));
-    const accountsModal = new bootstrap.Modal(document.getElementById('accountsModal'));
-    const seedConfirmModal = new bootstrap.Modal(document.getElementById('seedConfirmModal'));
-    const seedSuccessModal = new bootstrap.Modal(document.getElementById('seedSuccessModal'));
-    const driveModal = new bootstrap.Modal(document.getElementById('driveModal'));
-    const dbCompatModal = new bootstrap.Modal(document.getElementById('dbCompatModal'));
-    const proceduresModal = new bootstrap.Modal(document.getElementById('proceduresModal'));
-    const eDataModal = new bootstrap.Modal(document.getElementById('eDataModal'));
-    const keliModal = new bootstrap.Modal(document.getElementById('keliModal'));
-    const dbDowngradeModal = new bootstrap.Modal(document.getElementById('dbDowngradeModal'));
-    const codeViewerModal = new bootstrap.Modal(document.getElementById('codeViewerModal'));
-    const notificationModal = new bootstrap.Modal(document.getElementById('notificationModal'));
-    const userEditModal = new bootstrap.Modal(document.getElementById('userEditModal'));
-    const confirmationModal = new bootstrap.Modal(document.getElementById('confirmationModal'));
-    const adminAuthModal = new bootstrap.Modal(document.getElementById('adminAuthModal'));
-    const unindexedReviewModal = new bootstrap.Modal(document.getElementById('unindexedReviewModal'));
+    
+    // Note: Modals are now initialized in admin_core.html to prevent crashes.
+    // This file only handles generic window actions.
 
     function closeAllModals() {
-        ['statesModal', 'countiesModal', 'accountsModal', 'seedConfirmModal', 'seedSuccessModal', 'driveModal', 'dbCompatModal', 'proceduresModal', 'eDataModal', 'keliModal', 'dbDowngradeModal', 'codeViewerModal', 'notificationModal', 'userEditModal', 'confirmationModal', 'adminAuthModal', 'unindexedReviewModal'].forEach(id => {
-            const el = document.getElementById(id);
-            if(el) { const instance = bootstrap.Modal.getInstance(el); if (instance) instance.hide(); }
+        // Fallback list of known modals to hide
+        // These variables are global (defined in admin_core.html)
+        const all = [
+            typeof seedConfirmModal !== 'undefined' ? seedConfirmModal : null,
+            typeof seedSuccessModal !== 'undefined' ? seedSuccessModal : null,
+            typeof statesModal !== 'undefined' ? statesModal : null,
+            typeof countiesModal !== 'undefined' ? countiesModal : null,
+            typeof accountsModal !== 'undefined' ? accountsModal : null,
+            typeof userEditModal !== 'undefined' ? userEditModal : null,
+            typeof driveModal !== 'undefined' ? driveModal : null,
+            typeof dbCompatModal !== 'undefined' ? dbCompatModal : null,
+            typeof proceduresModal !== 'undefined' ? proceduresModal : null,
+            typeof eDataModal !== 'undefined' ? eDataModal : null,
+            typeof keliModal !== 'undefined' ? keliModal : null,
+            typeof dbDowngradeModal !== 'undefined' ? dbDowngradeModal : null,
+            typeof codeViewerModal !== 'undefined' ? codeViewerModal : null,
+            typeof notificationModal !== 'undefined' ? notificationModal : null,
+            typeof confirmationModal !== 'undefined' ? confirmationModal : null,
+            typeof adminAuthModal !== 'undefined' ? adminAuthModal : null,
+            typeof unindexedReviewModal !== 'undefined' ? unindexedReviewModal : null,
+            typeof patchModal !== 'undefined' ? patchModal : null,
+            typeof cleanupModal !== 'undefined' ? cleanupModal : null,
+            typeof initialPrepModal !== 'undefined' ? initialPrepModal : null,
+            typeof alterDbModal !== 'undefined' ? alterDbModal : null,
+            typeof instCorrectionModal !== 'undefined' ? instCorrectionModal : null,
+            typeof linkupModal !== 'undefined' ? linkupModal : null,
+            typeof edataErrorsModal !== 'undefined' ? edataErrorsModal : null,
+            typeof importEdeModal !== 'undefined' ? importEdeModal : null
+        ];
+
+        all.forEach(m => { 
+            if(m && typeof m.hide === 'function') m.hide(); 
         });
+        
+        // Force cleanup of backdrops
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style = '';
     }
 
     // --- CONFIRMATION & NOTIFICATION ---
     let pendingConfirmationAction = null;
 
+    // Use a getter to safely find the modal even if initialized later
+    function getConfirmationModal() {
+        if (typeof confirmationModal !== 'undefined' && confirmationModal) return confirmationModal;
+        const el = document.getElementById('confirmationModal');
+        return el ? new bootstrap.Modal(el) : null;
+    }
+
+    function getNotificationModal() {
+        if (typeof notificationModal !== 'undefined' && notificationModal) return notificationModal;
+        const el = document.getElementById('notificationModal');
+        return el ? new bootstrap.Modal(el) : null;
+    }
+
     function showConfirmation(message, actionCallback) {
         document.getElementById('confirmationMessage').innerText = message;
         pendingConfirmationAction = actionCallback; 
-        confirmationModal.show();
+        const m = getConfirmationModal();
+        if(m) m.show();
     }
 
     function executeConfirmation() {
@@ -41,16 +75,20 @@
             pendingConfirmationAction(); 
             pendingConfirmationAction = null; 
         }
-        confirmationModal.hide();
+        const m = getConfirmationModal();
+        if(m) m.hide();
     }
 
     function closeConfirmationModal() {
         pendingConfirmationAction = null;
-        confirmationModal.hide();
+        const m = getConfirmationModal();
+        if(m) m.hide();
     }
 
     function showNotification(message) {
-        document.getElementById('notificationMessage').innerText = message;
-        notificationModal.show();
+        const el = document.getElementById('notificationMessage');
+        if(el) el.innerText = message;
+        const m = getNotificationModal();
+        if(m) m.show();
     }
 </script>

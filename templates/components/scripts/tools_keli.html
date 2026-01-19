@@ -1,17 +1,49 @@
 <script>
     // ==========================================
-    // 3. KELI TOOLS
+    // 3. KELI TOOLS (Consolidated)
     // ==========================================
+
+    // --- SETUP KELI TABLES ---
+    function openKeliModal(id, stateName, countyName) { 
+        closeAllModals();
+        document.getElementById('keliCountyId').value = id;
+        const displayPath = `/data/${stateName}/${countyName}/Keli Files`;
+        document.getElementById('keliDisplayPath').innerText = displayPath;
+        if(keliModal) keliModal.show(); 
+    }
+
+    async function submitKeliSetup() {
+        const btn = document.querySelector('#keliModal .btn[onclick="submitKeliSetup()"]');
+        const resultDiv = document.getElementById('keliResult');
+        const idVal = document.getElementById('keliCountyId').value;
+        
+        btn.disabled = true; resultDiv.innerHTML = '';
+        document.getElementById('keliProgressContainer').classList.remove('d-none');
+
+        try {
+            const response = await fetch('/api/tools/setup-keli', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: idVal })
+            });
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { if(l) try {
+                    const d = JSON.parse(l);
+                    if(d.type==='progress') document.getElementById('keliProgressBar').style.width = d.percent+'%';
+                    if(d.type==='complete') resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                } catch(e){} });
+            }
+        } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Connection Failed</div>'; } 
+        finally { btn.disabled = false; }
+    }
 
     // --- INITIAL PREP ---
     let currentPrepCountyId = null;
     function openInitialPrepTool(id) {
         closeAllModals(); currentPrepCountyId = id;
         if(initialPrepModal) initialPrepModal.show();
-        // Reset
         document.getElementById('prepResult').innerHTML='';
-        const toggle = document.getElementById('prepToggleBook'); if(toggle) toggle.checked=false;
-        document.getElementById('prepBookInputsContainer').classList.add('d-none');
     }
     function togglePrepBookInputs() {
         if(document.getElementById('prepToggleBook').checked) {
@@ -46,9 +78,9 @@
             });
         });
     }
-    function itcLoadImages(val) { /* Standard logic handles image loading */ }
+    function itcLoadImages(val) { /* Logic omitted for brevity */ }
 
-    // --- KELI LINKUP (FIXED) ---
+    // --- KELI LINKUP ---
     let currentLinkupCountyId = null, linkupDefaultsCache = null;
     function openLinkupModal(passedId) {
         closeAllModals(); 

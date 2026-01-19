@@ -1,7 +1,43 @@
 <script>
     // ==========================================
-    // 2. EDATA TOOLS
+    // 2. EDATA TOOLS (Consolidated)
     // ==========================================
+
+    // --- SETUP EDATA TABLE ---
+    function openEDataModal(id, stateName, countyName) { 
+        closeAllModals();
+        document.getElementById('eDataCountyId').value = id;
+        const displayPath = `/data/${stateName}/${countyName}/eData Files`;
+        document.getElementById('eDataDisplayPath').innerText = displayPath;
+        if(eDataModal) eDataModal.show(); 
+    }
+
+    async function submitEDataSetup() {
+        const btn = document.querySelector('#eDataModal .btn-success');
+        const resultDiv = document.getElementById('eDataResult');
+        const idVal = document.getElementById('eDataCountyId').value;
+        const mode = document.getElementById('eDataImportMode').value;
+        
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...';
+        resultDiv.innerHTML = ''; document.getElementById('eDataProgressContainer').classList.remove('d-none');
+
+        try {
+            const response = await fetch('/api/tools/setup-edata', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: idVal, mode: mode })
+            });
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { if(l) try {
+                    const d = JSON.parse(l);
+                    if(d.type==='progress') document.getElementById('eDataProgressBar').style.width = d.percent+'%';
+                    if(d.type==='complete') resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                } catch(e){} });
+            }
+        } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Connection Failed</div>'; } 
+        finally { btn.disabled = false; btn.innerText = 'Run Import'; }
+    }
 
     // --- UNINDEXED IMAGES ---
     function openUnindexedReview(countyId, stateName, countyName) {
@@ -64,7 +100,7 @@
     }
 
     // --- IMPORT EDATA ERRORS ---
-    let currentImportEdeCountyId = null;
+    let currentImportEdeCountyId = null; // Declare local variable here
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
         if(importEdeModal) importEdeModal.show();
