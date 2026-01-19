@@ -1,16 +1,18 @@
 <script>
     // ==========================================
-    // 2. EDATA TOOLS (Consolidated)
+    // EDATA TOOLS (Integrated)
     // ==========================================
 
     // --- SETUP EDATA TABLE ---
     function openEDataModal(id, stateName, countyName) { 
-        closeAllModals();
+        closeAllModals(); // From scripts_core
         document.getElementById('eDataCountyId').value = id;
         const displayPath = `/data/${stateName}/${countyName}/eData Files`;
         document.getElementById('eDataDisplayPath').innerText = displayPath;
-        if(eDataModal) eDataModal.show(); 
+        if(eDataModal) eDataModal.show(); // eDataModal is defined in scripts_core
     }
+
+    function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
 
     async function submitEDataSetup() {
         const btn = document.querySelector('#eDataModal .btn-success');
@@ -50,6 +52,9 @@
         if(unindexedReviewModal) unindexedReviewModal.show();
         loadUnindexedTable(countyId);
     }
+    
+    function closeUnindexedModal() { if(unindexedReviewModal) unindexedReviewModal.hide(); }
+
     function scanForUnindexed() {
         const cid = document.getElementById('currentReviewCountyId').value;
         document.getElementById('globalLoader').style.display = 'flex';
@@ -100,10 +105,14 @@
     }
 
     // --- IMPORT EDATA ERRORS ---
-    let currentImportEdeCountyId = null; // Declare local variable here
+    // Change 'let' to 'var' to prevent "Identifier already declared" errors on reload
+    var currentImportEdeCountyId = null; 
+    
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
         if(importEdeModal) importEdeModal.show();
+        
+        // Debug check
         const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         if(debug) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
         
@@ -120,6 +129,7 @@
         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;
         document.getElementById('importEdeProgressContainer').classList.remove('d-none');
         const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
+        
         fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId, debug: debug })})
         .then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();

@@ -1,6 +1,6 @@
 <script>
     // ==========================================
-    // 4. MAINTENANCE TOOLS
+    // MAINTENANCE TOOLS
     // ==========================================
 
     // --- DB TOOLS ---
@@ -15,12 +15,23 @@
     function submitProcedures() { fetch('/api/admin/setup-procedures/execute', {method:'POST'}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(proceduresModal) proceduresModal.hide(); }); }
 
     // --- PATCH MANAGER ---
-    function openPatchModal() { closeAllModals(); if(patchModal) patchModal.show(); }
+    // Note: patchModal is initialized in scripts_core.html
+    function openPatchModal() { 
+        closeAllModals(); 
+        document.getElementById('patchFileInput').value = '';
+        document.getElementById('patchError').innerText = '';
+        if(patchModal) patchModal.show(); 
+    }
+    function closePatchModal() { if(patchModal) patchModal.hide(); }
+
     function submitPatchFile() {
         const file = document.getElementById('patchFileInput').files[0];
         if (!file) return;
         const fd = new FormData(); fd.append('patch_file', file);
+        document.getElementById('globalLoader').style.display='flex';
+        
         fetch('/api/admin/patch/apply', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+            document.getElementById('globalLoader').style.display='none';
             if (d.success) { showNotification("Patch Applied! Reloading..."); setTimeout(() => location.reload(), 1500); } 
             else document.getElementById('patchError').innerText = d.message;
         });

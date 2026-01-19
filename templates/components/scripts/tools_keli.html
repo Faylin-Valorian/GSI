@@ -1,6 +1,6 @@
 <script>
     // ==========================================
-    // 3. KELI TOOLS (Consolidated)
+    // KELI TOOLS (Integrated)
     // ==========================================
 
     // --- SETUP KELI TABLES ---
@@ -11,6 +11,8 @@
         document.getElementById('keliDisplayPath').innerText = displayPath;
         if(keliModal) keliModal.show(); 
     }
+    
+    function closeKeliModal() { if(keliModal) keliModal.hide(); }
 
     async function submitKeliSetup() {
         const btn = document.querySelector('#keliModal .btn[onclick="submitKeliSetup()"]');
@@ -39,7 +41,7 @@
     }
 
     // --- INITIAL PREP ---
-    let currentPrepCountyId = null;
+    var currentPrepCountyId = null; // Use var for safety
     function openInitialPrepTool(id) {
         closeAllModals(); currentPrepCountyId = id;
         if(initialPrepModal) initialPrepModal.show();
@@ -60,7 +62,7 @@
     }
 
     // --- ITC (CORRECTIONS) ---
-    let itcCountyId=null;
+    var itcCountyId = null; // Use var
     function openInstCorrectionTool(id, s, c) {
         closeAllModals(); itcCountyId = id;
         document.getElementById('itcPathInput').value = `data/${s}/${c}/Images`;
@@ -78,10 +80,10 @@
             });
         });
     }
-    function itcLoadImages(val) { /* Logic omitted for brevity */ }
+    function itcLoadImages(val) { console.log("Load ITC: "+val); }
 
     // --- KELI LINKUP ---
-    let currentLinkupCountyId = null, linkupDefaultsCache = null;
+    var currentLinkupCountyId = null, linkupDefaultsCache = null; // Use var
     function openLinkupModal(passedId) {
         closeAllModals(); 
         let countyId = passedId || (typeof selectedCountyId !== 'undefined' ? selectedCountyId : null);
