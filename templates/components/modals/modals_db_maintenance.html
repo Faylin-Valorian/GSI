@@ -143,28 +143,26 @@
                     <i class="bi bi-info-circle-fill fs-4 me-3"></i>
                     <div>
                         <strong>Alter Fields Routine</strong><br>
-                        This tool will rename legacy columns (e.g., col01other -> key_id) and add missing system columns.
+                        This tool will rename legacy columns and add missing system columns.
                         <br><small class="text-muted">Safe to run multiple times.</small>
                     </div>
                 </div>
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <button class="btn btn-outline-primary" onclick="previewAlterDb()">
-                        <i class="bi bi-code-square me-2"></i>Generate SQL Preview
-                    </button>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="alterDbDebugToggle">
-                        <label class="form-check-label text-muted small" for="alterDbDebugToggle">Debug Mode</label>
+                
+                <div id="alterDbDebugPanel" class="d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-warning small fw-bold text-uppercase">Debug Preview</span>
+                        <button class="btn btn-sm btn-outline-primary" onclick="previewAlterDb()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Preview
+                        </button>
                     </div>
-                </div>
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-header border-secondary py-1 text-muted small text-uppercase fw-bold">SQL Execution Plan</div>
-                    <div class="card-body p-0 position-relative">
-                        <div id="alterDbLoader" class="position-absolute w-100 h-100 d-none justify-content-center align-items-center" style="background: rgba(0,0,0,0.7); z-index: 5;">
-                            <div class="spinner-border text-primary" role="status"></div>
+                    <div class="card bg-dark border-secondary mb-3">
+                        <div class="card-header border-secondary py-1 text-muted small text-uppercase fw-bold">SQL Execution Plan</div>
+                        <div class="card-body p-0 position-relative">
+                            <pre id="alterDbSqlPreview" class="m-0 p-3 text-success" style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap;">-- Loading...</pre>
                         </div>
-                        <pre id="alterDbSqlPreview" class="m-0 p-3 text-success" style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap;">-- Click 'Generate SQL Preview' to analyze...</pre>
                     </div>
                 </div>
+
             </div>
             <div class="modal-footer border-top border-secondary justify-content-between">
                 <div class="d-flex align-items-center">

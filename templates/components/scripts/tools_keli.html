@@ -21,6 +21,8 @@
         
         btn.disabled = true; resultDiv.innerHTML = '';
         document.getElementById('keliProgressContainer').classList.remove('d-none');
+        document.getElementById('keliProgressBar').style.width = '0%';
+        document.getElementById('keliProgressText').innerText = '0%';
 
         try {
             const response = await fetch('/api/tools/setup-keli', {
@@ -32,8 +34,15 @@
                 const lines = decoder.decode(value).split('\n');
                 lines.forEach(l => { if(l) try {
                     const d = JSON.parse(l);
-                    if(d.type==='progress') document.getElementById('keliProgressBar').style.width = d.percent+'%';
-                    if(d.type==='complete') resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                    if(d.type==='progress') {
+                        document.getElementById('keliProgressBar').style.width = d.percent+'%';
+                        document.getElementById('keliProgressText').innerText = d.percent+'%'; // FIX
+                    }
+                    if(d.type==='complete') {
+                        document.getElementById('keliProgressBar').style.width = '100%';
+                        document.getElementById('keliProgressText').innerText = '100%';
+                        resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                    }
                 } catch(e){} });
             }
         } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Connection Failed</div>'; } 

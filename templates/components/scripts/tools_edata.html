@@ -5,11 +5,11 @@
 
     // --- SETUP EDATA TABLE ---
     function openEDataModal(id, stateName, countyName) { 
-        closeAllModals(); // From scripts_core
+        closeAllModals(); 
         document.getElementById('eDataCountyId').value = id;
         const displayPath = `/data/${stateName}/${countyName}/eData Files`;
         document.getElementById('eDataDisplayPath').innerText = displayPath;
-        if(eDataModal) eDataModal.show(); // eDataModal is defined in scripts_core
+        if(eDataModal) eDataModal.show(); 
     }
 
     function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
@@ -21,7 +21,10 @@
         const mode = document.getElementById('eDataImportMode').value;
         
         btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...';
-        resultDiv.innerHTML = ''; document.getElementById('eDataProgressContainer').classList.remove('d-none');
+        resultDiv.innerHTML = ''; 
+        document.getElementById('eDataProgressContainer').classList.remove('d-none');
+        document.getElementById('eDataProgressBar').style.width = '0%';
+        document.getElementById('eDataProgressText').innerText = '0%';
 
         try {
             const response = await fetch('/api/tools/setup-edata', {
@@ -33,8 +36,15 @@
                 const lines = decoder.decode(value).split('\n');
                 lines.forEach(l => { if(l) try {
                     const d = JSON.parse(l);
-                    if(d.type==='progress') document.getElementById('eDataProgressBar').style.width = d.percent+'%';
-                    if(d.type==='complete') resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                    if(d.type==='progress') {
+                        document.getElementById('eDataProgressBar').style.width = d.percent+'%';
+                        document.getElementById('eDataProgressText').innerText = d.percent+'%'; // FIX: Update Text
+                    }
+                    if(d.type==='complete') {
+                        document.getElementById('eDataProgressBar').style.width = '100%';
+                        document.getElementById('eDataProgressText').innerText = '100%';
+                        resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`;
+                    }
                 } catch(e){} });
             }
         } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Connection Failed</div>'; } 
@@ -94,25 +104,56 @@
     function runEdataErrors() {
         const id = document.getElementById('eDataCountyId').value;
         const btn = document.getElementById('btnRunEde'); btn.disabled=true;
+        
+        // Reset
         document.getElementById('edeProgressContainer').classList.remove('d-none');
+        document.getElementById('edeProgressBar').style.width = '0%';
+        document.getElementById('edeProgressPercent').innerText = '0%';
+
         fetch('/api/tools/edata-errors/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
             county_id: id,
             book_start: document.getElementById('edeBookStart').value,
             book_end: document.getElementById('edeBookEnd').value,
             townships: document.getElementById('edeTownships').value,
             split_images: document.getElementById('edeSplitImages').checked
-        })}).then(r => { btn.disabled=false; document.getElementById('edeResult').innerText = "Done"; });
+        })}).then(response => {
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            function read() { 
+                reader.read().then(({ done, value }) => {
+                    if (done) { 
+                        btn.disabled = false; 
+                        document.getElementById('edeResult').innerText = "Done";
+                        document.getElementById('edeProgressBar').style.width = '100%'; 
+                        return; 
+                    }
+                    const lines = decoder.decode(value).split('\n');
+                    lines.forEach(l => {
+                        try { 
+                            const d = JSON.parse(l);
+                            if(d.type === 'progress') {
+                                document.getElementById('edeProgressBar').style.width = d.percent + '%';
+                                document.getElementById('edeProgressPercent').innerText = d.percent + '%'; // FIX
+                            }
+                        } catch(e){}
+                    });
+                    read();
+                }); 
+            } 
+            read();
+        });
     }
 
     // --- IMPORT EDATA ERRORS ---
-    // Change 'let' to 'var' to prevent "Identifier already declared" errors on reload
     var currentImportEdeCountyId = null; 
     
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
         if(importEdeModal) importEdeModal.show();
         
-        // Debug check
+        // Reset UI
+        document.getElementById('importEdeResult').innerText = '';
+        document.getElementById('importEdeProgressContainer').classList.add('d-none');
+        
         const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         if(debug) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
         
@@ -121,27 +162,57 @@
             if(d.success) {
                 document.getElementById('importEdeDisplayPath').innerText = d.path;
                 document.getElementById('importEdeFileCount').innerText = d.file_count + " files";
-                document.getElementById('btnRunImportEde').disabled = (d.file_count === 0);
+                const btn = document.getElementById('btnRunImportEde');
+                btn.disabled = (d.file_count === 0);
+                if(d.file_count === 0) document.getElementById('importEdeResult').innerText = "No .csv files found in folder.";
             }
         });
     }
+
     function runImportEDataErrors() {
         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;
         document.getElementById('importEdeProgressContainer').classList.remove('d-none');
-        const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         
+        const pBar = document.getElementById('importEdeProgressBar');
+        const pText = document.getElementById('importEdeProgressText');
+        const logBox = document.getElementById('importEdeLogContent');
+
+        // Reset
+        pBar.style.width = '0%';
+        pText.innerText = '0%';
+        if(logBox) logBox.innerHTML = '';
+
+        const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId, debug: debug })})
         .then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
-            const logBox = document.getElementById('importEdeLogContent');
+            let hasProgress = false;
+
             function read() { reader.read().then(({ done, value }) => {
-                if (done) { btn.disabled = false; return; }
+                if (done) { 
+                    btn.disabled = false; 
+                    if(!hasProgress) {
+                        pBar.style.width = '100%';
+                        pText.innerText = '100%';
+                        document.getElementById('importEdeResult').innerText = "Completed (Instant)";
+                    }
+                    return; 
+                }
                 const lines = decoder.decode(value).split('\n');
                 lines.forEach(l => {
                     try { const d = JSON.parse(l); 
-                        if(d.type==='progress') document.getElementById('importEdeProgressBar').style.width = d.percent + '%';
+                        if(d.type==='progress') {
+                            hasProgress = true;
+                            pBar.style.width = d.percent + '%';
+                            pText.innerText = d.percent + '%'; // FIX
+                        }
                         if(d.type==='log' && logBox) { const div = document.createElement('div'); div.innerText = d.message; logBox.appendChild(div); }
-                        if(d.type==='complete') document.getElementById('importEdeResult').innerText = "Done";
+                        if(d.type==='complete') {
+                            pBar.style.width = '100%';
+                            pBar.classList.add('bg-success');
+                            pText.innerText = '100%';
+                            document.getElementById('importEdeResult').innerText = "Done";
+                        }
                     } catch(e){}
                 });
                 read();

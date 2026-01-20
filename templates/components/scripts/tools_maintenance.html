@@ -4,7 +4,19 @@
     // ==========================================
 
     // --- DB TOOLS ---
-    function openDbCompatModal() { closeAllModals(); if(dbCompatModal) dbCompatModal.show(); }
+    function openDbCompatModal() { 
+        closeAllModals(); 
+        // Update placeholder with current level
+        const input = document.getElementById('targetCompatLevel');
+        if(input) {
+            input.placeholder = "Loading...";
+            fetch('/api/tools/db-compatibility/current')
+                .then(r => r.json())
+                .then(d => { input.placeholder = d.success ? d.level : "Error"; });
+        }
+        if(dbCompatModal) dbCompatModal.show(); 
+    }
+    
     function submitDbCompat() {
         fetch('/api/admin/db-compat/update', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({level:document.getElementById('targetCompatLevel').value})})
         .then(r=>r.json()).then(d=>{ showNotification(d.message); if(dbCompatModal) dbCompatModal.hide(); });
@@ -15,7 +27,6 @@
     function submitProcedures() { fetch('/api/admin/setup-procedures/execute', {method:'POST'}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(proceduresModal) proceduresModal.hide(); }); }
 
     // --- PATCH MANAGER ---
-    // Note: patchModal is initialized in scripts_core.html
     function openPatchModal() { 
         closeAllModals(); 
         document.getElementById('patchFileInput').value = '';
@@ -37,18 +48,52 @@
         });
     }
 
-    // --- ALTER DATABASE ---
-    function openAlterDbTool() { closeAllModals(); if(alterDbModal) alterDbModal.show(); previewAlterDb(); }
+    // --- ALTER DATABASE (UPDATED) ---
+    function openAlterDbTool() { 
+        closeAllModals(); 
+        
+        // 1. Check Global Debug to toggle preview visibility
+        const debugMode = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
+        const panel = document.getElementById('alterDbDebugPanel');
+        if(panel) {
+            if(debugMode) panel.classList.remove('d-none');
+            else panel.classList.add('d-none');
+        }
+
+        if(alterDbModal) alterDbModal.show(); 
+        previewAlterDb(); 
+    }
+
     function previewAlterDb() {
+        document.getElementById('btnRunAlterDb').disabled = true;
+        document.getElementById('alterDbSqlPreview').innerText = "-- Analyzing Schema...";
+        
         fetch('/api/admin/alter-db/preview').then(r=>r.json()).then(d => {
             document.getElementById('alterDbSqlPreview').innerText = d.success ? d.sql : d.message;
             document.getElementById('btnRunAlterDb').disabled = !d.success;
         });
     }
+
     function runAlterDbMigration() {
         showConfirmation("Alter Database Schema?", () => {
-            fetch('/api/admin/alter-db/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({debug:document.getElementById('alterDbDebugToggle').checked})})
-            .then(r=>r.json()).then(d => { showNotification(d.message); if(d.success) previewAlterDb(); });
+            // FIXED: No longer sending local debug flag; Backend checks Session.
+            fetch('/api/admin/alter-db/execute', {
+                method:'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({}) // Empty body is fine
+            })
+            .then(r => r.json())
+            .then(d => { 
+                // Show the message (Advanced/Simple based on backend logic)
+                showNotification(d.message); 
+                if(d.success) previewAlterDb(); 
+            })
+            .catch(e => showNotification("Critical Error: " + e));
         });
+    }
+    
+    function copyAlterDbSql() {
+        const text = document.getElementById('alterDbSqlPreview').innerText;
+        navigator.clipboard.writeText(text).then(() => showNotification("SQL Copied"));
     }
 </script>
