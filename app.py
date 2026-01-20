@@ -15,6 +15,8 @@ from sqlalchemy import create_engine
 from extensions import db
 from models import Users 
 from blueprints.auth import auth_bp
+from blueprints.StateManagement import state_mgmt_bp
+from blueprints.CountyManagement import county_mgmt_bp
 from blueprints.UserManagement import user_mgmt_bp
 from blueprints.geospatial import geo_bp
 from blueprints.OpenDriveConnection import open_drive_bp
@@ -51,6 +53,8 @@ def load_user(user_id):
 
 # --- REGISTER BLUEPRINTS ---
 app.register_blueprint(auth_bp)
+app.register_blueprint(state_mgmt_bp)
+app.register_blueprint(county_mgmt_bp)
 app.register_blueprint(user_mgmt_bp)
 app.register_blueprint(geo_bp)
 app.register_blueprint(open_drive_bp)

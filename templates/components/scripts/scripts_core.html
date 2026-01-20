@@ -333,7 +333,42 @@
     function deleteUser(id){ showConfirmation("Delete User?", ()=>{ fetch(`/api/admin/user/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success) openAccountsModal()}) }); }
     
     function showSeedConfirm(){ seedConfirmModal.show(); }
-    function runSeeding(){ seedConfirmModal.hide(); document.getElementById('globalLoader').style.display='flex'; fetch('/api/admin/seed',{method:'POST'}).then(r=>r.json()).then(d=>{ document.getElementById('globalLoader').style.display='none'; if(d.success){ seedSuccessModal.show(); loadStateLayers(); } }); }
+function runSeeding(){
+        if(seedConfirmModal) seedConfirmModal.hide(); 
+        document.getElementById('globalLoader').style.display='flex';
+        
+        fetch('/api/admin/seed', {method:'POST'})
+        .then(r => r.json())
+        .then(d => {
+            document.getElementById('globalLoader').style.display='none';
+            
+            if(d.success){ 
+                // 1. Update the Modal Text with the counts
+                document.getElementById('seedSuccessMessage').innerText = d.message;
+
+                // 2. Show the "Success" Modal
+                if(seedSuccessModal) seedSuccessModal.show();
+
+                // 3. Wait for the user to close the modal, THEN Reload the page
+                const modalEl = document.getElementById('seedSuccessModal');
+                if(modalEl) {
+                    modalEl.addEventListener('hidden.bs.modal', function () {
+                        window.location.reload(); 
+                    }, { once: true });
+                }
+
+                // REMOVED: fetchStates() - This was causing the ReferenceError 
+                // and is not needed because the page reload handles the update.
+
+            } else { 
+                showNotification("Seeding failed: " + d.message); 
+            }
+        })
+        .catch(e => { 
+            document.getElementById('globalLoader').style.display='none'; 
+            showNotification("Error: "+e); 
+        });
+    }
 
     // ==========================================
     // 7. DB TOOLS LOGIC

@@ -1,0 +1,49 @@
+<script>
+    // Generic function to load a modal from a Blueprint
+    function loadBlueprintModal(endpoint, modalId) {
+        // 1. Check if modal already exists in DOM
+        let existingModal = document.getElementById(modalId);
+        if (existingModal) {
+            // Optional: Remove it to force refresh, or just show it
+            existingModal.remove(); 
+        }
+
+        // 2. Show Global Loader
+        const loader = document.getElementById('globalLoader');
+        if(loader) loader.style.display = 'flex';
+
+        // 3. Fetch HTML from Backend
+        fetch(endpoint)
+            .then(response => {
+                if (!response.ok) throw new Error("Failed to load window");
+                return response.text();
+            })
+            .then(html => {
+                // 4. Inject HTML into Body
+                document.body.insertAdjacentHTML('beforeend', html);
+                
+                // 5. Initialize and Show Bootstrap Modal
+                const modalEl = document.getElementById(modalId);
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
+                
+                // 6. Clean up on close (remove from DOM)
+                modalEl.addEventListener('hidden.bs.modal', function () {
+                    bsModal.dispose();
+                    modalEl.remove();
+                });
+
+                if(loader) loader.style.display = 'none';
+            })
+            .catch(err => {
+                console.error(err);
+                if(loader) loader.style.display = 'none';
+                alert("Error loading tool: " + err.message);
+            });
+    }
+
+    // Shortcuts for your specific tools
+    function openStatesManager() { loadBlueprintModal('/api/admin/states/window', 'statesModal'); }
+    function openCountiesManager() { loadBlueprintModal('/api/admin/counties/window', 'countiesModal'); }
+    function openUserManager() { loadBlueprintModal('/api/admin/users/window', 'accountsModal'); }
+</script>
