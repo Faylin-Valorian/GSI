@@ -138,40 +138,38 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+            
             <div class="modal-body p-4">
-                <div class="alert alert-info d-flex align-items-center mb-3">
+                <div class="alert alert-info d-flex align-items-center mb-4">
                     <i class="bi bi-info-circle-fill fs-4 me-3"></i>
                     <div>
                         <strong>Alter Fields Routine</strong><br>
-                        This tool will rename legacy columns and add missing system columns.
+                        This tool will rename legacy columns (e.g., col01other) and add missing system columns.
                         <br><small class="text-muted">Safe to run multiple times.</small>
                     </div>
                 </div>
                 
-                <div id="alterDbDebugPanel" class="d-none">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="text-warning small fw-bold text-uppercase">Debug Preview</span>
-                        <button class="btn btn-sm btn-outline-primary" onclick="previewAlterDb()">
-                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh Preview
+                <div id="alterDbPreviewContainer" class="card bg-dark border-secondary mb-3 d-none">
+                    <div class="card-header border-secondary py-1 d-flex justify-content-between align-items-center">
+                        <span class="text-muted small text-uppercase fw-bold">SQL Execution Plan</span>
+                        <button class="btn btn-xs btn-link text-info text-decoration-none" onclick="copyAlterDbSql()">
+                            <i class="bi bi-clipboard me-1"></i>Copy SQL
                         </button>
                     </div>
-                    <div class="card bg-dark border-secondary mb-3">
-                        <div class="card-header border-secondary py-1 text-muted small text-uppercase fw-bold">SQL Execution Plan</div>
-                        <div class="card-body p-0 position-relative">
-                            <pre id="alterDbSqlPreview" class="m-0 p-3 text-success" style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap;">-- Loading...</pre>
-                        </div>
+                    <div class="card-body p-0">
+                        <pre id="alterDbSqlPreview" class="m-0 p-3 text-success" style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 250px; overflow-y: auto; white-space: pre-wrap;"></pre>
                     </div>
                 </div>
-
             </div>
-            <div class="modal-footer border-top border-secondary justify-content-between">
-                <div class="d-flex align-items-center">
-                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="copyAlterDbSql()" title="Copy SQL"><i class="bi bi-clipboard"></i></button>
-                    <span class="text-muted small" id="alterDbStatusMsg">Ready</span>
-                </div>
-                <div>
+
+            <div class="modal-footer border-top border-secondary d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-warning btn-sm" id="btnTogglePreview" onclick="toggleAlterDbPreview()">
+                    <i class="bi bi-code-square me-2"></i>Generate Preview
+                </button>
+
+                <div class="d-flex gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-warning fw-bold" onclick="runAlterDbMigration()" id="btnRunAlterDb" disabled>
+                    <button type="button" class="btn btn-warning fw-bold" onclick="runAlterDbMigration()" id="btnRunAlterDb">
                         <i class="bi bi-lightning-charge-fill me-1"></i>Execute Changes
                     </button>
                 </div>

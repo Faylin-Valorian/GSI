@@ -1,38 +1,40 @@
 <script>
     // ==========================================
-    // GSI CORE SYSTEM (Unified)
+    // GSI CORE SYSTEM (UNIFIED)
+    // Includes: Map, Sidebar, Admin, Maintenance
     // ==========================================
 
     // --- 1. GLOBAL VARIABLES ---
-    var map;
-    var stateLayerGroup, countyLayerGroup;
-    var darkLayer, lightLayer, currentLayer;
-    var selectedGeoId = null;
-    var countyMap = {};
+    // Map
+    var map, stateLayerGroup, countyLayerGroup, darkLayer, lightLayer, currentLayer;
+    var selectedGeoId = null, countyMap = {};
     
+    // UI & Timers
     var activePanelId = null;
     var pendingConfirmationAction = null;
     var inactT, logT; 
 
-    // Modals
+    // Modals (Declared once globally)
     var seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal;
-    var dbCompatModal, dbDowngradeModal, proceduresModal, driveModal, alterDbModal;
-    var patchModal, cleanupModal, initialPrepModal, edataErrorsModal, importEdeModal;
-    var linkupModal, eDataModal, keliModal;
+    var dbCompatModal, dbDowngradeModal, proceduresModal, driveModal, alterDbModal, patchModal;
+    var cleanupModal, initialPrepModal, edataErrorsModal, importEdeModal, linkupModal, eDataModal, keliModal;
     var unindexedReviewModal, instCorrectionModal;
     var confirmationModal, notificationModal, adminAuthModal, codeViewerModal, timeoutModal;
 
     // --- 2. INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
         console.log("Initializing GSI Core...");
+        
+        // Helper to grab modals safely
         const init = (id) => { const el = document.getElementById(id); return el ? new bootstrap.Modal(el) : null; };
         
-        // Init All Modals
+        // A. Init All Modals
         confirmationModal = init('confirmationModal');
         notificationModal = init('notificationModal');
         adminAuthModal = init('adminAuthModal');
         codeViewerModal = init('codeViewerModal');
         timeoutModal = init('timeoutModal');
+        
         seedConfirmModal = init('seedConfirmModal');
         seedSuccessModal = init('seedSuccessModal');
         statesModal = init('statesModal');
@@ -40,11 +42,13 @@
         accountsModal = init('accountsModal');
         userEditModal = init('userEditModal');
         patchModal = init('patchModal');
+
         driveModal = init('driveModal');
         dbCompatModal = init('dbCompatModal');
         dbDowngradeModal = init('dbDowngradeModal');
         proceduresModal = init('proceduresModal');
         alterDbModal = init('alterDbModal');
+        
         cleanupModal = init('cleanupModal');
         initialPrepModal = init('initialPrepModal');
         edataErrorsModal = init('edataErrorsModal');
@@ -53,19 +57,61 @@
         eDataModal = init('eDataModal');
         keliModal = init('keliModal');
         
-        // FIX: Target the container ID directly
         unindexedReviewModal = init('unindexedReviewModal');
-        
         instCorrectionModal = document.getElementById('itcModalDialog') ? new bootstrap.Modal(document.getElementById('instCorrectionModal')) : init('instCorrectionModal');
 
+        // B. Init Map
         if(document.getElementById('map')) initMapLogic();
+
+        // C. Start Systems
         startInactivityTimer();
         loadDebugStatus();
+        
         console.log("GSI Core Initialized");
     });
 
     // ==========================================
-    // 3. MAP LOGIC
+    // 3. WINDOW MANAGER (Close All)
+    // ==========================================
+    function closeAllModals() {
+        const all = [
+            seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, 
+            dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, 
+            alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, 
+            instCorrectionModal, eDataModal, keliModal, confirmationModal, notificationModal, 
+            adminAuthModal, codeViewerModal, driveModal
+        ];
+        all.forEach(m => { if(m) m.hide(); });
+        
+        // Cleanup Backdrops
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style = '';
+    }
+
+    // --- SYSTEM ALERTS ---
+    function showConfirmation(message, actionCallback) {
+        document.getElementById('confirmationMessage').innerText = message;
+        pendingConfirmationAction = actionCallback; 
+        if(confirmationModal) confirmationModal.show();
+    }
+    function executeConfirmation() {
+        if (pendingConfirmationAction) pendingConfirmationAction(); 
+        pendingConfirmationAction = null; 
+        if(confirmationModal) confirmationModal.hide();
+    }
+    function closeConfirmationModal() {
+        pendingConfirmationAction = null;
+        if(confirmationModal) confirmationModal.hide();
+    }
+    function showNotification(message) {
+        const el = document.getElementById('notificationMessage');
+        if(el) el.innerText = message;
+        if(notificationModal) notificationModal.show();
+    }
+
+    // ==========================================
+    // 4. MAP LOGIC
     // ==========================================
     function initMapLogic() {
         map = L.map('map', { zoomControl: false }).setView([38, -97], 5);
@@ -160,10 +206,13 @@
                 <div class="popup-image" id="img-wrapper-${data.id}" onclick="triggerUpload(${data.id}, ${data.is_user_selected})">${imgHtml}<div class="popup-image-overlay">Click to Upload</div><input type="file" id="upload-${data.id}" hidden accept="image/*" onchange="uploadImage(${data.id}, this)"></div>
             </div>
             <div class="popup-tabs">
-                <ul class="nav nav-pills nav-fill"><li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-db-${data.id}">Database</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-edata-${data.id}">eData</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-keli-${data.id}">Keli</a></li></ul>
+                <ul class="nav nav-pills nav-fill"><li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-county-${data.id}">County</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-db-${data.id}">Database</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-edata-${data.id}">eData</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-keli-${data.id}">Keli</a></li></ul>
             </div>
             <div class="tab-content popup-tab-content">
-                <div class="tab-pane fade show active" id="tab-db-${data.id}">
+                <div class="tab-pane fade show active" id="tab-county-${data.id}">
+                    <div class="p-2"><h6 class="text-light mb-2">County Status</h6><div class="d-flex align-items-center"><span class="small text-muted">Global Status:</span>${adminToggle}</div></div>
+                </div>
+                <div class="tab-pane fade" id="tab-db-${data.id}">
                     <div class="d-grid gap-2"><button class="btn btn-sm btn-outline-primary" ${disabledAttr} onclick="openDriveModal()"><i class="bi bi-hdd-network me-2"></i>Drive</button><button class="btn btn-sm btn-outline-info" ${disabledAttr} onclick="openDbCompatModal()"><i class="bi bi-database-gear me-2"></i>Compat Level</button><button class="btn btn-sm btn-outline-warning" ${disabledAttr} onclick="openProceduresModal()"><i class="bi bi-filetype-sql me-2"></i>Procedures</button></div>
                 </div>
                 <div class="tab-pane fade" id="tab-edata-${data.id}">
@@ -191,16 +240,94 @@
         const fd = new FormData(); fd.append('file', input.files[0]);
         fetch(`/api/county/${id}/upload-image`, {method: 'POST', body: fd}).then(r => r.json()).then(d => {
             if(d.success) { document.getElementById(`img-wrapper-${id}`).innerHTML = `<img src="${d.image_url}?t=${Date.now()}"><div class="popup-image-overlay">Click to Upload</div>`; loadCountyLayers(); } 
-            else { alert(d.message); }
+            else { showNotification(d.message); }
         });
     }
-    function toggleGlobalActiveFromPopup(id) { fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'}).then(r => r.json()).then(d => { if(d.success) { loadCountyLayers(); map.closePopup(); } else { alert("Error: " + d.message); } }); }
+    
+    function toggleGlobalActiveFromPopup(id) { 
+        fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'}).then(r => r.json()).then(d => { 
+            if(d.success) { loadCountyLayers(); map.closePopup(); } 
+            else { showNotification("Error: " + d.message); }
+        }); 
+    }
 
     // ==========================================
-    // 4. ADMIN & UTILS
+    // 5. SIDEBAR UTILS (Consolidated)
     // ==========================================
+    function togglePanel(id, tab) {
+        const p = document.getElementById(id);
+        if(activePanelId === id) { 
+            p.classList.remove('open'); tab.classList.remove('active'); activePanelId = null; 
+        } else { 
+            document.querySelectorAll('.menu-panel').forEach(x => x.classList.remove('open')); 
+            document.querySelectorAll('.dock-tab').forEach(x => x.classList.remove('active')); 
+            p.classList.add('open'); tab.classList.add('active'); activePanelId = id; 
+        }
+    }
+
+    function toggleTheme() {
+        const h = document.documentElement; 
+        const newTheme = h.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        h.setAttribute('data-bs-theme', newTheme);
+        map.removeLayer(currentLayer); 
+        currentLayer = newTheme === 'dark' ? darkLayer : lightLayer; 
+        currentLayer.addTo(map);
+        if(document.getElementById('layerToggleStates').checked) loadStateLayers();
+        if(document.getElementById('layerToggleCounties').checked) loadCountyLayers();
+    }
+
+    function toggleStateLayer(cb) { cb.checked ? (map.addLayer(stateLayerGroup), loadStateLayers()) : map.removeLayer(stateLayerGroup); }
+    function toggleCountyLayer(cb) { cb.checked ? (map.addLayer(countyLayerGroup), loadCountyLayers()) : map.removeLayer(countyLayerGroup); }
+
+    function toggleDebugMode(cb) {
+        const userRole = cb.getAttribute('data-user-role');
+        const isTurningOn = cb.checked;
+        if (userRole === 'admin') {
+            fetch('/api/admin/debug/toggle', {method: 'POST'}).then(r => r.json()).then(d => { if(!d.success) cb.checked = !cb.checked; });
+        } else {
+            if (isTurningOn) { cb.checked = false; openAdminAuthModal(); } 
+            else { fetch('/api/user/debug/disable', {method: 'POST'}); }
+        }
+    }
+
+    function openAdminAuthModal() { document.getElementById('adminAuthUser').value=''; document.getElementById('adminAuthPass').value=''; adminAuthModal.show(); }
+    function submitAdminAuth() {
+        const u=document.getElementById('adminAuthUser').value, p=document.getElementById('adminAuthPass').value;
+        if(!u||!p) return;
+        fetch('/api/user/debug/auth-enable', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p})})
+        .then(r => r.json()).then(d => { if(d.success) { adminAuthModal.hide(); document.getElementById('debugModeToggle').checked=true; showNotification("Debug Enabled"); } else { document.getElementById('adminAuthError').innerText="Invalid"; } });
+    }
+
+    function loadDebugStatus() { fetch('/api/admin/debug/status').then(r => r.json()).then(d => { const t = document.getElementById('debugModeToggle'); if(t) t.checked = d.debug_mode; }); }
+
+    function resetActivity(){fetch('/keep-alive',{method:'POST'}).then(()=>startInactivityTimer())}
+    function startInactivityTimer() { clearTimeout(inactT); clearTimeout(logT); inactT=setTimeout(()=>{ if(timeoutModal) timeoutModal.show(); logT=setTimeout(()=>window.location.href="/logout",6e5) },66e5); }
+    document.onmousemove=function(){if(!document.querySelector('.modal.show'))startInactivityTimer()}
+
+    function viewActiveToolCode() {
+        let activeTool = null;
+        if (document.getElementById('driveModal').classList.contains('show')) activeTool = 'drive';
+        else if (document.getElementById('dbCompatModal').classList.contains('show')) activeTool = 'compat';
+        else if (document.getElementById('proceduresModal').classList.contains('show')) activeTool = 'procedures';
+        else if (document.getElementById('eDataModal').classList.contains('show')) activeTool = 'edata';
+        else if (document.getElementById('keliModal').classList.contains('show')) activeTool = 'keli';
+        else if (document.getElementById('alterDbModal').classList.contains('show')) activeTool = 'schema';
+        
+        if (!activeTool) return showNotification("Open a tool first.");
+        
+        fetch('/api/admin/view-code', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ tool: activeTool })})
+        .then(r => r.json()).then(d => { if(d.success) { document.getElementById('codeViewerFilename').innerText=d.filename; document.getElementById('codeViewerContent').innerText=d.code; codeViewerModal.show(); }});
+    }
+    function closeCodeViewer() { codeViewerModal.hide(); }
+
+    // ==========================================
+    // 6. ADMIN MANAGERS
+    // ==========================================
+    function openStatesManager() { openStatesModal(); }
+    function openUserManager() { openAccountsModal(); }
+
     function openStatesModal(){ closeAllModals(); statesModal.show(); fetch('/api/admin/states').then(r=>r.json()).then(d=>{ let h=''; d.forEach(s=>{ h+=`<tr><td>${s.name}</td><td>${s.fips}</td><td>${s.is_enabled?'On':'Off'}</td><td><button class="btn btn-sm ${s.is_enabled?'btn-warning':'btn-success'}" onclick="toggleState(${s.id})">${s.is_enabled?'Disable':'Enable'}</button></td></tr>`; }); document.getElementById('statesTableBody').innerHTML=h; }); }
-    function toggleState(id){ fetch(`/api/admin/state/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ openStatesModal(); loadStateLayers(); } }); }
+    function toggleState(id){ fetch(`/api/admin/state/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success){ openStatesModal(); loadStateLayers(); } else { showNotification(d.message); } }); }
 
     function openCountiesModal(){ closeAllModals(); countiesModal.show(); fetch('/api/admin/states').then(r=>r.json()).then(d=>{ let h='<option value="">Select State</option>'; d.filter(s=>s.is_enabled).forEach(s=>{h+=`<option value="${s.fips}">${s.name}</option>`}); document.getElementById('countyStateSelect').innerHTML=h; }); }
     function fetchCountiesForState(){ const f=document.getElementById('countyStateSelect').value; if(!f) return; fetch(`/api/admin/counties/${f}`).then(r=>r.json()).then(d=>{ let h=''; d.forEach(c=>{ 
@@ -215,7 +342,19 @@
     function openAccountsModal(){ closeAllModals(); accountsModal.show(); fetch('/api/users').then(r => r.json()).then(users => { let h = ''; users.forEach(u => { const editBtn = `<button class="btn btn-sm btn-outline-primary me-1" onclick="openUserEditModal(${u.id}, '${u.username}', '${u.email}')"><i class="bi bi-pencil-fill"></i></button>`; const roleBtn = `<button class="btn btn-sm ${u.role==='admin' ? 'btn-outline-custom-purple' : 'btn-outline-secondary'} me-1" onclick="toggleUserRole(${u.id})"><i class="bi ${u.role==='admin' ? 'bi-shield-lock-fill' : 'bi-person-fill'}"></i></button>`; const deleteBtn = `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${u.username}')"><i class="bi bi-trash-fill"></i></button>`; h += `<tr><td class="fw-bold">${u.username}</td><td>${u.email}</td><td>${u.role}</td><td>${u.is_locked?'Locked':'Active'}</td><td class="text-end">${editBtn}${roleBtn}${deleteBtn}</td></tr>`; }); document.getElementById('userTableBody').innerHTML = h; }); }
     function openUserEditModal(id, username, email) { document.getElementById('editUserId').value = id; document.getElementById('editUsername').value = username; document.getElementById('editEmail').value = email; document.getElementById('resetPasswordResult').classList.add('d-none'); if(userEditModal) userEditModal.show(); }
     function submitUserEdit() { const id = document.getElementById('editUserId').value; fetch(`/api/admin/user/${id}/update`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: document.getElementById('editUsername').value, email: document.getElementById('editEmail').value }) }).then(r => r.json()).then(d => { if(d.success) { showNotification("Updated"); userEditModal.hide(); openAccountsModal(); } else { showNotification(d.message); } }); }
-    function resetUserPassword() { if(!confirm("Reset?")) return; const id = document.getElementById('editUserId').value; fetch(`/api/admin/user/${id}/reset-password`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) { document.getElementById('tempPassDisplay').value = d.temp_pass; document.getElementById('resetPasswordResult').classList.remove('d-none'); } else { alert(d.message); } }); }
+    
+    function resetUserPassword() { 
+        showConfirmation("Reset this user's password?", () => {
+            const id = document.getElementById('editUserId').value;
+            fetch(`/api/admin/user/${id}/reset-password`, {method:'POST'}).then(r=>r.json()).then(d=>{
+                if(d.success) { 
+                    document.getElementById('tempPassDisplay').value = d.temp_pass; 
+                    document.getElementById('resetPasswordResult').classList.remove('d-none'); 
+                } else { showNotification(d.message); }
+            });
+        });
+    }
+    
     function toggleUserRole(id) { showConfirmation("Change Role?", () => { fetch(`/api/admin/user/${id}/toggle-role`, {method: 'POST'}).then(r=>r.json()).then(d => { if(d.success) openAccountsModal(); }); }); }
     function deleteUser(id, u) { showConfirmation(`Delete ${u}?`, () => { fetch(`/api/admin/user/${id}/delete`, {method: 'POST'}).then(r=>r.json()).then(d => { if(d.success) openAccountsModal(); }); }); }
     
@@ -223,7 +362,7 @@
     function runSeeding(){ if(seedConfirmModal) seedConfirmModal.hide(); document.getElementById('globalLoader').style.display='flex'; fetch('/api/admin/seed', {method:'POST'}).then(r=>r.json()).then(d=>{ document.getElementById('globalLoader').style.display='none'; if(d.success){ document.getElementById('seedSuccessMessage').innerText = d.message; const successEl = document.getElementById('seedSuccessModal'); const newEl = successEl.cloneNode(true); successEl.parentNode.replaceChild(newEl, successEl); seedSuccessModal = new bootstrap.Modal(newEl); newEl.addEventListener('hidden.bs.modal', function () { loadStateLayers(); loadCountyLayers(); openStatesModal(); }, { once: true }); seedSuccessModal.show(); } else { showNotification("Seeding failed: " + d.message); } }).catch(e=>{ document.getElementById('globalLoader').style.display='none'; showNotification("Error: "+e); }); }
 
     // ==========================================
-    // 5. DB TOOLS LOGIC
+    // 7. DB & MAINTENANCE TOOLS (Consolidated)
     // ==========================================
     function openDriveModal() { closeAllModals(); driveModal.show(); }
     function closeDriveModal() { driveModal.hide(); }
@@ -247,35 +386,57 @@
     function closeProceduresModal() { proceduresModal.hide(); }
     function submitProcedures() { fetch('/api/tools/setup-procedures', {method:'POST'}).then(r=>r.json()).then(d=>{ document.getElementById('proceduresResult').innerText=d.message; }); }
     
-    function openPatchModal() { closeAllModals(); patchModal.show(); }
+    function openPatchModal() { closeAllModals(); document.getElementById('patchFileInput').value = ''; document.getElementById('patchError').innerText = ''; patchModal.show(); }
     function closePatchModal() { patchModal.hide(); }
-    function submitPatchFile() { const f = document.getElementById('patchFileInput').files[0]; if(!f) return; const fd = new FormData(); fd.append('file', f); fetch('/api/admin/patch/apply', {method:'POST', body:fd}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(d.success) setTimeout(()=>window.location.reload(), 1500); }); }
+    function submitPatchFile() { const f = document.getElementById('patchFileInput').files[0]; if(!f) return; const fd = new FormData(); fd.append('patch_file', f); document.getElementById('globalLoader').style.display='flex'; fetch('/api/admin/patch/apply', {method:'POST', body:fd}).then(r=>r.json()).then(d=>{ document.getElementById('globalLoader').style.display='none'; if(d.success) { showNotification("Patch Applied! Reloading..."); setTimeout(()=>window.location.reload(), 1500); } else document.getElementById('patchError').innerText = d.message; }); }
     
-    function openAlterDbTool() { closeAllModals(); alterDbModal.show(); fetch('/api/admin/alter-db/preview').then(r=>r.json()).then(d=>{ document.getElementById('alterDbSqlPreview').innerText = d.success ? d.sql : d.message; document.getElementById('btnRunAlterDb').disabled=!d.success; }); }
-    function runAlterDbMigration() { showConfirmation("Run Alter?", ()=>{ fetch('/api/admin/alter-db/execute',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({debug:document.getElementById('alterDbDebugToggle').checked})}).then(r=>r.json()).then(d=>showNotification(d.message)); }); }
-
-    // --- UTILS ---
-    function openStatesManager() { openStatesModal(); }
-    function openUserManager() { openAccountsModal(); }
-    function closeAllModals() {
-        const all = [seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, instCorrectionModal, eDataModal, keliModal, confirmationModal, notificationModal, adminAuthModal, codeViewerModal, driveModal];
-        all.forEach(m => { if(m) m.hide(); });
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style = '';
+    // --- ALTER DATABASE ---
+    function openAlterDbTool() { 
+        closeAllModals(); 
+        const container = document.getElementById('alterDbPreviewContainer');
+        const btn = document.getElementById('btnTogglePreview');
+        if(container) container.classList.add('d-none');
+        if(btn) btn.innerHTML = '<i class="bi bi-code-square me-2"></i>Generate Preview';
+        document.getElementById('btnRunAlterDb').disabled = false; 
+        document.getElementById('alterDbSqlPreview').innerText = "";
+        if(alterDbModal) alterDbModal.show(); 
     }
-    // Toggle UI
-    function togglePanel(id, tab) { const p = document.getElementById(id); if(activePanelId === id) { p.classList.remove('open'); tab.classList.remove('active'); activePanelId = null; } else { document.querySelectorAll('.menu-panel').forEach(x => x.classList.remove('open')); document.querySelectorAll('.dock-tab').forEach(x => x.classList.remove('active')); p.classList.add('open'); tab.classList.add('active'); activePanelId = id; } }
-    function toggleTheme() { const h = document.documentElement; const newTheme = h.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'; h.setAttribute('data-bs-theme', newTheme); map.removeLayer(currentLayer); currentLayer = newTheme === 'dark' ? darkLayer : lightLayer; currentLayer.addTo(map); if(document.getElementById('layerToggleStates').checked) loadStateLayers(); if(document.getElementById('layerToggleCounties').checked) loadCountyLayers(); }
-    function toggleStateLayer(cb) { cb.checked ? (map.addLayer(stateLayerGroup), loadStateLayers()) : map.removeLayer(stateLayerGroup); }
-    function toggleCountyLayer(cb) { cb.checked ? (map.addLayer(countyLayerGroup), loadCountyLayers()) : map.removeLayer(countyLayerGroup); }
-    function toggleDebugMode(cb) { const userRole = cb.getAttribute('data-user-role'); if (userRole === 'admin') { fetch('/api/admin/debug/toggle', {method: 'POST'}).then(r => r.json()).then(d => { if(!d.success) cb.checked = !cb.checked; }); } else { if (cb.checked) { cb.checked = false; openAdminAuthModal(); } else { fetch('/api/user/debug/disable', {method: 'POST'}); } } }
-    function openAdminAuthModal() { document.getElementById('adminAuthUser').value=''; document.getElementById('adminAuthPass').value=''; adminAuthModal.show(); }
-    function submitAdminAuth() { const u=document.getElementById('adminAuthUser').value, p=document.getElementById('adminAuthPass').value; if(!u||!p) return; fetch('/api/user/debug/auth-enable', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: u, password: p})}).then(r => r.json()).then(d => { if(d.success) { adminAuthModal.hide(); document.getElementById('debugModeToggle').checked=true; showNotification("Debug Enabled"); } else { document.getElementById('adminAuthError').innerText="Invalid"; } }); }
-    function loadDebugStatus() { fetch('/api/admin/debug/status').then(r => r.json()).then(d => { const t = document.getElementById('debugModeToggle'); if(t) t.checked = d.debug_mode; }); }
-    function resetActivity(){fetch('/keep-alive',{method:'POST'}).then(()=>startInactivityTimer())}
-    function startInactivityTimer() { clearTimeout(inactT); clearTimeout(logT); inactT=setTimeout(()=>{ if(timeoutModal) timeoutModal.show(); logT=setTimeout(()=>window.location.href="/logout",6e5) },66e5); }
-    document.onmousemove=function(){if(!document.querySelector('.modal.show'))startInactivityTimer()}
-    function viewActiveToolCode() { let activeTool = null; if (document.getElementById('driveModal').classList.contains('show')) activeTool = 'drive'; else if (document.getElementById('dbCompatModal').classList.contains('show')) activeTool = 'compat'; else if (document.getElementById('proceduresModal').classList.contains('show')) activeTool = 'procedures'; else if (document.getElementById('eDataModal').classList.contains('show')) activeTool = 'edata'; else if (document.getElementById('keliModal').classList.contains('show')) activeTool = 'keli'; if (!activeTool) return showNotification("Open a tool first."); fetch('/api/admin/view-code', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ tool: activeTool })}).then(r => r.json()).then(d => { if(d.success) { document.getElementById('codeViewerFilename').innerText=d.filename; document.getElementById('codeViewerContent').innerText=d.code; codeViewerModal.show(); }}); }
-    function closeCodeViewer() { codeViewerModal.hide(); }
+
+    function toggleAlterDbPreview() {
+        const container = document.getElementById('alterDbPreviewContainer');
+        const btn = document.getElementById('btnTogglePreview');
+        if (container.classList.contains('d-none')) {
+            container.classList.remove('d-none');
+            btn.innerHTML = '<i class="bi bi-x-square me-2"></i>Close Preview';
+            previewAlterDb();
+        } else {
+            container.classList.add('d-none');
+            btn.innerHTML = '<i class="bi bi-code-square me-2"></i>Generate Preview';
+        }
+    }
+
+    function previewAlterDb() {
+        document.getElementById('alterDbSqlPreview').innerText = "-- Generating Preview...";
+        fetch('/api/admin/alter-db/preview').then(r => r.json()).then(d => {
+            document.getElementById('alterDbSqlPreview').innerText = d.success ? d.sql : "-- Error: " + d.message;
+        }).catch(e => { document.getElementById('alterDbSqlPreview').innerText = "-- Network Error"; });
+    }
+
+    function runAlterDbMigration() {
+        showConfirmation("Alter Database Schema?", () => {
+            const btn = document.getElementById('btnRunAlterDb');
+            btn.disabled = true;
+            fetch('/api/admin/alter-db/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
+            .then(r => r.json()).then(d => { 
+                showNotification(d.message); 
+                btn.disabled = false;
+                if(d.success && !document.getElementById('alterDbPreviewContainer').classList.contains('d-none')) previewAlterDb();
+            }).catch(e => { showNotification("Error: " + e); btn.disabled = false; });
+        });
+    }
+    
+    function copyAlterDbSql() {
+        const text = document.getElementById('alterDbSqlPreview').innerText;
+        navigator.clipboard.writeText(text).then(() => showNotification("SQL Copied"));
+    }
 </script>

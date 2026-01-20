@@ -20,9 +20,11 @@
         const idVal = document.getElementById('keliCountyId').value;
         
         btn.disabled = true; resultDiv.innerHTML = '';
+        
+        // Reset Progress
         document.getElementById('keliProgressContainer').classList.remove('d-none');
         document.getElementById('keliProgressBar').style.width = '0%';
-        document.getElementById('keliProgressText').innerText = '0%';
+        document.getElementById('keliProgressText').innerText = '0%'; // FIX: Reset text
 
         try {
             const response = await fetch('/api/tools/setup-keli', {
@@ -36,7 +38,7 @@
                     const d = JSON.parse(l);
                     if(d.type==='progress') {
                         document.getElementById('keliProgressBar').style.width = d.percent+'%';
-                        document.getElementById('keliProgressText').innerText = d.percent+'%'; // FIX
+                        document.getElementById('keliProgressText').innerText = d.percent+'%'; // FIX: Update Counter
                     }
                     if(d.type==='complete') {
                         document.getElementById('keliProgressBar').style.width = '100%';
@@ -49,29 +51,89 @@
         finally { btn.disabled = false; }
     }
 
-    // --- INITIAL PREP ---
-    var currentPrepCountyId = null; // Use var for safety
+    // --- INITIAL PREP TOOL (FIXED EXECUTION) ---
+    var currentPrepCountyId = null; 
+
     function openInitialPrepTool(id) {
-        closeAllModals(); currentPrepCountyId = id;
-        if(initialPrepModal) initialPrepModal.show();
+        closeAllModals(); 
+        currentPrepCountyId = id;
+        
+        // Reset UI
         document.getElementById('prepResult').innerHTML='';
+        document.getElementById('prepProgressContainer').classList.add('d-none');
+        document.getElementById('prepProgressBar').style.width = '0%';
+        document.getElementById('prepProgressPercent').innerText = '0%';
+        
+        if(initialPrepModal) initialPrepModal.show();
     }
+
     function togglePrepBookInputs() {
         if(document.getElementById('prepToggleBook').checked) {
             document.getElementById('prepBookInputsContainer').classList.remove('d-none');
             fetch('/api/tools/initial-prep/get-book-range/'+currentPrepCountyId).then(r=>r.json()).then(d=>{ if(d.found){ document.getElementById('prepBookStart').value=d.start; document.getElementById('prepBookEnd').value=d.end; }});
         } else { document.getElementById('prepBookInputsContainer').classList.add('d-none'); }
     }
+
     function runPrepTool() {
-        const btn=document.getElementById('btnRunPrep'); btn.disabled=true;
+        const btn = document.getElementById('btnRunPrep'); 
+        btn.disabled = true;
+        
+        // Setup Progress UI
         document.getElementById('prepProgressContainer').classList.remove('d-none');
-        fetch('/api/tools/initial-prep/execute', {method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
-        }).then(r=>{ btn.disabled=false; document.getElementById('prepResult').innerText = "Process Complete"; });
+        document.getElementById('prepProgressBar').style.width = '0%';
+        document.getElementById('prepProgressPercent').innerText = '0%';
+        document.getElementById('prepResult').innerHTML = '';
+
+        fetch('/api/tools/initial-prep/execute', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ 
+                county_id: currentPrepCountyId, 
+                book_start: document.getElementById('prepBookStart').value, 
+                book_end: document.getElementById('prepBookEnd').value 
+            })
+        }).then(response => {
+            // FIX: Use Stream Reader instead of waiting for full response
+            const reader = response.body.getReader(); 
+            const decoder = new TextDecoder();
+            
+            function read() { 
+                reader.read().then(({ done, value }) => {
+                    if (done) { 
+                        btn.disabled = false; 
+                        return; 
+                    }
+                    const lines = decoder.decode(value).split('\n');
+                    lines.forEach(l => {
+                        try { 
+                            const d = JSON.parse(l);
+                            if(d.type === 'progress') {
+                                document.getElementById('prepProgressBar').style.width = d.percent + '%';
+                                document.getElementById('prepProgressPercent').innerText = d.percent + '%'; // FIX: Update Text
+                                document.getElementById('prepProgressLabel').innerText = d.message; // Show Step Name
+                            }
+                            if(d.type === 'complete') {
+                                document.getElementById('prepProgressBar').style.width = '100%';
+                                document.getElementById('prepProgressPercent').innerText = '100%';
+                                document.getElementById('prepResult').innerHTML = `<div class="alert alert-success">${d.message}</div>`;
+                            }
+                            if(d.type === 'error') {
+                                document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                            }
+                        } catch(e){}
+                    });
+                    read();
+                }); 
+            } 
+            read();
+        }).catch(err => {
+            btn.disabled = false;
+            document.getElementById('prepResult').innerHTML = '<div class="alert alert-danger">Connection Failed: ' + err + '</div>';
+        });
     }
 
     // --- ITC (CORRECTIONS) ---
-    var itcCountyId = null; // Use var
+    var itcCountyId = null; 
     function openInstCorrectionTool(id, s, c) {
         closeAllModals(); itcCountyId = id;
         document.getElementById('itcPathInput').value = `data/${s}/${c}/Images`;
@@ -92,7 +154,7 @@
     function itcLoadImages(val) { console.log("Load ITC: "+val); }
 
     // --- KELI LINKUP ---
-    var currentLinkupCountyId = null, linkupDefaultsCache = null; // Use var
+    var currentLinkupCountyId = null, linkupDefaultsCache = null; 
     function openLinkupModal(passedId) {
         closeAllModals(); 
         let countyId = passedId || (typeof selectedCountyId !== 'undefined' ? selectedCountyId : null);

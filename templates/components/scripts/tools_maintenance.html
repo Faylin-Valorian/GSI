@@ -3,10 +3,9 @@
     // MAINTENANCE TOOLS
     // ==========================================
 
-    // --- DB TOOLS ---
+    // --- DB COMPATIBILITY ---
     function openDbCompatModal() { 
         closeAllModals(); 
-        // Update placeholder with current level
         const input = document.getElementById('targetCompatLevel');
         if(input) {
             input.placeholder = "Loading...";
@@ -23,6 +22,7 @@
     }
     function openDbDowngradeModal() { closeAllModals(); if(dbDowngradeModal) dbDowngradeModal.show(); }
     function confirmDowngrade() { fetch('/api/admin/db-compat/downgrade', {method:'POST'}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(dbDowngradeModal) dbDowngradeModal.hide(); }); }
+    
     function openProceduresModal() { closeAllModals(); if(proceduresModal) proceduresModal.show(); }
     function submitProcedures() { fetch('/api/admin/setup-procedures/execute', {method:'POST'}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(proceduresModal) proceduresModal.hide(); }); }
 
@@ -48,48 +48,87 @@
         });
     }
 
-    // --- ALTER DATABASE (UPDATED) ---
+    // --- ALTER DATABASE ---
+    
     function openAlterDbTool() { 
         closeAllModals(); 
         
-        // 1. Check Global Debug to toggle preview visibility
-        const debugMode = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
-        const panel = document.getElementById('alterDbDebugPanel');
-        if(panel) {
-            if(debugMode) panel.classList.remove('d-none');
-            else panel.classList.add('d-none');
-        }
+        // Reset UI State
+        const container = document.getElementById('alterDbPreviewContainer');
+        const btn = document.getElementById('btnTogglePreview');
+        
+        if(container) container.classList.add('d-none');
+        if(btn) btn.innerHTML = '<i class="bi bi-code-square me-2"></i>Generate Preview';
+        
+        document.getElementById('btnRunAlterDb').disabled = false; 
+        document.getElementById('alterDbSqlPreview').innerText = "";
 
         if(alterDbModal) alterDbModal.show(); 
-        previewAlterDb(); 
+    }
+
+    function toggleAlterDbPreview() {
+        const container = document.getElementById('alterDbPreviewContainer');
+        const btn = document.getElementById('btnTogglePreview');
+        const isHidden = container.classList.contains('d-none');
+
+        if (isHidden) {
+            // OPEN
+            container.classList.remove('d-none');
+            btn.innerHTML = '<i class="bi bi-x-square me-2"></i>Close Preview';
+            previewAlterDb(); // Load data
+        } else {
+            // CLOSE
+            container.classList.add('d-none');
+            btn.innerHTML = '<i class="bi bi-code-square me-2"></i>Generate Preview';
+        }
     }
 
     function previewAlterDb() {
-        document.getElementById('btnRunAlterDb').disabled = true;
-        document.getElementById('alterDbSqlPreview').innerText = "-- Analyzing Schema...";
+        document.getElementById('alterDbSqlPreview').innerText = "-- Generating Preview...";
         
-        fetch('/api/admin/alter-db/preview').then(r=>r.json()).then(d => {
-            document.getElementById('alterDbSqlPreview').innerText = d.success ? d.sql : d.message;
-            document.getElementById('btnRunAlterDb').disabled = !d.success;
+        fetch('/api/admin/alter-db/preview')
+        .then(r => r.json())
+        .then(d => {
+            const content = d.success ? d.sql : "-- Error: " + d.message;
+            document.getElementById('alterDbSqlPreview').innerText = content;
+        })
+        .catch(e => {
+            document.getElementById('alterDbSqlPreview').innerText = "-- Network Error";
         });
     }
 
     function runAlterDbMigration() {
-        showConfirmation("Alter Database Schema?", () => {
-            // FIXED: No longer sending local debug flag; Backend checks Session.
+        // Define the execution logic
+        const performMigration = () => {
+            const btn = document.getElementById('btnRunAlterDb');
+            btn.disabled = true;
+            
             fetch('/api/admin/alter-db/execute', {
-                method:'POST', 
-                headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({}) // Empty body is fine
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({})
             })
             .then(r => r.json())
             .then(d => { 
-                // Show the message (Advanced/Simple based on backend logic)
                 showNotification(d.message); 
-                if(d.success) previewAlterDb(); 
+                btn.disabled = false;
+                // Update preview if it's currently open
+                if(d.success && !document.getElementById('alterDbPreviewContainer').classList.contains('d-none')) {
+                    previewAlterDb();
+                }
             })
-            .catch(e => showNotification("Critical Error: " + e));
-        });
+            .catch(e => {
+                showNotification("Error: " + e);
+                btn.disabled = false;
+            });
+        };
+
+        // EXPLICITLY USE CUSTOM POPUP (No Fallback)
+        if (typeof showConfirmation === 'function') {
+            showConfirmation("Alter Database Schema?", performMigration);
+        } else {
+            console.error("showConfirmation function is missing! Ensure scripts_core.html is loaded.");
+        }
     }
     
     function copyAlterDbSql() {

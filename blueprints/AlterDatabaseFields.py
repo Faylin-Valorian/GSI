@@ -4,10 +4,9 @@ from sqlalchemy import text
 from extensions import db
 from utils import format_error
 
-# Renamed Blueprint
 alter_db_bp = Blueprint('alter_db_fields', __name__)
 
-# 1. DEFINE THE RENAMES (Old Name -> New Name)
+# 1. DEFINE MAPPINGS (Old -> New)
 COLUMN_MAPPINGS = {
     'col01other': 'key_id',
     'col02other': 'book',
@@ -32,11 +31,11 @@ COLUMN_MAPPINGS = {
 
 # 2. DEFINE NEW COLUMNS
 ADD_COLUMNS_SQL = [
-    ("instTypeOriginal", "varchar(1000)", "--Add instTypeOriginal"),
-    ("instrumentid", "int", "--Add instrumentid"),
-    ("deleteFlag", "varchar(1000)", "--Add deleteFlag"),
-    ("change_script_locations", "varchar(1000)", "--Add change_script_locations"),
-    ("keyOriginalValue", "varchar(1000)", "--Add keyOriginalValue")
+    ("instTypeOriginal", "varchar(1000)"),
+    ("instrumentid", "int"),
+    ("deleteFlag", "varchar(1000)"),
+    ("change_script_locations", "varchar(1000)"),
+    ("keyOriginalValue", "varchar(1000)")
 ]
 
 def generate_safe_sql():
@@ -48,13 +47,12 @@ def generate_safe_sql():
     sql_statements.append("-- 1. COLUMN RENAMES")
     for old_col, new_col in COLUMN_MAPPINGS.items():
         if old_col.lower() in existing_columns and new_col.lower() not in existing_columns:
-            cmd = f"EXEC sp_rename 'GenericDataImport.{old_col}', '{new_col}', 'COLUMN';"
-            sql_statements.append(cmd)
+            sql_statements.append(f"EXEC sp_rename 'GenericDataImport.{old_col}', '{new_col}', 'COLUMN';")
         elif new_col.lower() in existing_columns:
-            sql_statements.append(f"-- SKIPPING: {old_col} -> {new_col} (Target exists)")
+            sql_statements.append(f"-- SKIPPING: {old_col} -> {new_col} (Already exists)")
 
     sql_statements.append("\n-- 2. ADD NEW COLUMNS")
-    for col_name, col_type, comment in ADD_COLUMNS_SQL:
+    for col_name, col_type in ADD_COLUMNS_SQL:
         if col_name.lower() not in existing_columns:
             sql_statements.append(f"ALTER TABLE GenericDataImport ADD {col_name} {col_type};")
         else:
@@ -67,8 +65,7 @@ def generate_safe_sql():
 @alter_db_bp.route('/api/admin/alter-db/preview', methods=['GET'])
 @login_required
 def preview_schema_changes():
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     try:
         statements = generate_safe_sql()
         return jsonify({'success': True, 'sql': "\n".join(statements)})
@@ -78,16 +75,15 @@ def preview_schema_changes():
 @alter_db_bp.route('/api/admin/alter-db/execute', methods=['POST'])
 @login_required
 def execute_schema_changes():
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
-    # 1. CHECK SESSION FOR DEBUG STATUS
+    # Check GLOBAL Debug Setting from Session
     debug_mode = session.get('debug_mode', False)
     
     try:
         statements = generate_safe_sql()
         executed_count = 0
-        commands_to_run = [s for s in statements if not s.strip().startswith('--') and s.strip()]
+        commands_to_run = [s for s in statements if not s.strip().startswith('--')]
         
         if not commands_to_run:
             return jsonify({'success': True, 'message': 'Database is already up to date.'})
@@ -98,19 +94,14 @@ def execute_schema_changes():
             
         db.session.commit()
         
-        # 2. GENERATE MESSAGE BASED ON DEBUG TOGGLE
+        msg = f"Success: {executed_count} schema changes applied."
         if debug_mode:
-            # Detailed breakdown for Debug Mode
-            detail_msg = "\n".join([f"• {cmd[:50]}..." for cmd in commands_to_run])
-            msg = f"DEBUG SUCCESS:\nExecuted {executed_count} changes:\n{detail_msg}"
-        else:
-            # Simple message for Standard Mode
-            msg = f"Success: Database schema updated ({executed_count} changes applied)."
+            detail = "\n".join([f"• {c[:60]}..." for c in commands_to_run])
+            msg = f"DEBUG SUCCESS ({executed_count} changes):\n{detail}"
         
         return jsonify({'success': True, 'message': msg})
 
     except Exception as e:
         db.session.rollback()
-        # Detailed error for Debug, simple error for Standard
-        msg = f"DEBUG ERROR:\n{format_error(e)}" if debug_mode else "Update failed. Check system logs."
+        msg = f"DEBUG ERROR: {format_error(e)}" if debug_mode else "Update failed. Check logs."
         return jsonify({'success': False, 'message': msg})
