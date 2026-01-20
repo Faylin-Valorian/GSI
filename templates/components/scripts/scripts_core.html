@@ -4,10 +4,7 @@
     // Includes: Window Manager, Admin, Map Logic, Sidebar, DB Tools
     // ==========================================
 
-    // --- 1. GLOBAL VARIABLES (Safe Declarations) ---
-    // Defined with 'var' to prevent scope crashes on reload
-    
-    // Map Globals
+    // --- 1. GLOBAL VARIABLES ---
     var map;
     var stateLayerGroup, countyLayerGroup;
     var darkLayer, lightLayer, currentLayer;
@@ -17,7 +14,7 @@
     // UI Globals
     var activePanelId = null;
     var pendingConfirmationAction = null;
-    var inactT, logT; // Timers
+    var inactT, logT; 
 
     // Modal Globals
     var seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal; // Admin
@@ -27,11 +24,10 @@
     var unindexedReviewModal, instCorrectionModal; // Complex
     var confirmationModal, notificationModal, adminAuthModal, codeViewerModal, timeoutModal; // System
 
-    // --- 2. INITIALIZATION (One Entry Point) ---
+    // --- 2. INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
         console.log("Initializing GSI Core...");
 
-        // A. Init Modals
         const init = (id) => { const el = document.getElementById(id); return el ? new bootstrap.Modal(el) : null; };
         
         // System
@@ -41,7 +37,7 @@
         codeViewerModal = init('codeViewerModal');
         timeoutModal = init('timeoutModal');
         
-        // Admin & Sidebar
+        // Admin
         seedConfirmModal = init('seedConfirmModal');
         seedSuccessModal = init('seedSuccessModal');
         statesModal = init('statesModal');
@@ -50,14 +46,12 @@
         userEditModal = init('userEditModal');
         patchModal = init('patchModal');
 
-        // DB & Drive
+        // DB & Tools
         driveModal = init('driveModal');
         dbCompatModal = init('dbCompatModal');
         dbDowngradeModal = init('dbDowngradeModal');
         proceduresModal = init('proceduresModal');
         alterDbModal = init('alterDbModal');
-
-        // Other Tools (Referenced here for global access, even if logic is in external files)
         cleanupModal = init('cleanupModal');
         initialPrepModal = init('initialPrepModal');
         edataErrorsModal = init('edataErrorsModal');
@@ -68,12 +62,10 @@
         unindexedReviewModal = init('unindexedModalDialog') || init('unindexedReviewModal');
         instCorrectionModal = document.getElementById('itcModalDialog') ? new bootstrap.Modal(document.getElementById('instCorrectionModal')) : init('instCorrectionModal');
 
-        // B. Init Map (If container exists)
-        if(document.getElementById('map')) {
-            initMapLogic();
-        }
+        // Map
+        if(document.getElementById('map')) initMapLogic();
 
-        // C. Init UI & Status
+        // UI
         startInactivityTimer();
         loadDebugStatus();
         
@@ -81,86 +73,32 @@
     });
 
     // ==========================================
-    // 3. WINDOW MANAGER & UTILS
-    // ==========================================
-    function closeAllModals() {
-        const all = [
-            seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, 
-            dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, 
-            alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, 
-            instCorrectionModal, eDataModal, keliModal, confirmationModal, notificationModal, 
-            adminAuthModal, codeViewerModal, driveModal
-        ];
-        all.forEach(m => { if(m) m.hide(); });
-        
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style = '';
-    }
-
-    function showConfirmation(message, actionCallback) {
-        document.getElementById('confirmationMessage').innerText = message;
-        window.pendingConfirmationAction = actionCallback; 
-        if(confirmationModal) confirmationModal.show();
-    }
-
-    function executeConfirmation() {
-        if (window.pendingConfirmationAction) window.pendingConfirmationAction(); 
-        window.pendingConfirmationAction = null; 
-        if(confirmationModal) confirmationModal.hide();
-    }
-
-    function closeConfirmationModal() {
-        window.pendingConfirmationAction = null;
-        if(confirmationModal) confirmationModal.hide();
-    }
-
-    function showNotification(message) {
-        const el = document.getElementById('notificationMessage');
-        if(el) el.innerText = message;
-        if(notificationModal) notificationModal.show();
-    }
-
-    // ==========================================
-    // 4. MAP LOGIC
+    // 3. MAP LOGIC
     // ==========================================
     function initMapLogic() {
-        // Initialize Leaflet
         map = L.map('map', { zoomControl: false }).setView([38, -97], 5);
         
-        // Define Layers
-        darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { 
-            attribution: '&copy; OpenStreetMap &copy; CARTO' 
-        });
-        lightLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-            attribution: '&copy; OpenStreetMap' 
-        });
+        darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' });
+        lightLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' });
         
-        // Set Theme Default
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
         currentLayer = isDark ? darkLayer : lightLayer;
         currentLayer.addTo(map);
 
-        // Panes
         map.createPane('statePane'); map.getPane('statePane').style.zIndex = 350; 
         map.createPane('countyPane'); map.getPane('countyPane').style.zIndex = 450;
         
-        // Groups
         stateLayerGroup = L.layerGroup().addTo(map);
         countyLayerGroup = L.layerGroup().addTo(map);
 
-        // Load Data
         loadStateLayers();
         loadCountyLayers();
     }
 
     function getStyle(type, data) {
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        if(type === 'state') return isDark ? {color:"#00d4ff", weight:1, opacity:1, fillColor:"#00d4ff", fillOpacity:0.15} : {color:"#000", weight:1, opacity:0.8, fillColor:"#000", fillOpacity:0.1};
         
-        if(type === 'state') {
-            return isDark ? {color:"#00d4ff", weight:1, opacity:1, fillColor:"#00d4ff", fillOpacity:0.15} 
-                          : {color:"#000", weight:1, opacity:0.8, fillColor:"#000", fillOpacity:0.1};
-        }
         if (data && data.is_user_selected) return {color: '#0d6efd', weight: 3, opacity: 1, fillColor: '#0d6efd', fillOpacity: 0.5};
         if (data && data.is_occupied) return {color: '#fd7e14', weight: 2, opacity: 0.9, fillColor: '#fd7e14', fillOpacity: 0.4};
         if (data && data.is_active) return {color: '#28a745', weight: 2, opacity: 0.9, fillColor: '#28a745', fillOpacity: 0.3};
@@ -221,6 +159,9 @@
         const disabledAttr = data.is_user_selected ? '' : 'disabled';
         const imgHtml = data.image_url ? `<img src="${data.image_url}?t=${Date.now()}">` : `<i class="bi bi-camera-fill fs-2 text-muted"></i>`;
         
+        // ADMIN TOGGLE FOR POPUP
+        const adminToggle = `<button class="btn btn-sm ${data.is_active ? 'btn-success' : 'btn-danger'} ms-auto" onclick="toggleGlobalActiveFromPopup(${data.id})">${data.is_active ? 'Active' : 'Inactive'}</button>`;
+
         return `
         <div class="popup-container">
             <div class="popup-header">
@@ -232,10 +173,14 @@
                 <div class="popup-image" onclick="triggerUpload(${data.id}, ${data.is_user_selected})">${imgHtml}<div class="popup-image-overlay">Click to Upload</div></div>
             </div>
             <div class="popup-tabs">
-                <ul class="nav nav-pills nav-fill"><li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-db-${data.id}">Database</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-edata-${data.id}">eData</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-keli-${data.id}">Keli</a></li></ul>
+                <ul class="nav nav-pills nav-fill"><li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-county-${data.id}">County</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-db-${data.id}">Database</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-edata-${data.id}">eData</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-keli-${data.id}">Keli</a></li></ul>
             </div>
             <div class="tab-content popup-tab-content">
-                <div class="tab-pane fade show active" id="tab-db-${data.id}">
+                <div class="tab-pane fade show active" id="tab-county-${data.id}">
+                    <div class="p-2"><h6 class="text-light mb-2">County Status</h6>
+                    <div class="d-flex align-items-center"><span class="small text-muted">Global Status:</span>${adminToggle}</div></div>
+                </div>
+                <div class="tab-pane fade" id="tab-db-${data.id}">
                     <div class="d-grid gap-2"><button class="btn btn-sm btn-outline-primary" ${disabledAttr} onclick="openDriveModal()"><i class="bi bi-hdd-network me-2"></i>Drive</button><button class="btn btn-sm btn-outline-info" ${disabledAttr} onclick="openDbCompatModal()"><i class="bi bi-database-gear me-2"></i>Compat Level</button><button class="btn btn-sm btn-outline-warning" ${disabledAttr} onclick="openProceduresModal()"><i class="bi bi-filetype-sql me-2"></i>Procedures</button></div>
                 </div>
                 <div class="tab-pane fade" id="tab-edata-${data.id}">
@@ -248,8 +193,14 @@
         </div>`;
     }
 
+    function toggleGlobalActiveFromPopup(id) {
+        fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'}).then(r => r.json()).then(d => {
+            if(d.success) { loadCountyLayers(); map.closePopup(); } else { alert("Error: " + d.message); }
+        });
+    }
+
     // ==========================================
-    // 5. SIDEBAR & UI LOGIC
+    // 4. SIDEBAR & UI LOGIC
     // ==========================================
     function togglePanel(id, tab) {
         const p = document.getElementById(id);
@@ -266,11 +217,9 @@
         const h = document.documentElement; 
         const newTheme = h.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
         h.setAttribute('data-bs-theme', newTheme);
-        
         map.removeLayer(currentLayer); 
         currentLayer = newTheme === 'dark' ? darkLayer : lightLayer; 
         currentLayer.addTo(map);
-
         if(document.getElementById('layerToggleStates').checked) loadStateLayers();
         if(document.getElementById('layerToggleCounties').checked) loadCountyLayers();
     }
@@ -312,66 +261,103 @@
         else if (document.getElementById('keliModal').classList.contains('show')) activeTool = 'keli';
         
         if (!activeTool) return showNotification("Open a tool first.");
-        
         fetch('/api/admin/view-code', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ tool: activeTool })})
         .then(r => r.json()).then(d => { if(d.success) { document.getElementById('codeViewerFilename').innerText=d.filename; document.getElementById('codeViewerContent').innerText=d.code; codeViewerModal.show(); }});
     }
     function closeCodeViewer() { codeViewerModal.hide(); }
 
     // ==========================================
-    // 6. ADMIN CORE LOGIC
+    // 5. ADMIN CORE LOGIC (Fixed Buttons)
     // ==========================================
+    
+    // --- STATES ---
     function openStatesModal(){ closeAllModals(); statesModal.show(); fetch('/api/admin/states').then(r=>r.json()).then(d=>{ let h=''; d.forEach(s=>{ h+=`<tr><td>${s.name}</td><td>${s.is_enabled?'On':'Off'}</td><td><button class="btn btn-sm ${s.is_enabled?'btn-warning':'btn-success'}" onclick="toggleState(${s.id})">${s.is_enabled?'Disable':'Enable'}</button></td></tr>`; }); document.getElementById('statesTableBody').innerHTML=h; }); }
     function toggleState(id){ fetch(`/api/admin/state/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) openStatesModal(); }); }
 
+    // --- COUNTIES ---
     function openCountiesModal(){ closeAllModals(); countiesModal.show(); fetch('/api/admin/states').then(r=>r.json()).then(d=>{ let h='<option value="">Select State</option>'; d.filter(s=>s.is_enabled).forEach(s=>{h+=`<option value="${s.fips}">${s.name}</option>`}); document.getElementById('countyStateSelect').innerHTML=h; }); }
-    function fetchCountiesForState(){ const f=document.getElementById('countyStateSelect').value; if(!f) return; fetch(`/api/admin/counties/${f}`).then(r=>r.json()).then(d=>{ let h=''; d.forEach(c=>{ h+=`<tr><td class="county-name">${c.name}</td><td>${c.is_enabled?'On':'Off'}</td><td><button class="btn btn-sm btn-outline-secondary" onclick="toggleCounty(${c.id})">Toggle</button></td></tr>`; }); document.getElementById('countiesTableBody').innerHTML=h; }); }
+    
+    function fetchCountiesForState(){ 
+        const f=document.getElementById('countyStateSelect').value; if(!f) return; 
+        fetch(`/api/admin/counties/${f}`).then(r=>r.json()).then(d=>{ 
+            let h=''; 
+            d.forEach(c=>{ 
+                // RESTORED BUTTONS
+                const visBtn = `<button class="btn btn-sm ${c.is_enabled?'btn-outline-warning':'btn-outline-secondary'} me-1" title="Toggle Map" onclick="toggleCounty(${c.id})"><i class="bi ${c.is_enabled?'bi-eye-fill':'bi-eye-slash'}"></i></button>`;
+                const actBtn = `<button class="btn btn-sm ${c.is_active?'btn-success':'btn-danger'} me-1" onclick="toggleGlobalActive(${c.id})">${c.is_active?'Active':'Inactive'}</button>`;
+                h+=`<tr><td class="county-name">${c.name}</td><td>${c.is_enabled?'Visible':'Hidden'}</td><td class="text-end">${actBtn}${visBtn}</td></tr>`; 
+            }); 
+            document.getElementById('countiesTableBody').innerHTML=h; 
+        }); 
+    }
+    
     function filterCountiesTable(){ const v=document.getElementById('countySearchInput').value.toLowerCase(); Array.from(document.querySelectorAll('#countiesTableBody tr')).forEach(r=>{ r.style.display=r.innerText.toLowerCase().includes(v)?'':'none'; }); }
     function toggleCounty(id){ fetch(`/api/admin/county/${id}/toggle`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) fetchCountiesForState(); }); }
+    function toggleGlobalActive(id) { fetch(`/api/admin/county/${id}/set-global-active`, {method: 'POST'}).then(r => r.json()).then(d => { if(d.success) { fetchCountiesForState(); if(typeof loadCountyLayers==='function') loadCountyLayers(); } }); }
 
-    function openAccountsModal(){ closeAllModals(); accountsModal.show(); fetch('/api/users').then(r=>r.json()).then(u=>{ let h=''; u.forEach(x=>{ h+=`<tr><td>${x.username}</td><td>${x.role}</td><td><button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${x.id})">Delete</button></td></tr>`; }); document.getElementById('userTableBody').innerHTML=h; }); }
-    function deleteUser(id){ showConfirmation("Delete User?", ()=>{ fetch(`/api/admin/user/${id}/delete`,{method:'POST'}).then(r=>r.json()).then(d=>{if(d.success) openAccountsModal()}) }); }
+    // --- ACCOUNTS ---
+    function openAccountsModal(){
+        closeAllModals(); accountsModal.show();
+        fetch('/api/users').then(r => r.json()).then(users => {
+            let h = ''; 
+            users.forEach(u => {
+                // RESTORED BUTTONS
+                const editBtn = `<button class="btn btn-sm btn-outline-primary me-1" onclick="openUserEditModal(${u.id}, '${u.username}', '${u.email}')"><i class="bi bi-pencil-fill"></i></button>`;
+                const roleBtn = `<button class="btn btn-sm ${u.role==='admin' ? 'btn-outline-custom-purple' : 'btn-outline-secondary'} me-1" onclick="toggleUserRole(${u.id})"><i class="bi ${u.role==='admin' ? 'bi-shield-lock-fill' : 'bi-person-fill'}"></i></button>`;
+                const deleteBtn = `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${u.username}')"><i class="bi bi-trash-fill"></i></button>`;
+                h += `<tr><td class="fw-bold">${u.username}</td><td>${u.email}</td><td>${u.role}</td><td>${u.is_locked?'Locked':'Active'}</td><td class="text-end">${editBtn}${roleBtn}${deleteBtn}</td></tr>`;
+            });
+            document.getElementById('userTableBody').innerHTML = h;
+        });
+    }
     
-    function showSeedConfirm(){ seedConfirmModal.show(); }
-function runSeeding(){
-        if(seedConfirmModal) seedConfirmModal.hide(); 
-        document.getElementById('globalLoader').style.display='flex';
-        
-        fetch('/api/admin/seed', {method:'POST'})
-        .then(r => r.json())
-        .then(d => {
-            document.getElementById('globalLoader').style.display='none';
-            
-            if(d.success){ 
-                // 1. Update the Modal Text with the counts
-                document.getElementById('seedSuccessMessage').innerText = d.message;
-
-                // 2. Show the "Success" Modal
-                if(seedSuccessModal) seedSuccessModal.show();
-
-                // 3. Wait for the user to close the modal, THEN Reload the page
-                const modalEl = document.getElementById('seedSuccessModal');
-                if(modalEl) {
-                    modalEl.addEventListener('hidden.bs.modal', function () {
-                        window.location.reload(); 
-                    }, { once: true });
-                }
-
-                // REMOVED: fetchStates() - This was causing the ReferenceError 
-                // and is not needed because the page reload handles the update.
-
-            } else { 
-                showNotification("Seeding failed: " + d.message); 
-            }
-        })
-        .catch(e => { 
-            document.getElementById('globalLoader').style.display='none'; 
-            showNotification("Error: "+e); 
+    function openUserEditModal(id, username, email) {
+        document.getElementById('editUserId').value = id;
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editEmail').value = email;
+        document.getElementById('resetPasswordResult').classList.add('d-none');
+        if(userEditModal) userEditModal.show();
+    }
+    
+    function submitUserEdit() {
+        const id = document.getElementById('editUserId').value;
+        fetch(`/api/admin/user/${id}/update`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: document.getElementById('editUsername').value, email: document.getElementById('editEmail').value }) })
+        .then(r => r.json()).then(d => { if(d.success) { showNotification("Updated"); if(userEditModal) userEditModal.hide(); openAccountsModal(); } else { showNotification(d.message); } });
+    }
+    
+    // RESTORED: Password Reset
+    function resetUserPassword() {
+        if(!confirm("Reset this user's password?")) return;
+        const id = document.getElementById('editUserId').value;
+        fetch(`/api/admin/user/${id}/reset-password`, {method:'POST'}).then(r=>r.json()).then(d=>{
+            if(d.success) {
+                document.getElementById('tempPassDisplay').value = d.temp_pass;
+                document.getElementById('resetPasswordResult').classList.remove('d-none');
+            } else { alert(d.message); }
         });
     }
 
+    function toggleUserRole(id) { showConfirmation("Change Role?", () => { fetch(`/api/admin/user/${id}/toggle-role`, {method: 'POST'}).then(r=>r.json()).then(d => { if(d.success) openAccountsModal(); }); }); }
+    function deleteUser(id, u) { showConfirmation(`Delete ${u}?`, () => { fetch(`/api/admin/user/${id}/delete`, {method: 'POST'}).then(r=>r.json()).then(d => { if(d.success) openAccountsModal(); }); }); }
+    
+    // --- SEEDING ---
+    function showSeedConfirm(){ seedConfirmModal.show(); }
+    function runSeeding(){
+        if(seedConfirmModal) seedConfirmModal.hide(); 
+        document.getElementById('globalLoader').style.display='flex';
+        fetch('/api/admin/seed', {method:'POST'}).then(r=>r.json()).then(d=>{
+            document.getElementById('globalLoader').style.display='none';
+            if(d.success){ 
+                document.getElementById('seedSuccessMessage').innerText = d.message;
+                if(seedSuccessModal) seedSuccessModal.show();
+                // RELOAD ON CLOSE
+                document.getElementById('seedSuccessModal').addEventListener('hidden.bs.modal', function () { window.location.reload(); }, { once: true });
+            } else { showNotification("Seeding failed: " + d.message); }
+        }).catch(e=>{ document.getElementById('globalLoader').style.display='none'; showNotification("Error: "+e); });
+    }
+
     // ==========================================
-    // 7. DB TOOLS LOGIC
+    // 6. DB TOOLS & UTILS
     // ==========================================
     function openDriveModal() { closeAllModals(); driveModal.show(); }
     function submitDriveConnection() {
@@ -399,7 +385,6 @@ function runSeeding(){
         fetch('/api/tools/setup-procedures', {method:'POST'}).then(r=>r.json()).then(d=>{ document.getElementById('proceduresResult').innerText=d.message; });
     }
     
-    // --- PATCH MANAGER ---
     function openPatchModal() { closeAllModals(); patchModal.show(); }
     function closePatchModal() { patchModal.hide(); }
     function submitPatchFile() {
@@ -408,8 +393,17 @@ function runSeeding(){
         fetch('/api/admin/patch/apply', {method:'POST', body:fd}).then(r=>r.json()).then(d=>{ showNotification(d.message); if(d.success) setTimeout(()=>window.location.reload(), 1500); });
     }
     
-    // --- ALTER DB ---
     function openAlterDbTool() { closeAllModals(); alterDbModal.show(); fetch('/api/admin/alter-db/preview').then(r=>r.json()).then(d=>{ document.getElementById('alterDbSqlPreview').innerText = d.success ? d.sql : d.message; document.getElementById('btnRunAlterDb').disabled=!d.success; }); }
     function runAlterDbMigration() { showConfirmation("Run Alter?", ()=>{ fetch('/api/admin/alter-db/execute',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({debug:document.getElementById('alterDbDebugToggle').checked})}).then(r=>r.json()).then(d=>showNotification(d.message)); }); }
 
+    // --- UTILS ---
+    function openStatesManager() { openStatesModal(); }
+    function openUserManager() { openAccountsModal(); }
+    function closeAllModals() {
+        const all = [seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, instCorrectionModal, eDataModal, keliModal, confirmationModal, notificationModal, adminAuthModal, codeViewerModal, driveModal];
+        all.forEach(m => { if(m) m.hide(); });
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style = '';
+    }
 </script>

@@ -46,29 +46,28 @@
                           : {color:"#000", weight:1, opacity:0.8, fillColor:"#000", fillOpacity:0.1};
         }
 
-        // 1. User Selection (Blue) - I am working on this
+        // 1. User Selection (Blue)
         if (data && data.is_user_selected) {
             return {color: '#0d6efd', weight: 3, opacity: 1, fillColor: '#0d6efd', fillOpacity: 0.5};
         }
 
-        // 2. Occupied by Other (Orange) - Someone else is working on this
+        // 2. Occupied by Other (Orange)
         if (data && data.is_occupied) {
             return {color: '#fd7e14', weight: 2, opacity: 0.9, fillColor: '#fd7e14', fillOpacity: 0.4};
         }
         
-        // 3. Global Active (Green) - Available
+        // 3. Global Active (Green)
         if (data && data.is_active) {
             return {color: '#28a745', weight: 2, opacity: 0.9, fillColor: '#28a745', fillOpacity: 0.3};
         }
         
-        // 4. Global Inactive (Red) - Closed
+        // 4. Global Inactive (Red)
         return {color: '#dc3545', weight: 2, opacity: 0.9, fillColor: '#dc3545', fillOpacity: 0.1};
     }
 
     // --- LOAD LAYERS ---
     function loadStateLayers() {
         fetch('/api/layers/states').then(r=>r.json()).then(activeFips => {
-            // FIX: Pad FIPS codes with leading zero to match GeoJSON format (e.g. '5' -> '05')
             const safeFips = activeFips.map(c => String(c).trim().padStart(2, '0'));
             
             fetch(stateGeoJsonUrl).then(r=>r.json()).then(geo => {
@@ -157,8 +156,6 @@
         }
 
         let toggleAttr = isToggleDisabled ? 'disabled' : '';
-
-        // 2. Permission Logic
         const isWorking = data.is_user_selected;
         const disabledAttr = isWorking ? '' : 'disabled';
         const tooltipTitle = isWorking ? '' : 'title="Set as \'Working On\' to use this tool."';
@@ -168,7 +165,7 @@
             ? `<img src="${data.image_url}?t=${new Date().getTime()}">` 
             : `<i class="bi bi-camera-fill fs-2 text-muted"></i>`;
         
-        // 3. HTML Construction
+        // --- HTML CONSTRUCTION ---
         return `
         <div class="popup-container">
             <div class="popup-header">
@@ -201,6 +198,7 @@
                 </ul>
             </div>
             <div class="tab-content popup-tab-content">
+                
                 <div class="tab-pane fade show active" id="tab-county-${data.id}">
                     <div class="p-2">
                         <h6 class="text-light mb-2">County Status</h6>
@@ -225,11 +223,9 @@
                         <button class="btn btn-sm btn-outline-primary" ${disabledAttr} ${tooltipTitle} onclick="openDriveModal()">
                             <i class="bi bi-hdd-network me-2"></i>Open Drive Connection
                         </button>
-                        
                         <button class="btn btn-sm btn-outline-info" ${disabledAttr} ${tooltipTitle} onclick="openDbCompatModal()">
                             <i class="bi bi-database-gear me-2"></i>Database Compatibility Level
                         </button>
-                        
                         <button class="btn btn-sm btn-outline-warning" ${disabledAttr} ${tooltipTitle} onclick="openProceduresModal()">
                             <i class="bi bi-filetype-sql me-2"></i>Setup Database Procedures
                         </button>
@@ -242,17 +238,14 @@
                             onclick="openEDataModal(${data.id}, '${data.state_name}', '${data.name}')">
                             <i class="bi bi-table me-2"></i>Setup eData Table
                         </button>
-                        
                         <button class="btn btn-sm btn-outline-warning" ${disabledAttr} ${tooltipTitle} 
                             onclick="openUnindexedReview(${data.id}, '${data.state_name}', '${data.name}')">
                             <i class="bi bi-images me-2"></i>Review Unindexed Images
                         </button>
-                        
                         <button class="btn btn-sm btn-outline-danger" ${disabledAttr} ${tooltipTitle} 
                             onclick="openAlterDbTool()">
                             <i class="bi bi-database-exclamation me-2"></i>Alter eData Table
                         </button>
-
                         <button class="btn btn-sm btn-outline-info" ${disabledAttr} ${tooltipTitle} 
                             onclick="openInitialPrepTool(${data.id})">
                             <i class="bi bi-magic me-2"></i>Initial Preparation Tool
@@ -261,15 +254,12 @@
                             onclick="openInstCorrectionTool(${data.id}, '${data.state_name}', '${data.name}')">
                             <i class="bi bi-pencil-square me-2"></i>Instrument Type Corrections
                         </button>
-                        
                         <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openLinkupModal(${data.id})">
                             <i class="bi bi-link-45deg me-2" style="color: #d63384;"></i>Initial Keli Linkup
                         </button>
-
                         <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openEdataErrorsModal(${data.id})">
                             <i class="bi bi-exclamation-triangle me-2" style="color: #dc3545;"></i>eData Errors
                         </button>
-
                         <button class="btn btn-dark text-start w-100 ps-4 py-2 small text-muted hover-light" onclick="openImportEDataErrorsModal(${data.id})">
                             <i class="bi bi-box-arrow-in-down me-2" style="color: #dc3545;"></i>Import eData Errors
                         </button>
