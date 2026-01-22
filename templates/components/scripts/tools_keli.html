@@ -3,6 +3,32 @@
     // KELI TOOLS (Integrated)
     // ==========================================
 
+    // --- GLOBAL DEBUG VISIBILITY ---
+    // Controls preview buttons for Prep, Linkup, and Alter DB tools
+    function updateDebugVisibility() {
+        const toggle = document.getElementById('debugModeToggle');
+        const isDebug = toggle && toggle.checked;
+        const buttons = ['btnPrepPreview', 'btnLinkupPreview', 'btnAlterDbPreview'];
+        
+        buttons.forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                if (isDebug) btn.classList.remove('d-none');
+                else btn.classList.add('d-none');
+            }
+        });
+    }
+
+    // Attach listener to global toggle
+    document.addEventListener('DOMContentLoaded', () => {
+        const toggle = document.getElementById('debugModeToggle');
+        if(toggle) {
+            toggle.addEventListener('change', updateDebugVisibility);
+            // Run once on load to set initial state
+            updateDebugVisibility();
+        }
+    });
+
     // --- SETUP KELI TABLES ---
     function openKeliModal(id, stateName, countyName) { 
         closeAllModals();
@@ -24,7 +50,7 @@
         // Reset Progress
         document.getElementById('keliProgressContainer').classList.remove('d-none');
         document.getElementById('keliProgressBar').style.width = '0%';
-        document.getElementById('keliProgressText').innerText = '0%'; // FIX: Reset text
+        document.getElementById('keliProgressText').innerText = '0%';
 
         try {
             const response = await fetch('/api/tools/setup-keli', {
@@ -38,7 +64,7 @@
                     const d = JSON.parse(l);
                     if(d.type==='progress') {
                         document.getElementById('keliProgressBar').style.width = d.percent+'%';
-                        document.getElementById('keliProgressText').innerText = d.percent+'%'; // FIX: Update Counter
+                        document.getElementById('keliProgressText').innerText = d.percent+'%';
                     }
                     if(d.type==='complete') {
                         document.getElementById('keliProgressBar').style.width = '100%';
@@ -51,7 +77,7 @@
         finally { btn.disabled = false; }
     }
 
-    // --- INITIAL PREP TOOL (FIXED EXECUTION) ---
+    // --- INITIAL PREP TOOL ---
     var currentPrepCountyId = null; 
 
     function openInitialPrepTool(id) {
@@ -63,6 +89,10 @@
         document.getElementById('prepProgressContainer').classList.add('d-none');
         document.getElementById('prepProgressBar').style.width = '0%';
         document.getElementById('prepProgressPercent').innerText = '0%';
+        document.getElementById('prepDebugPanel').classList.add('d-none');
+
+        // Check debug state
+        updateDebugVisibility();
         
         if(initialPrepModal) initialPrepModal.show();
     }
@@ -74,11 +104,45 @@
         } else { document.getElementById('prepBookInputsContainer').classList.add('d-none'); }
     }
 
+    function previewPrepSql() {
+        const btn = document.getElementById('btnPrepPreview');
+        const resultDiv = document.getElementById('prepResult');
+        const textarea = document.getElementById('prepSqlPreview');
+        btn.disabled = true;
+
+        const payload = { 
+            county_id: currentPrepCountyId, 
+            book_start: document.getElementById('prepBookStart').value, 
+            book_end: document.getElementById('prepBookEnd').value 
+        };
+
+        fetch('/api/tools/initial-prep/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false;
+            if(d.success) {
+                document.getElementById('prepDebugPanel').classList.remove('d-none');
+                textarea.value = d.sql;
+                resultDiv.innerHTML = '';
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+            }
+        })
+        .catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+
+    function copyPrepSql() {
+        const copyText = document.getElementById("prepSqlPreview");
+        copyText.select();
+        navigator.clipboard.writeText(copyText.value);
+    }
+
     function runPrepTool() {
         const btn = document.getElementById('btnRunPrep'); 
         btn.disabled = true;
         
-        // Setup Progress UI
         document.getElementById('prepProgressContainer').classList.remove('d-none');
         document.getElementById('prepProgressBar').style.width = '0%';
         document.getElementById('prepProgressPercent').innerText = '0%';
@@ -93,24 +157,20 @@
                 book_end: document.getElementById('prepBookEnd').value 
             })
         }).then(response => {
-            // FIX: Use Stream Reader instead of waiting for full response
             const reader = response.body.getReader(); 
             const decoder = new TextDecoder();
             
             function read() { 
                 reader.read().then(({ done, value }) => {
-                    if (done) { 
-                        btn.disabled = false; 
-                        return; 
-                    }
+                    if (done) { btn.disabled = false; return; }
                     const lines = decoder.decode(value).split('\n');
                     lines.forEach(l => {
                         try { 
                             const d = JSON.parse(l);
                             if(d.type === 'progress') {
                                 document.getElementById('prepProgressBar').style.width = d.percent + '%';
-                                document.getElementById('prepProgressPercent').innerText = d.percent + '%'; // FIX: Update Text
-                                document.getElementById('prepProgressLabel').innerText = d.message; // Show Step Name
+                                document.getElementById('prepProgressPercent').innerText = d.percent + '%'; 
+                                document.getElementById('prepProgressLabel').innerText = d.message; 
                             }
                             if(d.type === 'complete') {
                                 document.getElementById('prepProgressBar').style.width = '100%';
@@ -155,13 +215,15 @@
 
     // --- KELI LINKUP ---
     var currentLinkupCountyId = null, linkupDefaultsCache = null; 
+
     function openLinkupModal(passedId) {
         closeAllModals(); 
         let countyId = passedId || (typeof selectedCountyId !== 'undefined' ? selectedCountyId : null);
         if (!countyId && document.getElementById('eDataCountyId')) countyId = document.getElementById('eDataCountyId').value;
         if (!countyId) return showNotification("No County Selected");
         
-        currentLinkupCountyId = countyId; linkupDefaultsCache = null;
+        currentLinkupCountyId = countyId; 
+        
         if(linkupModal) linkupModal.show();
         
         // Reset UI
@@ -169,27 +231,82 @@
         document.getElementById('linkupTogglePath').checked = false;
         document.getElementById('linkupToggleBook').checked = false;
         document.getElementById('linkupBookContainer').classList.add('d-none');
-        
+        document.getElementById('linkupPathContainer').classList.add('d-none');
+        document.getElementById('linkupProgressContainer').classList.add('d-none');
+        document.getElementById('linkupDebugPanel').classList.add('d-none');
+
+        // Check Debug state
+        updateDebugVisibility();
+
+        // Fetch Defaults (Optional, doesn't block inputs anymore)
         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`).then(r=>r.json()).then(d=>{
             if(d.success && d.found) {
                 linkupDefaultsCache = {start:d.book_start, end:d.book_end, path:d.path_prefix};
                 document.getElementById('linkupAutoStatus').innerText = "Defaults Detected";
+                // Pre-fill
+                document.getElementById('linkupBookStart').value = d.book_start;
+                document.getElementById('linkupBookEnd').value = d.book_end;
+                document.getElementById('linkupImgPath').value = d.path_prefix;
+            } else {
+                linkupDefaultsCache = null;
+                document.getElementById('linkupAutoStatus').innerText = "No defaults found";
             }
         });
     }
+
+    // FIX: Toggles now work regardless of defaults cache
     function toggleLinkupBookInputs() {
-        if(document.getElementById('linkupToggleBook').checked && linkupDefaultsCache) {
+        if(document.getElementById('linkupToggleBook').checked) {
             document.getElementById('linkupBookContainer').classList.remove('d-none');
-            document.getElementById('linkupBookStart').value = linkupDefaultsCache.start;
-            document.getElementById('linkupBookEnd').value = linkupDefaultsCache.end;
         } else { document.getElementById('linkupBookContainer').classList.add('d-none'); }
     }
     function toggleLinkupPathInput() {
-        if(document.getElementById('linkupTogglePath').checked && linkupDefaultsCache) {
+        if(document.getElementById('linkupTogglePath').checked) {
             document.getElementById('linkupPathContainer').classList.remove('d-none');
-            document.getElementById('linkupImgPath').value = linkupDefaultsCache.path;
         } else { document.getElementById('linkupPathContainer').classList.add('d-none'); }
     }
+
+    function previewLinkupSql() {
+        const btn = document.getElementById('btnLinkupPreview');
+        const resultDiv = document.getElementById('linkupResult');
+        const textarea = document.getElementById('linkupSqlPreview');
+        btn.disabled = true;
+
+        const payload = {
+            county_id: currentLinkupCountyId,
+            use_book_range: document.getElementById('linkupToggleBook').checked,
+            book_start: document.getElementById('linkupBookStart').value,
+            book_end: document.getElementById('linkupBookEnd').value,
+            use_path: document.getElementById('linkupTogglePath').checked,
+            image_path_prefix: document.getElementById('linkupImgPath').value,
+            split_images: document.getElementById('linkupSplitImages').checked,
+            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+        };
+
+        fetch('/api/tools/initial-keli-linkup/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false;
+            if(d.success) {
+                document.getElementById('linkupDebugPanel').classList.remove('d-none');
+                textarea.value = d.sql;
+                resultDiv.innerHTML = '';
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+            }
+        })
+        .catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+
+    function copyLinkupSql() {
+        const copyText = document.getElementById("linkupSqlPreview");
+        copyText.select();
+        navigator.clipboard.writeText(copyText.value);
+    }
+
+    // FIX: Replaced simple fetch with STREAMING READER for progress bar
     function runLinkupTool() {
         const payload = {
             county_id: currentLinkupCountyId,
@@ -201,9 +318,54 @@
             split_images: document.getElementById('linkupSplitImages').checked,
             linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
         };
-        const btn = document.getElementById('btnRunLinkup'); btn.disabled=true;
+        const btn = document.getElementById('btnRunLinkup'); 
+        const resultDiv = document.getElementById('linkupResult');
+        btn.disabled=true;
+
         document.getElementById('linkupProgressContainer').classList.remove('d-none');
-        fetch('/api/tools/initial-keli-linkup/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
-        .then(r=>{ btn.disabled=false; document.getElementById('linkupResult').innerText = "Done"; });
+        const pBar = document.getElementById('linkupProgressBar');
+        const pText = document.getElementById('linkupProgressText');
+        pBar.style.width = '0%';
+        pText.innerText = '0%';
+        resultDiv.innerHTML = '';
+
+        fetch('/api/tools/initial-keli-linkup/execute', {
+            method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+        })
+        .then(response => {
+            const reader = response.body.getReader(); 
+            const decoder = new TextDecoder();
+            
+            function read() { 
+                reader.read().then(({ done, value }) => {
+                    if (done) { btn.disabled = false; return; }
+                    const lines = decoder.decode(value).split('\n');
+                    lines.forEach(l => {
+                        try { 
+                            const d = JSON.parse(l);
+                            if(d.type === 'progress') {
+                                pBar.style.width = d.percent + '%';
+                                pText.innerText = d.percent + '%';
+                                if(d.message) document.getElementById('linkupProgressLabel').innerText = d.message;
+                            }
+                            if(d.type === 'complete') {
+                                pBar.style.width = '100%';
+                                pText.innerText = '100%';
+                                resultDiv.innerHTML = `<div class="alert alert-success">${d.message}</div>`;
+                            }
+                            if(d.type === 'error') {
+                                resultDiv.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                            }
+                        } catch(e){}
+                    });
+                    read();
+                }); 
+            } 
+            read();
+        })
+        .catch(err => {
+            btn.disabled = false;
+            resultDiv.innerText = "Error: " + err;
+        });
     }
 </script>

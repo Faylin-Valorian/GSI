@@ -42,13 +42,68 @@ app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'images')
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# --- INITIALIZE LOGIN MANAGER (Moved Up) ---
+# --- ENCRYPTION HELPER ---
+KEY_FILE = 'secret.key'
+def load_key():
+    if not os.path.exists(KEY_FILE):
+        key = Fernet.generate_key()
+        with open(KEY_FILE, 'wb') as key_file: key_file.write(key)
+    return open(KEY_FILE, 'rb').read()
+
+# Initialize cipher (global)
+cipher = Fernet(load_key())
+
+def encrypt_password(password): return cipher.encrypt(password.encode()).decode()
+def decrypt_password(encrypted): return cipher.decrypt(encrypted.encode()).decode()
+
+# --- DB CONFIG LOAD HELPERS ---
+def load_db_config():
+    config_path = os.path.join(app.root_path, 'db_config.json')
+    if not os.path.exists(config_path): return None
+    with open(config_path, 'r') as f: return json.load(f)
+
+def get_db_uri(cfg):
+    driver = '{ODBC Driver 17 for SQL Server}'
+    # This line will raise an error if decrypt_password fails (bad key)
+    conn_str = f"DRIVER={driver};SERVER={cfg['server']};DATABASE={cfg['database']};UID={cfg['user']};PWD={decrypt_password(cfg['password'])}"
+    return f"mssql+pyodbc:///?odbc_connect={requests.utils.quote(conn_str)}"
+
+# --- APP INIT & AUTO-RESET LOGIC ---
+db_config = None
+try:
+    db_config = load_db_config()
+    if db_config:
+        # Attempt to generate URI. This validates the secret key against the config.
+        app.config['SQLALCHEMY_DATABASE_URI'] = get_db_uri(db_config)
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        db.init_app(app)
+except Exception as e:
+    print(f" >>> CONFIG/KEY ERROR: {e}")
+    print(" >>> Resetting configuration to force setup...")
+    
+    # 1. Delete the mismatched/corrupt files
+    if os.path.exists('db_config.json'): os.remove('db_config.json')
+    if os.path.exists('secret.key'): os.remove('secret.key')
+    
+    # 2. Reset global cipher with a fresh key (since we just deleted the old one)
+    cipher = Fernet(load_key())
+    
+    # 3. Ensure db_config is None to trigger setup mode
+    db_config = None
+
+if not db_config:
+    print(" >>> NO DATABASE CONFIG FOUND (or reset). Redirecting to setup.")
+
+# --- INITIALIZE LOGIN MANAGER ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login'
 
 @login_manager.user_loader
 def load_user(user_id):
+    # FIX: Prevent crash if DB is not initialized (e.g. during setup or after reset)
+    if 'SQLALCHEMY_DATABASE_URI' not in app.config:
+        return None
     return db.session.get(Users, int(user_id))
 
 # --- REGISTER BLUEPRINTS ---
@@ -70,39 +125,6 @@ app.register_blueprint(inst_type_bp)
 app.register_blueprint(edata_errors_bp)
 app.register_blueprint(initial_linkup_bp) 
 app.register_blueprint(import_edata_errors_bp)
-
-# --- DB CONFIG LOAD ---
-def load_db_config():
-    config_path = os.path.join(app.root_path, 'db_config.json')
-    if not os.path.exists(config_path): return None
-    with open(config_path, 'r') as f: return json.load(f)
-
-def get_db_uri(cfg):
-    driver = '{ODBC Driver 17 for SQL Server}'
-    conn_str = f"DRIVER={driver};SERVER={cfg['server']};DATABASE={cfg['database']};UID={cfg['user']};PWD={decrypt_password(cfg['password'])}"
-    return f"mssql+pyodbc:///?odbc_connect={requests.utils.quote(conn_str)}"
-
-# --- ENCRYPTION HELPER ---
-KEY_FILE = 'secret.key'
-def load_key():
-    if not os.path.exists(KEY_FILE):
-        key = Fernet.generate_key()
-        with open(KEY_FILE, 'wb') as key_file: key_file.write(key)
-    return open(KEY_FILE, 'rb').read()
-
-cipher = Fernet(load_key())
-
-def encrypt_password(password): return cipher.encrypt(password.encode()).decode()
-def decrypt_password(encrypted): return cipher.decrypt(encrypted.encode()).decode()
-
-# --- APP INIT ---
-db_config = load_db_config()
-if db_config:
-    app.config['SQLALCHEMY_DATABASE_URI'] = get_db_uri(db_config)
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db.init_app(app)
-else:
-    print(" >>> NO DATABASE CONFIG FOUND. Redirecting to setup.")
 
 # --- MIDDLEWARE: FORCE SETUP ---
 @app.before_request
