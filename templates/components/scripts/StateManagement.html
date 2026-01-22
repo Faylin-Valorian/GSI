@@ -1,25 +1,57 @@
 <script>
-    function openStatesModal() { closeAllModals(); if(statesModal) statesModal.show(); fetchStatesList(); }
-    function closeStatesModal() { if(statesModal) statesModal.hide(); }
-    function showSeedConfirm() { if(statesModal) statesModal.hide(); if(seedConfirmModal) seedConfirmModal.show(); }
+    // ==========================================
+    // STATE MANAGEMENT & SEEDING
+    // ==========================================
+
+    function openStatesModal() { 
+        closeAllModals(); 
+        if(statesModal) statesModal.show(); 
+        fetchStatesList(); 
+    }
+    
+    function closeStatesModal() {
+        if(statesModal) statesModal.hide();
+    }
+
+    function showSeedConfirm() {
+        if(statesModal) statesModal.hide();
+        if(seedConfirmModal) seedConfirmModal.show();
+    }
+
     function runSeeding() {
         if(seedConfirmModal) seedConfirmModal.hide();
-        fetch('/api/admin/seed-db', {method: 'POST'}).then(r=>r.json()).then(d => {
-            document.getElementById('seedSuccessMessage').innerText = d.message;
-            if(seedSuccessModal) seedSuccessModal.show();
-            fetchStatesList(); 
+        // Trigger seeding
+        fetch('/api/admin/seed-db', {method: 'POST'})
+        .then(r => r.json())
+        .then(d => {
+            if(d.success) {
+                document.getElementById('seedSuccessMessage').innerText = d.message;
+                if(seedSuccessModal) seedSuccessModal.show();
+                fetchStatesList(); // Refresh list
+            } else {
+                showNotification("Seeding Failed: " + d.message);
+            }
         });
     }
+
     function fetchStatesList() {
         fetch('/api/admin/states/list').then(r=>r.json()).then(data => {
             const b = document.getElementById('statesTableBody'); b.innerHTML = '';
             data.forEach(s => {
-                b.innerHTML += `<tr><td>${s.name}</td><td>${s.fips}</td><td><span class="badge ${s.status ? 'bg-success' : 'bg-secondary'}">${s.status ? 'Enabled' : 'Disabled'}</span></td><td class="text-end"><button class="btn btn-sm ${s.status ? 'btn-danger' : 'btn-success'}" onclick="toggleStateStatus(${s.id}, ${!s.status})">${s.status ? 'Disable' : 'Enable'}</button></td></tr>`;
+                b.innerHTML += `<tr>
+                    <td>${s.name}</td>
+                    <td>${s.fips}</td>
+                    <td><span class="badge ${s.status ? 'bg-success' : 'bg-secondary'}">${s.status ? 'Enabled' : 'Disabled'}</span></td>
+                    <td class="text-end"><button class="btn btn-sm ${s.status ? 'btn-danger' : 'btn-success'}" onclick="toggleStateStatus(${s.id}, ${!s.status})">${s.status ? 'Disable' : 'Enable'}</button></td>
+                </tr>`;
             });
         });
     }
+
     function toggleStateStatus(id, newStatus) {
-        fetch('/api/admin/states/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id, status:newStatus})})
-        .then(r=>r.json()).then(d=>{ if(d.success) fetchStatesList(); });
+        fetch('/api/admin/states/toggle', {
+            method:'POST', headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({id:id, status:newStatus})
+        }).then(r=>r.json()).then(d=>{ if(d.success) fetchStatesList(); });
     }
 </script>

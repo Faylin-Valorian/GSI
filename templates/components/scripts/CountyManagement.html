@@ -1,26 +1,52 @@
 <script>
-    function openCountiesModal() { closeAllModals(); if(countiesModal) countiesModal.show(); fetchEnabledStatesForCounties(); }
-    function closeCountiesModal() { if(countiesModal) countiesModal.hide(); }
+    // ==========================================
+    // COUNTY MANAGEMENT
+    // ==========================================
+
+    function openCountiesModal() { 
+        closeAllModals(); 
+        if(countiesModal) countiesModal.show(); 
+        fetchEnabledStatesForCounties(); 
+    }
+
     function fetchEnabledStatesForCounties() {
         fetch('/api/admin/states/list').then(r=>r.json()).then(data => {
-            const sel = document.getElementById('countyStateSelect'); sel.innerHTML = '<option value="">Select State...</option>';
-            data.filter(s=>s.status).forEach(s => { sel.innerHTML += `<option value="${s.id}">${s.name}</option>`; });
+            const sel = document.getElementById('countyStateSelect'); 
+            sel.innerHTML = '<option value="">Select State...</option>';
+            data.filter(s=>s.status).forEach(s => { 
+                sel.innerHTML += `<option value="${s.id}">${s.name}</option>`; 
+            });
         });
     }
+
     function fetchCountiesForState() {
         const sid = document.getElementById('countyStateSelect').value;
         if(!sid) return;
         fetch(`/api/admin/counties/list/${sid}`).then(r=>r.json()).then(data => {
             const b = document.getElementById('countiesTableBody'); b.innerHTML = '';
             data.forEach(c => {
-                b.innerHTML += `<tr><td class="county-name">${c.name}</td>
-                <td><button class="btn btn-sm ${c.status ? 'btn-success' : 'btn-secondary'}" onclick="toggleCountyStatus(${c.id}, ${!c.status})">${c.status ? 'Visible' : 'Hidden'}</button></td>
-                <td class="text-end text-muted small">${c.status ? 'Active' : 'Inactive'}</td></tr>`;
+                b.innerHTML += `<tr>
+                    <td class="county-name">${c.name}</td>
+                    <td><button class="btn btn-sm ${c.status ? 'btn-success' : 'btn-secondary'}" onclick="toggleCountyStatus(${c.id}, ${!c.status})">${c.status ? 'Visible' : 'Hidden'}</button></td>
+                    <td class="text-end text-muted small">${c.status ? 'Active' : 'Inactive'}</td>
+                </tr>`;
             });
         });
     }
+
     function toggleCountyStatus(id, newStatus) {
-        fetch('/api/admin/counties/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id, status:newStatus})})
-        .then(r=>r.json()).then(d=>{ if(d.success) fetchCountiesForState(); });
+        fetch('/api/admin/counties/toggle', {
+            method:'POST', headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({id:id, status:newStatus})
+        }).then(r=>r.json()).then(d=>{ if(d.success) fetchCountiesForState(); });
+    }
+    
+    function filterCountiesTable() {
+        const filter = document.getElementById('countySearchInput').value.toLowerCase();
+        const rows = document.getElementById('countiesTableBody').getElementsByTagName('tr');
+        for (let i = 0; i < rows.length; i++) {
+            const td = rows[i].getElementsByClassName("county-name")[0];
+            if (td) rows[i].style.display = (td.innerText.toLowerCase().indexOf(filter) > -1) ? "" : "none";
+        }
     }
 </script>

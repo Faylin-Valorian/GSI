@@ -1,30 +1,73 @@
 <script>
-    function openAccountsModal() { closeAllModals(); if(accountsModal) accountsModal.show(); fetchUsers(); }
-    function closeAccountsModal() { if(accountsModal) accountsModal.hide(); }
+    // ==========================================
+    // USER MANAGEMENT
+    // ==========================================
+
+    function openAccountsModal() { 
+        closeAllModals(); 
+        if(accountsModal) accountsModal.show(); 
+        fetchUsers(); 
+    }
+
     function fetchUsers() {
         fetch('/api/admin/users/list').then(r=>r.json()).then(data => {
             const b = document.getElementById('userTableBody'); b.innerHTML = '';
             data.forEach(u => {
-                b.innerHTML += `<tr><td>${u.username}</td><td>${u.email}</td><td>${u.role}</td><td><span class="badge ${u.status=='active'?'bg-success':'bg-danger'}">${u.status}</span></td><td class="text-end"><button class="btn btn-sm btn-outline-primary" onclick="openUserEdit(${u.id}, '${u.username}', '${u.email}')"><i class="bi bi-pencil"></i></button></td></tr>`;
+                // Dynamic Buttons
+                const roleBtn = `<button class="btn btn-sm ${u.role==='admin' ? 'btn-outline-warning' : 'btn-outline-secondary'} me-1" onclick="toggleUserRole(${u.id})" title="Toggle Admin"><i class="bi bi-shield-lock"></i></button>`;
+                const delBtn = `<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${u.username}')" title="Delete"><i class="bi bi-trash"></i></button>`;
+                const editBtn = `<button class="btn btn-sm btn-outline-primary me-1" onclick="openUserEdit(${u.id}, '${u.username}', '${u.email}')"><i class="bi bi-pencil"></i></button>`;
+
+                b.innerHTML += `<tr>
+                    <td>${u.username}</td>
+                    <td>${u.email}</td>
+                    <td>${u.role}</td>
+                    <td><span class="badge ${u.status==='active'?'bg-success':'bg-danger'}">${u.status}</span></td>
+                    <td class="text-end">${editBtn}${roleBtn}${delBtn}</td>
+                </tr>`;
             });
         });
     }
+
+    function toggleUserRole(id) {
+        if(!confirm("Toggle admin role?")) return;
+        fetch(`/api/admin/user/${id}/toggle-role`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) fetchUsers(); });
+    }
+
+    function deleteUser(id, name) {
+        if(!confirm(`Delete user ${name}?`)) return;
+        fetch(`/api/admin/user/${id}/delete`, {method:'POST'}).then(r=>r.json()).then(d=>{ if(d.success) fetchUsers(); });
+    }
+
     function openUserEdit(id, user, email) {
-        closeAllModals(); document.getElementById('editUserId').value = id;
-        document.getElementById('editUsername').value = user; document.getElementById('editEmail').value = email;
+        if(accountsModal) accountsModal.hide();
+        document.getElementById('editUserId').value = id;
+        document.getElementById('editUsername').value = user;
+        document.getElementById('editEmail').value = email;
         document.getElementById('resetPasswordResult').classList.add('d-none');
         if(userEditModal) userEditModal.show();
     }
-    function closeUserEditModal() { if(userEditModal) userEditModal.hide(); if(accountsModal) accountsModal.show(); }
-    function submitUserEdit() {
-        fetch('/api/admin/users/edit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
-            id: document.getElementById('editUserId').value,
-            username: document.getElementById('editUsername').value,
-            email: document.getElementById('editEmail').value
-        })}).then(r=>r.json()).then(d=>{ if(d.success) { closeUserEditModal(); fetchUsers(); } else alert(d.message); });
+
+    function closeUserEditModal() {
+        if(userEditModal) userEditModal.hide();
+        if(accountsModal) accountsModal.show();
     }
+
+    function submitUserEdit() {
+        fetch('/api/admin/users/edit', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                id: document.getElementById('editUserId').value,
+                username: document.getElementById('editUsername').value,
+                email: document.getElementById('editEmail').value
+            })
+        }).then(r=>r.json()).then(d=>{ if(d.success) { closeUserEditModal(); fetchUsers(); } else alert(d.message); });
+    }
+
     function resetUserPassword() {
-        fetch('/api/admin/users/reset-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id: document.getElementById('editUserId').value})})
-        .then(r=>r.json()).then(d=>{ if(d.success) { document.getElementById('tempPassDisplay').value = d.temp_password; document.getElementById('resetPasswordResult').classList.remove('d-none'); } });
+        fetch('/api/admin/users/reset-password', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({id: document.getElementById('editUserId').value})
+        }).then(r=>r.json()).then(d=>{ if(d.success) { document.getElementById('tempPassDisplay').value = d.temp_password; document.getElementById('resetPasswordResult').classList.remove('d-none'); } });
     }
 </script>

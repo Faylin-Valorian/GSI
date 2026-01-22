@@ -20,7 +20,7 @@ def list_counties_by_id(state_id):
     return jsonify([{
         'id': c.id, 
         'name': c.county_name, 
-        'status': c.is_enabled  # "status" maps to Map Visibility/Enabled
+        'status': c.is_enabled  # "status" maps to Map Visibility
     } for c in c_list])
 
 @county_mgmt_bp.route('/api/admin/counties/toggle', methods=['POST'])
@@ -33,8 +33,7 @@ def toggle_county():
         c = db.session.get(IndexingCounties, data.get('id'))
         if c:
             c.is_enabled = bool(data.get('status'))
-            # Also toggle active if needed, or keep separate. 
-            # Usually enabling a county for the map implies making it active.
+            # When enabling visibility, also enable active status for users
             c.is_active = c.is_enabled 
             db.session.commit()
             return jsonify({'success': True})
