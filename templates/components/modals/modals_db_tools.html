@@ -132,57 +132,90 @@
 </div>
 
 <div class="modal fade" id="alterDbModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow-lg" style="background: #1e1e24; color: #e0e0e0;">
             <div class="modal-header border-bottom border-secondary">
                 <h5 class="modal-title fw-bold text-uppercase">
-                    <i class="bi bi-database-gear me-2 text-warning"></i>Alter Database Fields
+                    <i class="bi bi-database-gear me-2 text-warning"></i>Alter Database Schema
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             
-            <div class="modal-body p-4">
-                <div class="alert alert-info d-flex align-items-center mb-3">
-                    <i class="bi bi-info-circle-fill fs-4 me-3"></i>
-                    <div>
-                        <strong>Alter Fields Routine</strong><br>
-                        This tool will rename legacy columns (e.g., col01other -> key_id) and add missing system columns required for the new workflow.
-                        <br><small class="text-muted">Safe to run multiple times (checks for existence first).</small>
+            <div class="modal-body p-0">
+                <ul class="nav nav-tabs border-secondary bg-dark px-3 pt-3" id="alterDbTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active small text-uppercase fw-bold" id="tab-fields" data-bs-toggle="tab" data-bs-target="#content-fields" type="button">
+                            <i class="bi bi-list-columns me-2"></i>Field Mappings
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link small text-uppercase fw-bold" id="tab-add" data-bs-toggle="tab" data-bs-target="#content-add" type="button">
+                            <i class="bi bi-plus-square me-2"></i>Add New Fields
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-0" id="alterDbTabContent">
+                    <div class="tab-pane fade show active" id="content-fields" role="tabpanel">
+                        <div class="table-responsive" style="max-height: 50vh;">
+                            <table class="table table-dark table-striped table-hover table-sm mb-0 align-middle">
+                                <thead class="sticky-top bg-secondary text-white">
+                                    <tr>
+                                        <th class="ps-4" style="width: 40%">Current Column Name</th>
+                                        <th style="width: 5%"><i class="bi bi-arrow-right"></i></th>
+                                        <th style="width: 40%">New Name (Edit to Rename)</th>
+                                        <th style="width: 15%">Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="alterDbFieldsBody">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="content-add" role="tabpanel">
+                        <div class="p-3 bg-dark border-bottom border-secondary d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Define new columns to append to the table.</span>
+                            <button class="btn btn-sm btn-success" onclick="alterDbAddNewRow()">
+                                <i class="bi bi-plus-lg me-1"></i>Add Row
+                            </button>
+                        </div>
+                        <div class="table-responsive" style="max-height: 45vh;">
+                            <table class="table table-dark table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="ps-4">Column Name</th>
+                                        <th>Data Type</th>
+                                        <th>Default Value (Optional)</th>
+                                        <th class="text-end pe-4">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="alterDbAddBody">
+                                    </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-header border-secondary py-1 text-muted small text-uppercase fw-bold">
-                        SQL Execution Plan
+                <div id="alterDbPreviewContainer" class="d-none bg-black border-top border-secondary p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
+                        <button class="btn btn-xs btn-outline-secondary" onclick="copyAlterDbSql()">Copy</button>
                     </div>
-                    <div class="card-body p-0 position-relative">
-                        <div id="alterDbLoader" class="position-absolute w-100 h-100 d-none justify-content-center align-items-center" 
-                             style="background: rgba(0,0,0,0.7); z-index: 5;">
-                            <div class="spinner-border text-primary" role="status"></div>
-                        </div>
-                        
-                        <pre id="alterDbSqlPreview" class="m-0 p-3 text-success" 
-                             style="font-family: 'Consolas', monospace; font-size: 0.85rem; height: 300px; overflow-y: auto; white-space: pre-wrap;">
--- Click 'Generate SQL Preview' to analyze the database state...
-                        </pre>
-                    </div>
+                    <pre id="alterDbSqlOutput" class="text-success small font-monospace m-0" style="max-height: 150px; overflow-y: auto; white-space: pre-wrap;"></pre>
                 </div>
             </div>
 
-            <div class="modal-footer border-top border-secondary justify-content-between">
+            <div class="modal-footer border-top border-secondary justify-content-between bg-dark">
                 <div class="d-flex align-items-center">
-                    <button id="btnAlterDbPreview" class="btn btn-sm btn-outline-warning d-none me-2" onclick="previewAlterDb()">
+                    <button id="btnAlterDbPreview" class="btn btn-sm btn-outline-warning d-none me-2" onclick="alterDbGeneratePreview()">
                         <i class="bi bi-code-square me-1"></i>Generate Preview
                     </button>
-                    
-                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="copyAlterDbSql()" title="Copy SQL">
-                        <i class="bi bi-clipboard"></i>
-                    </button>
-                    <span class="text-muted small" id="alterDbStatusMsg">Ready</span>
+                    <span id="alterDbStatus" class="text-muted small fst-italic">Loading configuration...</span>
                 </div>
                 <div>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-warning fw-bold" onclick="runAlterDbMigration()" id="btnRunAlterDb" disabled>
+                    <button type="button" class="btn btn-warning fw-bold" onclick="alterDbRun()" id="btnAlterDbRun">
                         <i class="bi bi-lightning-charge-fill me-1"></i>Execute Changes
                     </button>
                 </div>
