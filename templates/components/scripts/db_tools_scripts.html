@@ -142,14 +142,9 @@
         if(patchModal) patchModal.hide(); 
     }
 
-    // ==========================================
+// ==========================================
     // ALTER DATABASE FIELDS (Dynamic Tool)
     // ==========================================
-
-    var alterDbState = {
-        renames: {},   // Map: original -> new
-        adds: []       // List of objects
-    };
 
     function openAlterDbModal() {
         closeAllModals();
@@ -163,7 +158,6 @@
         document.getElementById('btnAlterDbRun').disabled = true;
 
         // 2. Force Global Debug Check (ensures preview button visibility is correct)
-        // This function lives in tools_edata.html, but since scripts are loaded together, it is accessible.
         if(typeof updateToolDebugVisibility === 'function') updateToolDebugVisibility();
 
         // 3. Fetch Data (Schema + Config + Defaults)
@@ -190,7 +184,7 @@
         
         fields.forEach(f => {
             const tr = document.createElement('tr');
-            // Highlight row if renamed by default or user config
+            // Highlight row if renamed
             const isRenamed = f.original !== f.current;
             if(isRenamed) tr.classList.add('table-dark'); 
 
@@ -276,8 +270,7 @@
         btn.disabled = true;
         document.getElementById('alterDbStatus').innerHTML = '<span class="text-warning spinner-border spinner-border-sm"></span> Processing...';
 
-        // NOTE: We use /run (or /execute) endpoint which handles generation + execution
-        fetch('/api/tools/alter-db/run', {
+        fetch('/api/tools/alter-db/execute', {
             method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
         })
         .then(r => r.json())
@@ -299,6 +292,5 @@
     function copyAlterDbSql() {
         const text = document.getElementById('alterDbSqlOutput').innerText;
         navigator.clipboard.writeText(text);
-        if(typeof showNotification === 'function') showNotification("SQL Copied");
     }
 </script>
