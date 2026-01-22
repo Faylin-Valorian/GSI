@@ -10,7 +10,7 @@
         // Default to false if toggle doesn't exist
         const isDebug = toggle ? toggle.checked : false;
         
-        // List of all preview buttons to manage
+        // IDs of all preview buttons to manage
         const buttons = [
             'btnEdePreview',       // eData Errors
             'btnAlterDbPreview',   // Alter DB Fields
@@ -43,10 +43,7 @@
         updateToolDebugVisibility();
         
         // 3. Force check when any relevant modal opens (failsafe)
-        const modals = document.querySelectorAll('.modal');
-        modals.forEach(m => {
-            m.addEventListener('shown.bs.modal', updateToolDebugVisibility);
-        });
+        document.body.addEventListener('shown.bs.modal', updateToolDebugVisibility);
     });
 
     // --- SETUP EDATA TABLE ---
@@ -134,17 +131,17 @@
         });
     }
 
-    // --- EDATA ERRORS ---
+    // --- SCAN EDATA ERRORS ---
     function openEdataErrorsModal(id) {
         closeAllModals();
         document.getElementById('eDataCountyId').value = id; 
         
         // Reset UI
         document.getElementById('edeResult').innerHTML = '';
-        document.getElementById('edeDebugPanel').classList.add('d-none');
+        if(document.getElementById('edeDebugPanel')) document.getElementById('edeDebugPanel').classList.add('d-none');
         document.getElementById('edeProgressContainer').classList.add('d-none');
         
-        // Ensure visibility is correct on open
+        // FORCE BUTTON CHECK
         updateToolDebugVisibility();
         
         if(edataErrorsModal) edataErrorsModal.show();
@@ -244,6 +241,7 @@
 
     // --- IMPORT EDATA ERRORS ---
     var currentImportEdeCountyId = null; 
+    
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
         if(importEdeModal) importEdeModal.show();
@@ -252,7 +250,7 @@
         document.getElementById('importEdeResult').innerText = '';
         document.getElementById('importEdeProgressContainer').classList.add('d-none');
         
-        // Ensure visibility logic runs
+        // Check Button Visibility
         updateToolDebugVisibility();
         const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         if(debug) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
@@ -277,6 +275,7 @@
         const pText = document.getElementById('importEdeProgressText');
         const logBox = document.getElementById('importEdeLogContent');
 
+        // Reset
         pBar.style.width = '0%';
         pText.innerText = '0%';
         if(logBox) logBox.innerHTML = '';
@@ -286,6 +285,7 @@
         .then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
             let hasProgress = false;
+
             function read() { reader.read().then(({ done, value }) => {
                 if (done) { 
                     btn.disabled = false; 
@@ -302,7 +302,7 @@
                         if(d.type==='progress') {
                             hasProgress = true;
                             pBar.style.width = d.percent + '%';
-                            pText.innerText = d.percent + '%';
+                            pText.innerText = d.percent + '%'; // FIX
                         }
                         if(d.type==='log' && logBox) { const div = document.createElement('div'); div.innerText = d.message; logBox.appendChild(div); }
                         if(d.type==='complete') {
