@@ -1,0 +1,84 @@
+<script>
+    var currentLinkupCountyId = null; 
+    function openLinkupModal(passedId) {
+        closeAllModals(); 
+        let countyId = passedId || (document.getElementById('eDataCountyId') ? document.getElementById('eDataCountyId').value : null);
+        if (!countyId) return showNotification("No County Selected");
+        currentLinkupCountyId = countyId; 
+        if(linkupModal) linkupModal.show();
+        
+        document.getElementById('linkupResult').innerHTML = '';
+        document.getElementById('linkupProgressContainer').classList.add('d-none');
+        document.getElementById('linkupDebugPanel').classList.add('d-none');
+        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+
+        fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`).then(r=>r.json()).then(d=>{
+            if(d.success && d.found) {
+                document.getElementById('linkupAutoStatus').innerText = "Defaults Detected";
+                document.getElementById('linkupBookStart').value = d.book_start;
+                document.getElementById('linkupBookEnd').value = d.book_end;
+                document.getElementById('linkupImgPath').value = d.path_prefix;
+            } else { document.getElementById('linkupAutoStatus').innerText = "No defaults found"; }
+        });
+    }
+    function toggleLinkupBookInputs() {
+        const el = document.getElementById('linkupBookContainer');
+        if(document.getElementById('linkupToggleBook').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
+    }
+    function toggleLinkupPathInput() {
+        const el = document.getElementById('linkupPathContainer');
+        if(document.getElementById('linkupTogglePath').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
+    }
+    function previewLinkupSql() {
+        const btn = document.getElementById('btnLinkupPreview'); btn.disabled = true;
+        const payload = {
+            county_id: currentLinkupCountyId,
+            use_book_range: document.getElementById('linkupToggleBook').checked,
+            book_start: document.getElementById('linkupBookStart').value,
+            book_end: document.getElementById('linkupBookEnd').value,
+            use_path: document.getElementById('linkupTogglePath').checked,
+            image_path_prefix: document.getElementById('linkupImgPath').value,
+            split_images: document.getElementById('linkupSplitImages').checked,
+            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+        };
+        fetch('/api/tools/initial-keli-linkup/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json()).then(d => {
+            btn.disabled = false;
+            if(d.success) { document.getElementById('linkupDebugPanel').classList.remove('d-none'); document.getElementById('linkupSqlPreview').value = d.sql; document.getElementById('linkupResult').innerHTML = ''; } 
+            else { document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
+        }).catch(e => { btn.disabled = false; document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+    function copyLinkupSql() { navigator.clipboard.writeText(document.getElementById("linkupSqlPreview").value); }
+    function runLinkupTool() {
+        const btn = document.getElementById('btnRunLinkup'); btn.disabled=true;
+        document.getElementById('linkupProgressContainer').classList.remove('d-none');
+        const pBar = document.getElementById('linkupProgressBar'), pText = document.getElementById('linkupProgressPercent');
+        pBar.style.width = '0%'; pText.innerText = '0%';
+        
+        const payload = {
+            county_id: currentLinkupCountyId,
+            use_book_range: document.getElementById('linkupToggleBook').checked,
+            book_start: document.getElementById('linkupBookStart').value,
+            book_end: document.getElementById('linkupBookEnd').value,
+            use_path: document.getElementById('linkupTogglePath').checked,
+            image_path_prefix: document.getElementById('linkupImgPath').value,
+            split_images: document.getElementById('linkupSplitImages').checked,
+            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+        };
+
+        fetch('/api/tools/initial-keli-linkup/execute', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+        .then(response => {
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            function read() { reader.read().then(({ done, value }) => {
+                if (done) { btn.disabled = false; return; }
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { try { const d = JSON.parse(l);
+                    if(d.type === 'progress') { pBar.style.width = d.percent + '%'; pText.innerText = d.percent + '%'; document.getElementById('linkupProgressLabel').innerText = d.message; }
+                    if(d.type === 'complete') { pBar.style.width = '100%'; document.getElementById('linkupResult').innerHTML = `<div class="alert alert-success">${d.message}</div>`; }
+                    if(d.type === 'error') document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                } catch(e){} });
+                read();
+            }); } read();
+        }).catch(err => { btn.disabled = false; document.getElementById('linkupResult').innerText = "Error: " + err; });
+    }
+</script>

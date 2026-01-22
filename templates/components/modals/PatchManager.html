@@ -1,0 +1,23 @@
+<div class="modal fade" id="patchModal" tabindex="-1" style="z-index: 1090;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-tools me-2"></i>System Updater</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closePatchModal()"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-dark border-secondary small text-muted mb-3">
+                    <i class="bi bi-info-circle-fill me-2"></i>Upload a <code>.diff</code> patch file.
+                </div>
+                <div class="mb-3">
+                    <input class="form-control bg-dark text-light border-secondary" type="file" id="patchFileInput" accept=".diff">
+                </div>
+                <div id="patchError" class="text-danger small fw-bold text-center"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closePatchModal()">Cancel</button>
+                <button type="button" class="btn btn-danger fw-bold" onclick="submitPatchFile()"><i class="bi bi-cloud-upload-fill me-1"></i>Apply Update</button>
+            </div>
+        </div>
+    </div>
+</div>

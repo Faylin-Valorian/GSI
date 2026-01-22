@@ -1,0 +1,34 @@
+<script>
+    function openEDataModal(id, stateName, countyName) { 
+        closeAllModals(); document.getElementById('eDataCountyId').value = id;
+        document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+        if(eDataModal) eDataModal.show(); 
+    }
+    function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
+    async function submitEDataSetup() {
+        const btn = document.querySelector('#eDataModal .btn-success');
+        const resultDiv = document.getElementById('eDataResult');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...';
+        resultDiv.innerHTML = ''; 
+        document.getElementById('eDataProgressContainer').classList.remove('d-none');
+        document.getElementById('eDataProgressBar').style.width = '0%';
+        document.getElementById('eDataProgressText').innerText = '0%';
+        try {
+            const response = await fetch('/api/tools/setup-edata', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value, mode: document.getElementById('eDataImportMode').value })
+            });
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { if(l) try {
+                    const d = JSON.parse(l);
+                    if(d.type==='progress') { document.getElementById('eDataProgressBar').style.width = d.percent+'%'; document.getElementById('eDataProgressText').innerText = d.percent+'%'; }
+                    if(d.type==='complete') { document.getElementById('eDataProgressBar').style.width = '100%'; resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`; }
+                } catch(e){} });
+            }
+        } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Connection Failed</div>'; } 
+        finally { btn.disabled = false; btn.innerText = 'Run Import'; }
+    }
+</script>

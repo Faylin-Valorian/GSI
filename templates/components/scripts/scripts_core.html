@@ -439,4 +439,36 @@
         const text = document.getElementById('alterDbSqlPreview').innerText;
         navigator.clipboard.writeText(text).then(() => showNotification("SQL Copied"));
     }
+
+    // --- CENTRALIZED DEBUG VISIBILITY MASTER ---
+    // Controls "Generate Preview" buttons for ALL tools (DB, EData, Keli, etc.)
+    function updateAllToolsDebug() {
+        const toggle = document.getElementById('debugModeToggle');
+        const isDebug = toggle ? toggle.checked : false;
+        
+        // Add IDs of ANY button that should be hidden by default
+        const debugButtons = [
+            'btnEdePreview',       // EData Errors
+            'btnAlterDbPreview',   // Alter DB Fields
+            'btnLinkupPreview',    // Keli Linkup
+            'btnPrepPreview'       // Initial Prep
+        ];
+        
+        debugButtons.forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                if (isDebug) btn.classList.remove('d-none');
+                else btn.classList.add('d-none');
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const toggle = document.getElementById('debugModeToggle');
+        if(toggle) toggle.addEventListener('change', updateAllToolsDebug);
+        
+        // Run on load and whenever a modal opens
+        updateAllToolsDebug();
+        document.body.addEventListener('shown.bs.modal', updateAllToolsDebug);
+    });
 </script>

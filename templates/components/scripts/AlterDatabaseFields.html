@@ -1,0 +1,81 @@
+<script>
+    function openAlterDbModal() {
+        closeAllModals();
+        if(alterDbModal) alterDbModal.show();
+        // Reset UI
+        document.getElementById('alterDbFieldsBody').innerHTML = '<tr><td colspan="4" class="text-center p-3 text-muted">Scanning Schema...</td></tr>';
+        document.getElementById('alterDbAddBody').innerHTML = '';
+        document.getElementById('alterDbPreviewContainer').classList.add('d-none');
+        document.getElementById('alterDbStatus').innerText = 'Scanning Schema...';
+        document.getElementById('btnAlterDbRun').disabled = true;
+        
+        if(typeof updateToolDebugVisibility === 'function') updateToolDebugVisibility();
+
+        fetch('/api/tools/alter-db/init').then(r => r.json()).then(d => {
+            if(d.success) {
+                renderAlterDbFields(d.fields);
+                renderAlterDbAdds(d.new_fields);
+                document.getElementById('alterDbStatus').innerText = 'Ready';
+                document.getElementById('btnAlterDbRun').disabled = false;
+            } else {
+                document.getElementById('alterDbFieldsBody').innerHTML = `<tr><td colspan="4" class="text-center text-danger p-3">Error: ${d.error || d.message}</td></tr>`;
+            }
+        }).catch(e => { document.getElementById('alterDbStatus').innerText = 'Connection Error'; });
+    }
+
+    function renderAlterDbFields(fields) {
+        const tbody = document.getElementById('alterDbFieldsBody'); tbody.innerHTML = '';
+        fields.forEach(f => {
+            const tr = document.createElement('tr');
+            if(f.original !== f.current) tr.classList.add('table-dark');
+            tr.innerHTML = `<td class="ps-4 font-monospace small text-muted">${f.original}</td><td class="text-center text-muted"><i class="bi bi-arrow-right"></i></td><td><input type="text" class="form-control form-control-sm bg-black text-light border-secondary font-monospace field-rename-input" data-original="${f.original}" value="${f.current}" oninput="this.classList.add('border-warning')"></td><td class="small text-muted fst-italic">${f.type}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderAlterDbAdds(newFields) {
+        const tbody = document.getElementById('alterDbAddBody'); tbody.innerHTML = '';
+        newFields.forEach(f => alterDbAddNewRow(f.name, f.type, f.default));
+    }
+
+    function alterDbAddNewRow(name='', type='VARCHAR(255)', def='') {
+        const tbody = document.getElementById('alterDbAddBody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="ps-4"><input type="text" class="form-control form-control-sm bg-black text-light border-secondary input-name" value="${name}" placeholder="Column Name"></td><td><input type="text" class="form-control form-control-sm bg-black text-info border-secondary input-type" value="${type}" placeholder="Type"></td><td><input type="text" class="form-control form-control-sm bg-black text-muted border-secondary input-default" value="${def}" placeholder="NULL"></td><td class="text-end pe-4"><button class="btn btn-sm btn-outline-danger border-0" onclick="this.closest('tr').remove()"><i class="bi bi-trash"></i></button></td>`;
+        tbody.appendChild(tr);
+    }
+
+    function alterDbCollectData() {
+        let renames = {};
+        document.querySelectorAll('.field-rename-input').forEach(input => renames[input.dataset.original] = input.value.trim());
+        let newFields = [];
+        document.querySelectorAll('#alterDbAddBody tr').forEach(tr => {
+            const name = tr.querySelector('.input-name').value.trim();
+            if(name) newFields.push({ name: name, type: tr.querySelector('.input-type').value.trim(), default: tr.querySelector('.input-default').value.trim() });
+        });
+        return { renames, new_fields: newFields };
+    }
+
+    function alterDbGeneratePreview() {
+        const payload = alterDbCollectData();
+        document.getElementById('alterDbSqlOutput').innerText = 'Generating...';
+        document.getElementById('alterDbPreviewContainer').classList.remove('d-none');
+        fetch('/api/tools/alter-db/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json()).then(d => document.getElementById('alterDbSqlOutput').innerText = d.success ? d.sql : "Error: " + d.message);
+    }
+
+    function alterDbRun() {
+        const payload = alterDbCollectData();
+        const btn = document.getElementById('btnAlterDbRun'); btn.disabled = true;
+        document.getElementById('alterDbStatus').innerHTML = '<span class="text-warning spinner-border spinner-border-sm"></span> Processing...';
+        fetch('/api/tools/alter-db/run', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json()).then(d => {
+            btn.disabled = false;
+            if(d.success) {
+                document.getElementById('alterDbStatus').innerHTML = '<span class="text-success fw-bold">Success! Reloading...</span>';
+                setTimeout(openAlterDbModal, 1500);
+            } else { document.getElementById('alterDbStatus').innerHTML = `<span class="text-danger">Error: ${d.message}</span>`; }
+        }).catch(e => { btn.disabled = false; document.getElementById('alterDbStatus').innerText = 'Connection Failed'; });
+    }
+    function copyAlterDbSql() { navigator.clipboard.writeText(document.getElementById('alterDbSqlOutput').innerText); }
+</script>

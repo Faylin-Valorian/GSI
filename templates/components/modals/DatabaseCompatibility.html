@@ -1,0 +1,37 @@
+<div class="modal fade" id="dbCompatModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-database-gear me-2"></i>SQL Compatibility</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeDbCompatModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted">Enter desired Compatibility Level (e.g., 150 for SQL 2019).</p>
+                <input type="number" id="targetCompatLevel" class="form-control border-secondary bg-transparent text-light" placeholder="150">
+                <div id="dbCompatResult" class="text-center small mt-2"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeDbCompatModal()">Close</button>
+                <button type="button" class="btn btn-info" onclick="submitDbCompat()">Update Level</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="dbDowngradeModal" tabindex="-1" style="z-index: 1090;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header border-secondary bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Downgrade</h5>
+            </div>
+            <div class="modal-body">
+                <p id="dbDowngradeMessage" class="fw-bold">Warning: Downgrading compatibility level.</p>
+                <p class="small text-muted">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeDowngradeModal()">Cancel</button>
+                <button type="button" class="btn btn-warning fw-bold" onclick="confirmDowngrade()">Yes, Downgrade</button>
+            </div>
+        </div>
+    </div>
+</div>

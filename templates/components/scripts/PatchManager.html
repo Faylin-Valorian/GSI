@@ -1,0 +1,16 @@
+<script>
+    function openPatchModal() { closeAllModals(); if(patchModal) patchModal.show(); document.getElementById('patchError').innerText = ''; }
+    function closePatchModal() { if(patchModal) patchModal.hide(); }
+    function submitPatchFile() {
+        const fileInput = document.getElementById('patchFileInput');
+        const errorDiv = document.getElementById('patchError');
+        const btn = document.querySelector('#patchModal .btn-danger');
+        if (!fileInput.files.length) { errorDiv.innerText = "Please select a .diff file"; return; }
+        const formData = new FormData(); formData.append('patch_file', fileInput.files[0]);
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Applying...'; errorDiv.innerText = '';
+        fetch('/api/tools/patch/apply', { method: 'POST', body: formData }).then(r => r.json()).then(d => {
+            if (d.success) { alert("Patch Applied! Reloading."); window.location.reload(); } 
+            else { errorDiv.innerText = "Error: " + d.message; btn.disabled = false; btn.innerText = "Apply Update"; }
+        }).catch(e => { errorDiv.innerText = "Failed: " + e; btn.disabled = false; btn.innerText = "Apply Update"; });
+    }
+</script>

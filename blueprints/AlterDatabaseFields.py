@@ -11,7 +11,6 @@ alter_db_bp = Blueprint('alter_db', __name__)
 CONFIG_FILE = 'alter_db_config.json'
 
 # --- FACTORY DEFAULTS ---
-# These apply automatically ONLY if the user hasn't saved a custom config.
 DEFAULT_RENAMES = {
     'col01other': 'key_id',
     'col02other': 'book',
@@ -58,9 +57,7 @@ def save_config(data):
 @alter_db_bp.route('/api/tools/alter-db/init', methods=['GET'])
 @login_required
 def init_tool():
-    """Returns current DB schema merged with user config."""
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-
     try:
         inspector = inspect(db.engine)
         if not inspector.has_table('GenericDataImport'):
@@ -71,25 +68,16 @@ def init_tool():
         saved_renames = saved_config.get('renames', {})
         saved_adds = saved_config.get('adds', [])
 
-        # 1. Build Fields List (Existing)
         field_list = []
-        existing_col_names = []
+        existing_col_names = [c['name'].lower() for c in columns]
+        
         for col in columns:
             orig = col['name']
-            existing_col_names.append(orig.lower())
-            
-            # Priority: Saved Config > Default Rename > Original Name
-            if orig in saved_renames:
-                current = saved_renames[orig]
-            elif orig in DEFAULT_RENAMES:
-                current = DEFAULT_RENAMES[orig]
-            else:
-                current = orig
-            
+            if orig in saved_renames: current = saved_renames[orig]
+            elif orig in DEFAULT_RENAMES: current = DEFAULT_RENAMES[orig]
+            else: current = orig
             field_list.append({'original': orig, 'current': current, 'type': str(col['type'])})
 
-        # 2. Build New Fields List
-        # If no saved config exists, suggest defaults that don't already exist in DB
         if not saved_config:
             adds_list = [f for f in DEFAULT_NEW_FIELDS if f['name'].lower() not in existing_col_names]
         else:
@@ -105,22 +93,15 @@ def preview_sql():
     data = request.json
     renames = data.get('renames', {})
     new_fields = data.get('new_fields', [])
-    
-    # Save config immediately so next load remembers these settings
     save_config({'renames': renames, 'adds': new_fields})
 
     sql = "-- DYNAMIC SCHEMA UPDATE\n\n"
-    
-    # Renames
     if renames:
         sql += "-- 1. Renames\n"
         for old, new in renames.items():
             if old != new:
-                # SQL Server requires sp_rename for columns
                 sql += f"IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'{old}' AND Object_ID = Object_ID(N'GenericDataImport'))\n"
                 sql += f"BEGIN\n    EXEC sp_rename 'GenericDataImport.{old}', '{new}', 'COLUMN';\nEND\nGO\n\n"
-
-    # Additions
     if new_fields:
         sql += "-- 2. New Columns\n"
         for f in new_fields:
@@ -130,15 +111,18 @@ def preview_sql():
             if default and 'IDENTITY' not in ftype.upper():
                 sql += f"    ALTER TABLE GenericDataImport ADD CONSTRAINT [DF_GDI_{name}] DEFAULT {default} FOR [{name}];\n"
             sql += "END\nGO\n\n"
-
     return jsonify({'success': True, 'sql': sql})
 
 @alter_db_bp.route('/api/tools/alter-db/execute', methods=['POST'])
 @login_required
 def execute_sql():
+    # Use same logic as preview to ensure consistency
+    return jsonify({'success': False, 'message': "Use /run endpoint for execution"}) 
+
+@alter_db_bp.route('/api/tools/alter-db/run', methods=['POST'])
+@login_required
+def run_migration():
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
-    
-    # Re-generate SQL logic internally to execute safely
     data = request.json
     renames = data.get('renames', {})
     new_fields = data.get('new_fields', [])
@@ -146,19 +130,16 @@ def execute_sql():
 
     try:
         with db.session.begin():
-            # Executing line-by-line (SQLAlchemy raw execution)
             for old, new in renames.items():
                 if old != new:
                     chk = text(f"SELECT 1 FROM sys.columns WHERE Name=:o AND Object_ID=Object_ID(N'GenericDataImport')")
                     if db.session.execute(chk, {'o': old}).fetchone():
                         db.session.execute(text(f"EXEC sp_rename 'GenericDataImport.{old}', '{new}', 'COLUMN'"))
-            
             for f in new_fields:
                 name, ftype = f['name'], f['type']
                 chk = text(f"SELECT 1 FROM sys.columns WHERE Name=:n AND Object_ID=Object_ID(N'GenericDataImport')")
                 if not db.session.execute(chk, {'n': name}).fetchone():
                     db.session.execute(text(f"ALTER TABLE GenericDataImport ADD [{name}] {ftype}"))
-                    
         return jsonify({'success': True, 'message': "Schema updated successfully."})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})

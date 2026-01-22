@@ -1,0 +1,24 @@
+<div class="modal fade" id="countiesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content custom-panel">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Enable Counties</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label>Select Enabled State</label>
+                    <select id="countyStateSelect" class="form-select" onchange="fetchCountiesForState()"></select>
+                </div>
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-transparent border-secondary text-light"><i class="bi bi-search"></i></span>
+                    <input type="text" id="countySearchInput" class="form-control border-secondary bg-transparent text-light" placeholder="Search counties..." onkeyup="filterCountiesTable()">
+                </div>
+                <table class="table table-hover align-middle">
+                    <thead><tr><th>County</th><th>Visibility</th><th class="text-end">Global Status / Visibility</th></tr></thead>
+                    <tbody id="countiesTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

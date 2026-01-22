@@ -1,0 +1,33 @@
+<div class="modal fade" id="keliModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel" style="border-color: #a370f7;">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" style="color: #a370f7;"><i class="bi bi-collection me-2"></i>Setup Keli Tables</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeKeliModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2 text-muted small">Target Directory:</p>
+                <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                    <i class="bi bi-folder-fill me-2" style="color: #a370f7;"></i>
+                    <span id="keliDisplayPath" class="text-light">Loading...</span>
+                </div>
+                <div id="keliProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Importing...</span>
+                        <span id="keliProgressText" class="text-light">0%</span>
+                    </div>
+                    <div class="progress" style="height: 10px; background-color: #333;">
+                        <div id="keliProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #a370f7;"></div>
+                    </div>
+                    <div id="keliCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                </div>
+                <div id="keliResult" class="text-center small"></div>
+                <input type="hidden" id="keliCountyId">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
+                <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
+            </div>
+        </div>
+    </div>
+</div>

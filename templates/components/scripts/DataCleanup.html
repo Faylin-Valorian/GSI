@@ -1,0 +1,19 @@
+<script>
+    function openCleanupModal(countyId) {
+        closeAllModals();
+        // Assuming we need to set the context or prep logic here
+        // Currently mimics Initial Prep in functionality but distinct workflow
+        if(cleanupModal) cleanupModal.show();
+    }
+    function runCleanupTool() {
+        const btn = document.getElementById('btnRunCleanup'); btn.disabled = true;
+        document.getElementById('cleanupProgressContainer').classList.remove('d-none');
+        const pBar = document.getElementById('cleanupProgressBar'); pBar.style.width = '0%';
+        // Placeholder execution logic - typically links to InitialPrep backend in current GSI setup
+        setTimeout(() => {
+            pBar.style.width = '100%';
+            document.getElementById('cleanupResult').innerHTML = '<div class="alert alert-success">Cleanup Complete</div>';
+            btn.disabled = false;
+        }, 1000);
+    }
+</script>

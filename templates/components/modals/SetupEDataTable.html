@@ -1,0 +1,41 @@
+<div class="modal fade" id="eDataModal" tabindex="-1" style="z-index: 1080;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content custom-panel border-success">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="bi bi-table me-2"></i>Setup eData Table</h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeEDataModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2 text-muted small">Target Directory:</p>
+                <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                    <i class="bi bi-folder2-open me-2 text-warning"></i>
+                    <span id="eDataDisplayPath" class="text-light">Loading...</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Import Mode</label>
+                    <select id="eDataImportMode" class="form-select border-secondary bg-transparent text-light">
+                        <option value="D" selected>Overwrite Existing Data (Drop)</option>
+                        <option value="A">Append to Existing Data (Append)</option>
+                    </select>
+                    <div class="form-text text-end small fst-italic text-muted">Select 'Overwrite' to clear table before importing.</div>
+                </div>
+                <div id="eDataProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Importing...</span>
+                        <span id="eDataProgressText" class="text-light">0%</span>
+                    </div>
+                    <div class="progress" style="height: 10px; background-color: #333;">
+                        <div id="eDataProgressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div>
+                    </div>
+                    <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                </div>
+                <div id="eDataResult" class="text-center small"></div>
+                <input type="hidden" id="eDataCountyId">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
+            </div>
+        </div>
+    </div>
+</div>

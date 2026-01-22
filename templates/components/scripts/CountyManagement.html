@@ -1,0 +1,26 @@
+<script>
+    function openCountiesModal() { closeAllModals(); if(countiesModal) countiesModal.show(); fetchEnabledStatesForCounties(); }
+    function closeCountiesModal() { if(countiesModal) countiesModal.hide(); }
+    function fetchEnabledStatesForCounties() {
+        fetch('/api/admin/states/list').then(r=>r.json()).then(data => {
+            const sel = document.getElementById('countyStateSelect'); sel.innerHTML = '<option value="">Select State...</option>';
+            data.filter(s=>s.status).forEach(s => { sel.innerHTML += `<option value="${s.id}">${s.name}</option>`; });
+        });
+    }
+    function fetchCountiesForState() {
+        const sid = document.getElementById('countyStateSelect').value;
+        if(!sid) return;
+        fetch(`/api/admin/counties/list/${sid}`).then(r=>r.json()).then(data => {
+            const b = document.getElementById('countiesTableBody'); b.innerHTML = '';
+            data.forEach(c => {
+                b.innerHTML += `<tr><td class="county-name">${c.name}</td>
+                <td><button class="btn btn-sm ${c.status ? 'btn-success' : 'btn-secondary'}" onclick="toggleCountyStatus(${c.id}, ${!c.status})">${c.status ? 'Visible' : 'Hidden'}</button></td>
+                <td class="text-end text-muted small">${c.status ? 'Active' : 'Inactive'}</td></tr>`;
+            });
+        });
+    }
+    function toggleCountyStatus(id, newStatus) {
+        fetch('/api/admin/counties/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:id, status:newStatus})})
+        .then(r=>r.json()).then(d=>{ if(d.success) fetchCountiesForState(); });
+    }
+</script>

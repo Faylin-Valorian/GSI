@@ -1,0 +1,13 @@
+<script>
+    function openProceduresModal() { closeAllModals(); if(proceduresModal) proceduresModal.show(); }
+    function closeProceduresModal() { if(proceduresModal) proceduresModal.hide(); document.getElementById('proceduresResult').innerHTML = ''; }
+    function submitProcedures() {
+        const btn = document.querySelector('#proceduresModal .btn-warning');
+        const resultDiv = document.getElementById('proceduresResult');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+        fetch('/api/tools/setup-procedures', { method: 'POST' }).then(r => r.json()).then(d => {
+            btn.disabled = false; btn.innerText = 'Yes, Execute';
+            resultDiv.innerHTML = d.success ? `<div class="alert alert-success mt-3 mb-0 py-2">${d.message}</div>` : `<div class="alert alert-danger mt-3 mb-0 py-2">${d.message}</div>`;
+        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">System Error</div>`; });
+    }
+</script>

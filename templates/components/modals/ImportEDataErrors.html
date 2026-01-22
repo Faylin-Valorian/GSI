@@ -1,0 +1,41 @@
+<div class="modal fade" id="importEDataErrorsModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content custom-panel" style="border-color: #dc3545;">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" style="color: #dc3545;"><i class="bi bi-upload me-2"></i>Import eData Errors</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2 text-muted small">Target Directory:</p>
+                <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                    <i class="bi bi-folder-fill me-2" style="color: #dc3545;"></i>
+                    <span id="importEdeDisplayPath" class="text-light">Loading...</span>
+                </div>
+                <div class="text-center mb-3">
+                    <span class="badge bg-secondary" id="importEdeFileCount">Scanning...</span>
+                </div>
+                <div id="importEdeProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Importing...</span>
+                        <span id="importEdeProgressText" class="text-light">0%</span>
+                    </div>
+                    <div class="progress bg-dark border border-secondary" style="height: 20px;">
+                        <div id="importEdeProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #dc3545;"></div>
+                    </div>
+                    <div id="importEdeCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                </div>
+                <div id="importEdeDebugPanel" class="d-none mt-3">
+                    <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug Logs</label>
+                    <div id="importEdeLogContent" class="bg-black border border-secondary p-2 small font-monospace text-muted" style="height: 150px; overflow-y: auto;"></div>
+                </div>
+                <div id="importEdeResult" class="text-center small mt-3"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
+                    <i class="bi bi-box-arrow-in-down me-1"></i>Run Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

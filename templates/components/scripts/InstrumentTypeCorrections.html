@@ -1,0 +1,18 @@
+<script>
+    var itcCountyId = null; 
+    function openInstCorrectionTool(id, s, c) {
+        closeAllModals(); itcCountyId = id;
+        document.getElementById('itcPathInput').value = `data/${s}/${c}/Images`;
+        if(instCorrectionModal) instCorrectionModal.show();
+        fetch('/api/tools/inst-corrections/init', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:id})}).then(r=>r.json()).then(d => { if(d.success) itcFetchList(); });
+    }
+    function itcFetchList() {
+        fetch('/api/tools/inst-corrections/list', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:itcCountyId, hide_completed:document.getElementById('itcHideCompleted').checked})}).then(r=>r.json()).then(d => {
+            const l = document.getElementById('itcRecordList'); l.innerHTML = '';
+            d.records.forEach(r => {
+                const d = document.createElement('div'); d.className='p-2 border-bottom text-white'; d.innerText=r.value; 
+                d.onclick=()=>{console.log("Load: "+r.value)}; l.appendChild(d);
+            });
+        });
+    }
+</script>

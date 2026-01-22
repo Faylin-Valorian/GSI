@@ -1,0 +1,44 @@
+<script>
+    function openEdataErrorsModal(id) {
+        closeAllModals(); document.getElementById('eDataCountyId').value = id; 
+        document.getElementById('edeResult').innerHTML = '';
+        if(document.getElementById('edeDebugPanel')) document.getElementById('edeDebugPanel').classList.add('d-none');
+        document.getElementById('edeProgressContainer').classList.add('d-none');
+        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+        if(edataErrorsModal) edataErrorsModal.show();
+        fetch(`/api/tools/edata-errors/get-defaults/${id}`).then(r=>r.json()).then(d=>{
+            if(d.success) { document.getElementById('edeBookStart').value = d.book_start; document.getElementById('edeBookEnd').value = d.book_end; document.getElementById('edeTownships').value = d.townships; }
+        });
+    }
+    function previewEdataErrors() {
+        const btn = document.getElementById('btnEdePreview'); btn.disabled = true;
+        fetch('/api/tools/edata-errors/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value, book_start: document.getElementById('edeBookStart').value, book_end: document.getElementById('edeBookEnd').value, townships: document.getElementById('edeTownships').value, split_images: document.getElementById('edeSplitImages').checked })
+        }).then(r => r.json()).then(d => {
+            btn.disabled = false;
+            if(d.success) { document.getElementById('edeDebugPanel').classList.remove('d-none'); document.getElementById('edeSqlPreview').value = d.sql; document.getElementById('edeResult').innerHTML = ''; }
+            else { document.getElementById('edeResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
+        }).catch(e => { btn.disabled = false; document.getElementById('edeResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+    function copyEdeSql() { navigator.clipboard.writeText(document.getElementById("edeSqlPreview").value); }
+    function runEdataErrors() {
+        const btn = document.getElementById('btnRunEde'); btn.disabled=true;
+        document.getElementById('edeProgressContainer').classList.remove('d-none');
+        const pBar=document.getElementById('edeProgressBar'); pBar.style.width = '0%';
+        document.getElementById('edeLogBox').innerHTML = '';
+        fetch('/api/tools/edata-errors/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ county_id: document.getElementById('eDataCountyId').value, book_start: document.getElementById('edeBookStart').value, book_end: document.getElementById('edeBookEnd').value, townships: document.getElementById('edeTownships').value, split_images: document.getElementById('edeSplitImages').checked })})
+        .then(response => {
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            function read() { reader.read().then(({ done, value }) => {
+                if (done) { btn.disabled = false; document.getElementById('edeResult').innerText = "Done"; pBar.style.width = '100%'; return; }
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { try { const d = JSON.parse(l); 
+                    if(d.type === 'progress') { pBar.style.width = d.percent + '%'; document.getElementById('edeProgressPercent').innerText = d.percent + '%'; }
+                    if(d.type === 'log') { const div = document.createElement('div'); div.innerText = d.message; document.getElementById('edeLogBox').appendChild(div); }
+                } catch(e){} });
+                read();
+            }); } read();
+        });
+    }
+</script>

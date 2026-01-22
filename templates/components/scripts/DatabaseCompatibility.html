@@ -1,0 +1,20 @@
+<script>
+    function openDbCompatModal() { closeAllModals(); if(dbCompatModal) dbCompatModal.show(); }
+    function closeDbCompatModal() { if(dbCompatModal) dbCompatModal.hide(); document.getElementById('dbCompatResult').innerHTML = ''; }
+    function closeDowngradeModal() { if(dbDowngradeModal) dbDowngradeModal.hide(); }
+    function confirmDowngrade() { if(dbDowngradeModal) dbDowngradeModal.hide(); submitDbCompat(true); }
+    function submitDbCompat(isConfirmed = false) {
+        const btn = document.querySelector('#dbCompatModal .btn-info');
+        const resultDiv = document.getElementById('dbCompatResult');
+        const levelVal = document.getElementById('targetCompatLevel').value;
+        if(!levelVal) { resultDiv.innerHTML = '<span class="text-warning">Please enter a value.</span>'; return; }
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> ' + (isConfirmed ? 'Updating...' : 'Checking...');
+        fetch('/api/tools/db-compatibility', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ target_level: levelVal, confirmed: isConfirmed }) })
+        .then(r => r.json()).then(d => {
+            btn.disabled = false; btn.innerText = 'Update Level';
+            if (d.success) resultDiv.innerHTML = `<div class="alert alert-success mt-2 mb-0 py-2">${d.message}</div>`;
+            else if (d.requires_confirmation) { document.getElementById('dbDowngradeMessage').innerText = d.message; if(dbDowngradeModal) dbDowngradeModal.show(); }
+            else resultDiv.innerHTML = `<div class="alert alert-warning mt-2 mb-0 py-2">${d.message}</div>`;
+        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger mt-2 mb-0 py-2">Request Failed</div>`; });
+    }
+</script>

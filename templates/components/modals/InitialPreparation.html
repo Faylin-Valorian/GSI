@@ -1,0 +1,43 @@
+<div class="modal fade" id="initialPrepModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-info"><i class="bi bi-magic me-2"></i>Initial Preparation Tool</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-dark border-secondary d-flex align-items-center mb-4">
+                    <i class="bi bi-info-circle-fill fs-3 me-3 text-info"></i>
+                    <div><strong>Database Preparation Routine</strong><br><small class="text-muted">Standardizes filenames, generates IDs, creates Keli tables.</small></div>
+                </div>
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-2 d-flex justify-content-between align-items-center">
+                        <span class="small text-muted text-uppercase fw-bold"><i class="bi bi-images me-2"></i>Image Path Cleanup</span>
+                        <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="prepToggleBook" onchange="togglePrepBookInputs()"></div>
+                    </div>
+                    <div class="card-body py-3 d-none" id="prepBookInputsContainer">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-auto"><label class="col-form-label small text-light">Book Start:</label></div>
+                            <div class="col-auto"><input type="text" id="prepBookStart" class="form-control form-control-sm bg-black text-light border-secondary" placeholder="---"></div>
+                            <div class="col-auto ms-3"><label class="col-form-label small text-light">Book End:</label></div>
+                            <div class="col-auto"><input type="text" id="prepBookEnd" class="form-control form-control-sm bg-black text-light border-secondary" placeholder="---"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="prepProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1"><label class="small text-info" id="prepProgressLabel">Processing...</label><span class="small text-muted" id="prepProgressPercent">0%</span></div>
+                    <div class="progress bg-dark border border-secondary" style="height: 20px;"><div id="prepProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%"></div></div>
+                </div>
+                <div id="prepDebugPanel" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-end mb-1"><label class="text-warning small fw-bold">Debug: SQL Preview</label><button class="btn btn-xs btn-outline-secondary" onclick="copyPrepSql()">Copy</button></div>
+                    <textarea id="prepSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 150px;" readonly></textarea>
+                </div>
+                <div id="prepResult" class="text-center small mt-3"></div>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnPrepPreview" onclick="previewPrepSql()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
+                <div><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-info fw-bold text-dark" onclick="runPrepTool()" id="btnRunPrep"><i class="bi bi-play-fill me-1"></i>Run Preparation</button></div>
+            </div>
+        </div>
+    </div>
+</div>

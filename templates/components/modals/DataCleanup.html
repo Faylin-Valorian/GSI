@@ -1,0 +1,33 @@
+<div class="modal fade" id="cleanupModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content custom-panel border-info">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-info"><i class="bi bi-magic me-2"></i>Initial Data Preparation</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-dark border-secondary d-flex align-items-center mb-4">
+                    <i class="bi bi-info-circle-fill fs-3 me-3 text-info"></i>
+                    <div><strong>Standardization Routine</strong><br><small class="text-muted">Runs 7 processing steps including: Backup, Filename Normalization, Instrument ID Generation, and Legal Injection.</small></div>
+                </div>
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-2 d-flex justify-content-between align-items-center">
+                        <span class="small text-muted text-uppercase fw-bold">Configuration</span>
+                        </div>
+                    <div class="card-body py-3">
+                        <p class="text-muted small">This tool will execute the standard cleanup procedure on the selected county.</p>
+                    </div>
+                </div>
+                <div id="cleanupProgressContainer" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1"><label class="small text-info">Processing...</label><span class="small text-muted" id="cleanupProgressPercent">0%</span></div>
+                    <div class="progress bg-dark border border-secondary" style="height: 20px;"><div id="cleanupProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%"></div></div>
+                </div>
+                <div id="cleanupResult" class="text-center small mt-3"></div>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div></div>
+                <div><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-info fw-bold text-dark" onclick="runCleanupTool()" id="btnRunCleanup"><i class="bi bi-play-fill me-1"></i>Run Cleanup</button></div>
+            </div>
+        </div>
+    </div>
+</div>
