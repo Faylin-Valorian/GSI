@@ -1,7 +1,53 @@
 <script>
     // ==========================================
-    // EDATA TOOLS (Integrated)
+    // EDATA TOOLS & GLOBAL DEBUG LOGIC
     // ==========================================
+
+    // --- CENTRALIZED DEBUG VISIBILITY ---
+    // This function controls ALL "Generate Preview" buttons across the app
+    function updateToolDebugVisibility() {
+        const toggle = document.getElementById('debugModeToggle');
+        // Default to false if toggle doesn't exist
+        const isDebug = toggle ? toggle.checked : false;
+        
+        // List of all preview buttons to manage
+        const buttons = [
+            'btnEdePreview',       // eData Errors
+            'btnAlterDbPreview',   // Alter DB Fields
+            'btnLinkupPreview',    // Keli Linkup
+            'btnPrepPreview'       // Initial Prep
+        ];
+        
+        buttons.forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                if (isDebug) {
+                    btn.classList.remove('d-none');
+                } else {
+                    btn.classList.add('d-none');
+                }
+            }
+        });
+    }
+
+    // Initialize Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        const toggle = document.getElementById('debugModeToggle');
+        
+        // 1. Listen for toggle changes
+        if(toggle) {
+            toggle.addEventListener('change', updateToolDebugVisibility);
+        }
+        
+        // 2. Run immediately on load
+        updateToolDebugVisibility();
+        
+        // 3. Force check when any relevant modal opens (failsafe)
+        const modals = document.querySelectorAll('.modal');
+        modals.forEach(m => {
+            m.addEventListener('shown.bs.modal', updateToolDebugVisibility);
+        });
+    });
 
     // --- SETUP EDATA TABLE ---
     function openEDataModal(id, stateName, countyName) { 
@@ -38,7 +84,7 @@
                     const d = JSON.parse(l);
                     if(d.type==='progress') {
                         document.getElementById('eDataProgressBar').style.width = d.percent+'%';
-                        document.getElementById('eDataProgressText').innerText = d.percent+'%'; // FIX: Update Text
+                        document.getElementById('eDataProgressText').innerText = d.percent+'%';
                     }
                     if(d.type==='complete') {
                         document.getElementById('eDataProgressBar').style.width = '100%';
@@ -88,10 +134,19 @@
         });
     }
 
-    // --- SCAN EDATA ERRORS ---
+    // --- EDATA ERRORS ---
     function openEdataErrorsModal(id) {
         closeAllModals();
         document.getElementById('eDataCountyId').value = id; 
+        
+        // Reset UI
+        document.getElementById('edeResult').innerHTML = '';
+        document.getElementById('edeDebugPanel').classList.add('d-none');
+        document.getElementById('edeProgressContainer').classList.add('d-none');
+        
+        // Ensure visibility is correct on open
+        updateToolDebugVisibility();
+        
         if(edataErrorsModal) edataErrorsModal.show();
         fetch(`/api/tools/edata-errors/get-defaults/${id}`).then(r=>r.json()).then(d=>{
             if(d.success) {
@@ -101,6 +156,44 @@
             }
         });
     }
+
+    function previewEdataErrors() {
+        const btn = document.getElementById('btnEdePreview');
+        const textarea = document.getElementById('edeSqlPreview');
+        const resultDiv = document.getElementById('edeResult');
+        btn.disabled = true;
+
+        const payload = {
+            county_id: document.getElementById('eDataCountyId').value,
+            book_start: document.getElementById('edeBookStart').value,
+            book_end: document.getElementById('edeBookEnd').value,
+            townships: document.getElementById('edeTownships').value,
+            split_images: document.getElementById('edeSplitImages').checked
+        };
+
+        fetch('/api/tools/edata-errors/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false;
+            if(d.success) {
+                document.getElementById('edeDebugPanel').classList.remove('d-none');
+                textarea.value = d.sql;
+                resultDiv.innerHTML = '';
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+            }
+        })
+        .catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+
+    function copyEdeSql() {
+        const copyText = document.getElementById("edeSqlPreview");
+        copyText.select();
+        navigator.clipboard.writeText(copyText.value);
+    }
+
     function runEdataErrors() {
         const id = document.getElementById('eDataCountyId').value;
         const btn = document.getElementById('btnRunEde'); btn.disabled=true;
@@ -109,6 +202,7 @@
         document.getElementById('edeProgressContainer').classList.remove('d-none');
         document.getElementById('edeProgressBar').style.width = '0%';
         document.getElementById('edeProgressPercent').innerText = '0%';
+        document.getElementById('edeLogBox').innerHTML = '';
 
         fetch('/api/tools/edata-errors/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
             county_id: id,
@@ -132,7 +226,12 @@
                             const d = JSON.parse(l);
                             if(d.type === 'progress') {
                                 document.getElementById('edeProgressBar').style.width = d.percent + '%';
-                                document.getElementById('edeProgressPercent').innerText = d.percent + '%'; // FIX
+                                document.getElementById('edeProgressPercent').innerText = d.percent + '%'; 
+                            }
+                            if(d.type === 'log') {
+                                const div = document.createElement('div');
+                                div.innerText = d.message;
+                                document.getElementById('edeLogBox').appendChild(div);
                             }
                         } catch(e){}
                     });
@@ -145,7 +244,6 @@
 
     // --- IMPORT EDATA ERRORS ---
     var currentImportEdeCountyId = null; 
-    
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
         if(importEdeModal) importEdeModal.show();
@@ -154,6 +252,8 @@
         document.getElementById('importEdeResult').innerText = '';
         document.getElementById('importEdeProgressContainer').classList.add('d-none');
         
+        // Ensure visibility logic runs
+        updateToolDebugVisibility();
         const debug = document.getElementById('debugModeToggle') && document.getElementById('debugModeToggle').checked;
         if(debug) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
         
@@ -177,7 +277,6 @@
         const pText = document.getElementById('importEdeProgressText');
         const logBox = document.getElementById('importEdeLogContent');
 
-        // Reset
         pBar.style.width = '0%';
         pText.innerText = '0%';
         if(logBox) logBox.innerHTML = '';
@@ -187,7 +286,6 @@
         .then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
             let hasProgress = false;
-
             function read() { reader.read().then(({ done, value }) => {
                 if (done) { 
                     btn.disabled = false; 
@@ -204,7 +302,7 @@
                         if(d.type==='progress') {
                             hasProgress = true;
                             pBar.style.width = d.percent + '%';
-                            pText.innerText = d.percent + '%'; // FIX
+                            pText.innerText = d.percent + '%';
                         }
                         if(d.type==='log' && logBox) { const div = document.createElement('div'); div.innerText = d.message; logBox.appendChild(div); }
                         if(d.type==='complete') {

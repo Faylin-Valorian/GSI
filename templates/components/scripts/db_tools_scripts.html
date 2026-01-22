@@ -1,100 +1,106 @@
 <script>
     // ==========================================
-    // 4. DATABASE TOOLS (Drive, Compat, Proc)
+    // DB TOOLS SCRIPTS (Maintenance & Updates)
     // ==========================================
-    
-    // --- DRIVE CONNECTION ---
-    function openDriveModal() { driveModal.show(); }
-    function closeDriveModal() { driveModal.hide(); document.getElementById('driveResult').innerHTML = ''; }
-    function submitDriveConnection() {
-        const btn = document.querySelector('#driveModal .btn-primary');
-        const resultDiv = document.getElementById('driveResult');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Connecting...'; resultDiv.innerHTML = '';
 
-        const payload = {
-            drive_letter: document.getElementById('driveLetter').value,
-            network_path: document.getElementById('drivePath').value,
-            username: document.getElementById('driveUser').value,
-            password: document.getElementById('drivePass').value
-        };
-
-        fetch('/api/tools/connect-drive', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
-        .then(r => r.json()).then(d => {
-            btn.disabled = false; btn.innerHTML = '<i class="bi bi-plug-fill me-2"></i>Connect';
-            if (d.success) {
-                resultDiv.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle me-2"></i>${d.message}</span>`;
-                setTimeout(closeDriveModal, 2000);
-            } else {
-                resultDiv.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-2"></i>${d.message}</span>`;
-            }
-        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<span class="text-danger">Request Failed</span>`; });
-    }
-
-    // --- DB COMPATIBILITY ---
-    function openDbCompatModal() { dbCompatModal.show(); }
-    function closeDbCompatModal() { dbCompatModal.hide(); document.getElementById('dbCompatResult').innerHTML = ''; document.getElementById('targetCompatLevel').value = ''; }
-    
-    function closeDowngradeModal() {
-        dbDowngradeModal.hide();
-        document.getElementById('dbCompatResult').innerHTML = `<div class="alert alert-secondary mt-2 mb-0 py-2">Action Cancelled</div>`;
-    }
-
-    function confirmDowngrade() {
-        dbDowngradeModal.hide();
-        submitDbCompat(true); 
-    }
-
-    function submitDbCompat(isConfirmed = false) {
-        const btn = document.querySelector('#dbCompatModal .btn-info');
-        const resultDiv = document.getElementById('dbCompatResult');
-        const levelVal = document.getElementById('targetCompatLevel').value;
+    // --- ALTER DB FIELDS TOOL ---
+    function openAlterDbModal() {
+        closeAllModals();
         
-        if(!levelVal) { resultDiv.innerHTML = '<span class="text-warning">Please enter a value.</span>'; return; }
-
-        btn.disabled = true; 
-        if(!isConfirmed) btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Checking...';
-        else btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Updating...';
+        // 1. Reset UI
+        document.getElementById('alterDbStatusMsg').innerText = 'Ready';
+        document.getElementById('btnRunAlterDb').disabled = true;
+        document.getElementById('alterDbSqlPreview').innerText = '-- Click \'Generate SQL Preview\' to analyze the database state...';
+        document.getElementById('alterDbLoader').classList.add('d-none');
         
-        resultDiv.innerHTML = '';
+        // 2. Check Global Debug State & Update Button Visibility
+        // This relies on the global function in tools_edata.html, but we also manually check here to be safe
+        const toggle = document.getElementById('debugModeToggle');
+        const btn = document.getElementById('btnAlterDbPreview');
+        if (toggle && btn) {
+            if (toggle.checked) btn.classList.remove('d-none');
+            else btn.classList.add('d-none');
+        }
 
-        fetch('/api/tools/db-compatibility', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ target_level: levelVal, confirmed: isConfirmed }) 
+        // 3. Show Modal
+        if(alterDbModal) alterDbModal.show();
+    }
+
+    function previewAlterDb() {
+        const btn = document.getElementById('btnAlterDbPreview');
+        const previewBox = document.getElementById('alterDbSqlPreview');
+        const loader = document.getElementById('alterDbLoader');
+        
+        btn.disabled = true;
+        loader.classList.remove('d-none');
+        previewBox.innerText = '-- Generating Preview...';
+
+        fetch('/api/tools/alter-db/preview', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}
         })
         .then(r => r.json())
         .then(d => {
-            btn.disabled = false; btn.innerText = 'Update Level';
-            
-            if (d.success) { 
-                resultDiv.innerHTML = `<div class="alert alert-success mt-2 mb-0 py-2"><i class="bi bi-check-circle me-2"></i>${d.message}</div>`; 
-            } 
-            else if (d.requires_confirmation) {
-                document.getElementById('dbDowngradeMessage').innerText = d.message;
-                dbDowngradeModal.show();
+            loader.classList.add('d-none');
+            btn.disabled = false;
+            if(d.success) {
+                previewBox.innerText = d.sql;
+                // Enable run button if there are valid changes
+                document.getElementById('btnRunAlterDb').disabled = false;
+                document.getElementById('alterDbStatusMsg').innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>Plan Generated</span>`;
+            } else {
+                previewBox.innerText = '-- Error: ' + d.message;
+                document.getElementById('alterDbStatusMsg').innerText = 'Error generating plan';
             }
-            else { 
-                resultDiv.innerHTML = `<div class="alert alert-warning mt-2 mb-0 py-2"><i class="bi bi-info-circle me-2"></i>${d.message}</div>`; 
-            }
-        }).catch(e => { 
-            btn.disabled = false; btn.innerText = 'Update Level';
-            resultDiv.innerHTML = `<div class="alert alert-danger mt-2 mb-0 py-2">Request Failed</div>`; 
+        })
+        .catch(e => {
+            loader.classList.add('d-none');
+            btn.disabled = false;
+            previewBox.innerText = '-- Connection Error: ' + e;
         });
     }
 
-    // --- PROCEDURES ---
-    function openProceduresModal() { proceduresModal.show(); }
-    function closeProceduresModal() { proceduresModal.hide(); document.getElementById('proceduresResult').innerHTML = ''; }
-    function submitProcedures() {
-        const btn = document.querySelector('#proceduresModal .btn-warning');
-        const resultDiv = document.getElementById('proceduresResult');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...'; resultDiv.innerHTML = '';
-
-        fetch('/api/tools/setup-procedures', { method: 'POST' })
-        .then(r => r.json()).then(d => {
-            btn.disabled = false; btn.innerText = 'Yes, Execute';
-            if (d.success) { resultDiv.innerHTML = `<div class="alert alert-success mt-3 mb-0 py-2"><i class="bi bi-check-circle me-2"></i>${d.message}</div>`; } 
-            else { resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2"><i class="bi bi-exclamation-triangle me-2"></i>${d.message}</div>`; }
-        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<div class="alert alert-danger mt-3 mb-0 py-2">System Error</div>`; });
+    function copyAlterDbSql() {
+        const text = document.getElementById('alterDbSqlPreview').innerText;
+        navigator.clipboard.writeText(text);
+        showNotification('SQL copied to clipboard');
     }
+
+    function runAlterDbMigration() {
+        const btn = document.getElementById('btnRunAlterDb');
+        const status = document.getElementById('alterDbStatusMsg');
+        btn.disabled = true;
+        status.innerHTML = '<span class="text-warning"><i class="spinner-border spinner-border-sm me-1"></i>Executing...</span>';
+
+        fetch('/api/tools/alter-db/execute', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}
+        })
+        .then(r => r.json())
+        .then(d => {
+            btn.disabled = false;
+            if(d.success) {
+                status.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-lg me-1"></i>Success!</span>`;
+                document.getElementById('alterDbSqlPreview').innerText += '\n\n-- EXECUTION COMPLETE: ' + d.message;
+            } else {
+                status.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>`;
+                document.getElementById('alterDbSqlPreview').innerText += '\n\n-- ERROR: ' + d.message;
+            }
+        })
+        .catch(e => {
+            btn.disabled = false;
+            status.innerText = 'Connection Error';
+        });
+    }
+
+    // --- OTHER DB TOOLS (Stubs for existing functions) ---
+    function openProceduresModal() { closeAllModals(); if(proceduresModal) proceduresModal.show(); }
+    function closeProceduresModal() { if(proceduresModal) proceduresModal.hide(); }
+    
+    function openDbCompatModal() { closeAllModals(); if(dbCompatModal) dbCompatModal.show(); }
+    function closeDbCompatModal() { if(dbCompatModal) dbCompatModal.hide(); }
+
+    function openPatchModal() { closeAllModals(); if(patchModal) patchModal.show(); }
+    function closePatchModal() { if(patchModal) patchModal.hide(); }
+
+    function openDriveModal() { closeAllModals(); if(driveModal) driveModal.show(); }
+    function closeDriveModal() { if(driveModal) driveModal.hide(); }
 </script>

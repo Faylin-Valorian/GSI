@@ -179,6 +179,70 @@ SPLIT_OVERRIDES = {
     """
 }
 
+# --- HELPER: FORMAT TOWNSHIPS ---
+def parse_townships(townships_str):
+    formatted = "''"
+    if townships_str:
+        try:
+            reader = csv.reader([townships_str], quotechar="'", delimiter=',', skipinitialspace=True)
+            parts = []
+            for row in reader:
+                for item in row:
+                    if item.strip(): parts.append(f"'{item.strip()}'")
+            if parts: formatted = ", ".join(parts)
+        except:
+            parts = [f"'{t.strip()}'" for t in townships_str.split(',') if t.strip()]
+            if parts: formatted = ", ".join(parts)
+    return formatted
+
+@edata_errors_bp.route('/api/tools/edata-errors/preview', methods=['POST'])
+@login_required
+def preview_edata_errors():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    data = request.json
+    county_id = data.get('county_id')
+    book_start = data.get('book_start', '000000')
+    book_end = data.get('book_end', '999999')
+    townships = data.get('townships', '')
+    is_split_mode = data.get('split_images', False)
+
+    c = db.session.get(IndexingCounties, county_id)
+    if not c: return jsonify({'success': False, 'message': 'County not found'})
+
+    formatted_townships = parse_townships(townships)
+    
+    full_script = f"-- PREVIEW: eData Errors for {c.county_name}\n"
+    full_script += f"-- Book Range: {book_start} to {book_end}\n"
+    full_script += f"-- Split Mode: {is_split_mode}\n\n"
+
+    for filename, partial_sql in QUERIES.items():
+        if is_split_mode and filename in SPLIT_OVERRIDES:
+            partial_sql = SPLIT_OVERRIDES[filename]
+            full_script += f"-- [SPLIT OVERRIDE] {filename}\n"
+        else:
+            full_script += f"-- {filename}\n"
+            
+        current_sql = partial_sql.strip()
+        if not current_sql.lower().startswith('select'):
+            current_sql = BASE_SQL + current_sql
+        
+        # Inject Params
+        if '{0}' in current_sql and '{1}' in current_sql:
+            current_sql = current_sql.replace('{0}', str(book_start)).replace('{1}', str(book_end))
+        elif '{0}' in current_sql:
+            current_sql = current_sql.replace('{0}', formatted_townships)
+            
+        # Renaming
+        current_sql = current_sql.replace('fromkellprorecord_series', f"{c.county_name}_keli_record_series")
+        current_sql = current_sql.replace('fromkellproinstrument_types', f"{c.county_name}_keli_instrument_types")
+        current_sql = current_sql.replace('fromkellproadditions', f"{c.county_name}_keli_additions")
+        current_sql = current_sql.replace('fromkellprocombined_manifest', f"{c.county_name}_keli_combined_manifest")
+
+        full_script += current_sql + "\n\n"
+
+    return jsonify({'success': True, 'sql': full_script})
+
 @edata_errors_bp.route('/api/tools/edata-errors/execute', methods=['POST'])
 @login_required
 def execute_edata_errors():
@@ -189,38 +253,18 @@ def execute_edata_errors():
     book_start = data.get('book_start')
     book_end = data.get('book_end')
     townships = data.get('townships') 
-    is_split_mode = data.get('split_images', False) # Check Toggle
+    is_split_mode = data.get('split_images', False)
     
     c = db.session.get(IndexingCounties, county_id)
     if not c: return jsonify({'success': False, 'message': 'County not found'})
 
-    # 1. Define Paths
     state_obj = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
     if not state_obj: return jsonify({'success': False, 'message': 'State configuration error.'})
 
     base_path = os.path.join(current_app.root_path, 'data', secure_filename(state_obj.state_name), secure_filename(c.county_name), 'eData Errors')
     if not os.path.exists(base_path): os.makedirs(base_path)
 
-    # 2. Format Township List
-    formatted_townships = "''" 
-    if townships:
-        # Use csv module to handle quoted input string (e.g. "'1N,1W', '2N,2W'") 
-        # so that internal commas in '1N,1W' are not split
-        try:
-            reader = csv.reader([townships], quotechar="'", delimiter=',', skipinitialspace=True)
-            parts = []
-            for row in reader:
-                for item in row:
-                    if item.strip():
-                        parts.append(f"'{item.strip()}'")
-            if parts:
-                formatted_townships = ", ".join(parts)
-        except Exception as e:
-            current_app.logger.error(f"Error parsing townships: {e}")
-            # Fallback to simple split if parsing fails (unsafe for commas)
-            parts = [f"'{t.strip()}'" for t in townships.split(',') if t.strip()]
-            if parts: formatted_townships = ", ".join(parts)
-
+    formatted_townships = parse_townships(townships)
     total_queries = len(QUERIES)
 
     def generate_stream():
@@ -234,17 +278,14 @@ def execute_edata_errors():
                 for filename, partial_sql in QUERIES.items():
                     processed_count += 1
                     
-                    # 3. Determine SQL (Standard or Override)
                     if is_split_mode and filename in SPLIT_OVERRIDES:
                         partial_sql = SPLIT_OVERRIDES[filename]
                         yield json.dumps({'type': 'log', 'message': f"Using Split Image logic for {filename}"}) + '\n'
 
-                    # 4. Construct Full SQL
                     current_sql = partial_sql.strip()
                     if not current_sql.lower().startswith('select'):
                         current_sql = BASE_SQL + current_sql
                     
-                    # 5. Inject Parameters
                     if '{0}' in current_sql and '{1}' in current_sql:
                          if not book_start or not book_end:
                              yield json.dumps({'type': 'log', 'message': f"Skipping {filename}: Missing Book Range"}) + '\n'
@@ -253,13 +294,11 @@ def execute_edata_errors():
                     elif '{0}' in current_sql:
                         current_sql = current_sql.replace('{0}', formatted_townships)
 
-                    # 6. Dynamic Table Renaming
                     current_sql = current_sql.replace('fromkellprorecord_series', f"{c.county_name}_keli_record_series")
                     current_sql = current_sql.replace('fromkellproinstrument_types', f"{c.county_name}_keli_instrument_types")
                     current_sql = current_sql.replace('fromkellproadditions', f"{c.county_name}_keli_additions")
                     current_sql = current_sql.replace('fromkellprocombined_manifest', f"{c.county_name}_keli_combined_manifest")
 
-                    # 7. Execute
                     try:
                         result = db.session.execute(text(current_sql))
                         rows = result.fetchall()
@@ -307,7 +346,6 @@ def get_edata_defaults(county_id):
             sql = f"SELECT Township, Range FROM [{table_name}] WHERE Active = 1"
             rows = db.session.execute(text(sql)).fetchall()
             if rows:
-                # Wrap values in single quotes to handle internal commas (e.g. '1N,1W')
                 t_list = [f"'{r[0]},{r[1]}'" for r in rows if r[0] and r[1]]
                 townships_str = ", ".join(t_list)
         except Exception:

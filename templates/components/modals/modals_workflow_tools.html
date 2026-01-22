@@ -367,14 +367,31 @@
                     <div id="edeLogBox" class="mt-2 p-2 bg-black border border-secondary text-muted font-monospace small" style="height: 100px; overflow-y: auto; font-size: 0.7rem;"></div>
                 </div>
 
+                <div id="edeDebugPanel" class="d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-end mb-1">
+                        <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug: SQL Preview</label>
+                        <div>
+                            <button class="btn btn-xs btn-outline-secondary" onclick="copyEdeSql()">Copy</button>
+                        </div>
+                    </div>
+                    <textarea id="edeSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 200px; font-size: 0.8rem; resize: vertical;" readonly></textarea>
+                </div>
+
                 <div id="edeResult" class="text-center small mt-3"></div>
             </div>
 
-            <div class="modal-footer border-secondary justify-content-end">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runEdataErrors()" id="btnRunEde">
-                    <i class="bi bi-play-fill me-1"></i>Run Scan
-                </button>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div>
+                    <button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnEdePreview" onclick="previewEdataErrors()">
+                        <i class="bi bi-file-earmark-code me-1"></i>Generate Preview
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runEdataErrors()" id="btnRunEde">
+                        <i class="bi bi-play-fill me-1"></i>Run Scan
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -508,7 +525,7 @@
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <button class="btn btn-outline-primary" onclick="previewAlterDb()">
+                    <button id="btnAlterDbPreview" class="btn btn-outline-primary d-none" onclick="previewAlterDb()">
                         <i class="bi bi-code-square me-2"></i>Generate SQL Preview
                     </button>
                     

@@ -215,7 +215,6 @@
 
     // --- KELI LINKUP ---
     var currentLinkupCountyId = null, linkupDefaultsCache = null; 
-
     function openLinkupModal(passedId) {
         closeAllModals(); 
         let countyId = passedId || (typeof selectedCountyId !== 'undefined' ? selectedCountyId : null);
@@ -234,11 +233,11 @@
         document.getElementById('linkupPathContainer').classList.add('d-none');
         document.getElementById('linkupProgressContainer').classList.add('d-none');
         document.getElementById('linkupDebugPanel').classList.add('d-none');
-
-        // Check Debug state
+        
+        // Check Debug State
         updateDebugVisibility();
 
-        // Fetch Defaults (Optional, doesn't block inputs anymore)
+        // Fetch Defaults (Optional)
         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`).then(r=>r.json()).then(d=>{
             if(d.success && d.found) {
                 linkupDefaultsCache = {start:d.book_start, end:d.book_end, path:d.path_prefix};
@@ -260,6 +259,7 @@
             document.getElementById('linkupBookContainer').classList.remove('d-none');
         } else { document.getElementById('linkupBookContainer').classList.add('d-none'); }
     }
+    
     function toggleLinkupPathInput() {
         if(document.getElementById('linkupTogglePath').checked) {
             document.getElementById('linkupPathContainer').classList.remove('d-none');
@@ -324,7 +324,10 @@
 
         document.getElementById('linkupProgressContainer').classList.remove('d-none');
         const pBar = document.getElementById('linkupProgressBar');
-        const pText = document.getElementById('linkupProgressText');
+        
+        // FIX: Correct ID is linkupProgressPercent, NOT linkupProgressText
+        const pText = document.getElementById('linkupProgressPercent');
+        
         pBar.style.width = '0%';
         pText.innerText = '0%';
         resultDiv.innerHTML = '';
