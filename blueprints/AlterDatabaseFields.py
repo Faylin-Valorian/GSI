@@ -31,15 +31,15 @@ DEFAULT_RENAMES = {
     'col17other': 'addition_external_id',
     'col18other': 'township_range_internal_id',
     'col19other': 'township_range_external_id',
-    'col20other': 'legacy_ref'
+    'col20other': 'col20other'
 }
 
 DEFAULT_NEW_FIELDS = [
-    {'name': 'instrumentid', 'type': 'INT IDENTITY(1,1)', 'default': ''},
+    {'name': 'instrumentid', 'type': 'INT', 'default': ''},
     {'name': 'change_script_locations', 'type': 'VARCHAR(MAX)', 'default': ''},
     {'name': 'instTypeOriginal', 'type': 'VARCHAR(255)', 'default': ''},
     {'name': 'keyOriginalValue', 'type': 'VARCHAR(255)', 'default': ''},
-    {'name': 'deleteFlag', 'type': 'VARCHAR(10)', 'default': "'FALSE'"}
+    {'name': 'deleteFlag', 'type': 'VARCHAR(10)', 'default': ''}
 ]
 
 def load_config():
@@ -129,17 +129,19 @@ def run_migration():
     save_config({'renames': renames, 'adds': new_fields})
 
     try:
-        with db.session.begin():
-            for old, new in renames.items():
-                if old != new:
-                    chk = text(f"SELECT 1 FROM sys.columns WHERE Name=:o AND Object_ID=Object_ID(N'GenericDataImport')")
-                    if db.session.execute(chk, {'o': old}).fetchone():
-                        db.session.execute(text(f"EXEC sp_rename 'GenericDataImport.{old}', '{new}', 'COLUMN'"))
-            for f in new_fields:
-                name, ftype = f['name'], f['type']
-                chk = text(f"SELECT 1 FROM sys.columns WHERE Name=:n AND Object_ID=Object_ID(N'GenericDataImport')")
-                if not db.session.execute(chk, {'n': name}).fetchone():
-                    db.session.execute(text(f"ALTER TABLE GenericDataImport ADD [{name}] {ftype}"))
+        for old, new in renames.items():
+            if old != new:
+                chk = text(f"SELECT 1 FROM sys.columns WHERE Name=:o AND Object_ID=Object_ID(N'GenericDataImport')")
+                if db.session.execute(chk, {'o': old}).fetchone():
+                    db.session.execute(text(f"EXEC sp_rename 'GenericDataImport.{old}', '{new}', 'COLUMN'"))
+        
+        for f in new_fields:
+            name, ftype = f['name'], f['type']
+            chk = text(f"SELECT 1 FROM sys.columns WHERE Name=:n AND Object_ID=Object_ID(N'GenericDataImport')")
+            if not db.session.execute(chk, {'n': name}).fetchone():
+                db.session.execute(text(f"ALTER TABLE GenericDataImport ADD [{name}] {ftype}"))
+        
+        db.session.commit()
         return jsonify({'success': True, 'message': "Schema updated successfully."})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})

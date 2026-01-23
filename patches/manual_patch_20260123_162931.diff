@@ -1,0 +1,16 @@
+--- a/blueprints/AlterDatabaseFields.py
++++ b/blueprints/AlterDatabaseFields.py
+@@ -34,11 +34,11 @@
+ }
+ 
+ DEFAULT_NEW_FIELDS = [
+-    {'name': 'instrumentid', 'type': 'INT IDENTITY(1,1)', 'default': ''},
++    {'name': 'instrumentid', 'type': 'INT', 'default': ''},
+     {'name': 'change_script_locations', 'type': 'VARCHAR(MAX)', 'default': ''},
+     {'name': 'instTypeOriginal', 'type': 'VARCHAR(255)', 'default': ''},
+     {'name': 'keyOriginalValue', 'type': 'VARCHAR(255)', 'default': ''},
+-    {'name': 'deleteFlag', 'type': 'VARCHAR(10)', 'default': "'FALSE'"}
++    {'name': 'deleteFlag', 'type': 'VARCHAR(10)', 'default': ''}
+ ]
+ 
+ def load_config():

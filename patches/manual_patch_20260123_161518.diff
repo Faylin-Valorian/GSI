@@ -1,0 +1,19 @@
+--- a/blueprints/PatchManager.py
++++ b/blueprints/PatchManager.py
+@@ -66,9 +66,13 @@
+ 
+ # --- RESTART UTILS ---
+ def restart_server():
+-    print(" >>> SYSTEM UPDATE COMPLETE. RESTARTING SERVICE IN 5 SECONDS...")
+-    time.sleep(5) # Increased delay to ensure response is sent
++    print(" >>> SYSTEM UPDATE COMPLETE.")
++    
++    # Check if running with Flask Auto-Reloader (Development Mode)
++    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
++        print(" >>> DETECTED FLASK RELOADER: Letting file change trigger auto-restart.")
++        return
++
++    print(" >>> RESTARTING SERVICE IN 5 SECONDS...")
++    time.sleep(5) 
+     print(" >>> RESTARTING NOW...")
+     os.execv(sys.executable, [sys.executable] + sys.argv)

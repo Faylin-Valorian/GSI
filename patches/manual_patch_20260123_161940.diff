@@ -1,0 +1,32 @@
+--- a/app.py
++++ b/app.py
+@@ -26,7 +26,6 @@
+ 
+ from blueprints.OpenDriveConnection import open_drive_bp
+ from blueprints.DatabaseCompatibility import db_compat_bp
+-from blueprints.SetupDatabaseProcedures import setup_procedures_bp
+ from blueprints.SetupEDataTable import setup_edata_bp
+ from blueprints.SetupKeliTables import setup_keli_bp
+ from blueprints.UnindexedImages import unindexed_bp
+@@ -113,7 +112,6 @@
+ 
+ app.register_blueprint(open_drive_bp)
+ app.register_blueprint(db_compat_bp)
+-app.register_blueprint(setup_procedures_bp)
+ app.register_blueprint(setup_edata_bp)
+ app.register_blueprint(setup_keli_bp)
+ app.register_blueprint(unindexed_bp)
+--- a/templates/components/modals.html
++++ b/templates/components/modals.html
+@@ -15,4 +15,3 @@
+ {% include 'components/modals/OpenDriveConnection.html' %}
+ {% include 'components/modals/PatchManager.html' %}
+ {% include 'components/modals/DatabaseCompatibility.html' %}
+-{% include 'components/modals/SetupDatabaseProcedures.html' %}
+--- a/templates/components/scripts.html
++++ b/templates/components/scripts.html
+@@ -19,4 +19,3 @@
+ {% include 'components/scripts/OpenDriveConnection.html' %}
+ {% include 'components/scripts/PatchManager.html' %}
+ {% include 'components/scripts/DatabaseCompatibility.html' %}
+-{% include 'components/scripts/SetupDatabaseProcedures.html' %}

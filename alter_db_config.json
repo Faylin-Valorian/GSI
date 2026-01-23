@@ -1,0 +1,73 @@
+{
+    "renames": {
+        "ID": "ID",
+        "FN": "FN",
+        "OriginalValue": "OriginalValue",
+        "col01varchar": "col01varchar",
+        "col02varchar": "col02varchar",
+        "col03varchar": "col03varchar",
+        "col04varchar": "col04varchar",
+        "col05varchar": "col05varchar",
+        "col06varchar": "col06varchar",
+        "col07varchar": "col07varchar",
+        "col08varchar": "col08varchar",
+        "col09varchar": "col09varchar",
+        "col10varchar": "col10varchar",
+        "key_id": "key_id",
+        "book": "book",
+        "page_number": "page_number",
+        "stech_image_path": "stech_image_path",
+        "keli_image_path": "keli_image_path",
+        "beginning_page": "beginning_page",
+        "ending_page": "ending_page",
+        "record_series_internal_id": "record_series_internal_id",
+        "record_series_external_id": "record_series_external_id",
+        "instrument_type_internal_id": "instrument_type_internal_id",
+        "instrument_type_external_id": "instrument_type_external_id",
+        "grantor_suffix_internal_id": "grantor_suffix_internal_id",
+        "grantee_suffix_internal_id": "grantee_suffix_internal_id",
+        "manual_page_count": "manual_page_count",
+        "legal_type": "legal_type",
+        "addition_internal_id": "addition_internal_id",
+        "addition_external_id": "addition_external_id",
+        "township_range_internal_id": "township_range_internal_id",
+        "township_range_external_id": "township_range_external_id",
+        "legacy_ref": "legacy_ref",
+        "uf1": "uf1",
+        "uf2": "uf2",
+        "uf3": "uf3",
+        "leftovers": "leftovers",
+        "instrumentid": "instrumentid",
+        "change_script_locations": "change_script_locations",
+        "instTypeOriginal": "instTypeOriginal",
+        "keyOriginalValue": "keyOriginalValue",
+        "deleteFlag": "deleteFlag"
+    },
+    "adds": [
+        {
+            "name": "instrumentid",
+            "type": "INT",
+            "default": ""
+        },
+        {
+            "name": "change_script_locations",
+            "type": "VARCHAR(MAX)",
+            "default": ""
+        },
+        {
+            "name": "instTypeOriginal",
+            "type": "VARCHAR(255)",
+            "default": ""
+        },
+        {
+            "name": "keyOriginalValue",
+            "type": "VARCHAR(255)",
+            "default": ""
+        },
+        {
+            "name": "deleteFlag",
+            "type": "VARCHAR(10)",
+            "default": "'FALSE'"
+        }
+    ]
+}

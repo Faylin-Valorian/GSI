@@ -26,7 +26,6 @@ from blueprints.SystemTools import sys_bp
 
 from blueprints.OpenDriveConnection import open_drive_bp
 from blueprints.DatabaseCompatibility import db_compat_bp
-from blueprints.SetupDatabaseProcedures import setup_procedures_bp
 from blueprints.SetupEDataTable import setup_edata_bp
 from blueprints.SetupKeliTables import setup_keli_bp
 from blueprints.UnindexedImages import unindexed_bp
@@ -115,7 +114,6 @@ app.register_blueprint(sys_bp)
 
 app.register_blueprint(open_drive_bp)
 app.register_blueprint(db_compat_bp)
-app.register_blueprint(setup_procedures_bp)
 app.register_blueprint(setup_edata_bp)
 app.register_blueprint(setup_keli_bp)
 app.register_blueprint(unindexed_bp)
