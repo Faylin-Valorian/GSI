@@ -3,136 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}GSI Dashboard{% endblock %}</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/map_popup.css') }}">
     
-    <style>
-        /* --- THEME VARIABLES --- */
-        :root {
-            --dock-bg: rgba(33, 37, 41, 0.95);
-            --panel-bg: rgba(40, 44, 50, 0.98);
-            --text-main: #f8f9fa;
-            --text-muted: #adb5bd;
-            --border-color: #444;
-            --tab-hover: #0d6efd;
-            --modal-shadow: rgba(0,0,0,0.5);
-        }
-        [data-bs-theme="light"] {
-            --dock-bg: #ffffff;
-            --panel-bg: #f8f9fa;
-            --text-main: #212529;
-            --text-muted: #6c757d;
-            --border-color: #dee2e6;
-            --modal-shadow: rgba(0,0,0,0.1);
-        }
-        
-        /* --- LAYOUT --- */
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
-        #map { height: 100vh; width: 100%; z-index: 1; position: absolute; top: 0; left: 0; background: #222; }
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/map_popup.css') }}">
 
-        /* --- SIDEBAR --- */
-        .sidebar-dock {
-            position: absolute; top: 0; left: 0; bottom: 0; width: 50px;
-            background: var(--dock-bg); backdrop-filter: blur(5px); z-index: 2000;
-            display: flex; flex-direction: column; border-right: 1px solid var(--border-color);
-            transition: background 0.3s ease;
-        }
-        .dock-tab {
-            width: 100%; cursor: pointer; color: var(--text-muted);
-            transition: all 0.2s; position: relative; background: transparent; border: none; padding: 0;
-        }
-        .dock-tab:hover, .dock-tab.active { background-color: var(--tab-hover); color: #fff; }
-        
-        .tab-nav {
-            padding: 15px 0; writing-mode: vertical-rl; text-orientation: upright;
-            font-weight: 700; letter-spacing: 2px; font-size: 0.65rem;
-            display: flex; align-items: center; justify-content: center;
-            border-bottom: 1px solid var(--border-color); flex-shrink: 0;
-        }
-        .tab-icon {
-            height: 50px; display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem; border-bottom: 1px solid var(--border-color); flex-shrink: 0;
-        }
-
-        /* --- PANELS --- */
-        .menu-panel {
-            position: absolute; top: 0; left: 50px; bottom: 0; width: 0;
-            background: var(--panel-bg); color: var(--text-main); overflow: hidden;
-            transition: width 0.3s ease; z-index: 1999;
-            box-shadow: 5px 0 15px rgba(0,0,0,0.1); border-right: 1px solid var(--border-color);
-        }
-        .menu-panel.open { width: 250px; }
-        .menu-content { width: 250px; padding: 20px; opacity: 0; transition: opacity 0.2s ease 0.1s; }
-        .menu-panel.open .menu-content { opacity: 1; }
-        .nav-link { color: var(--text-main); } .nav-link:hover { color: var(--tab-hover); }
-
-        /* --- MODAL STYLES --- */
-        .modal-content.custom-panel {
-            background-color: var(--panel-bg); color: var(--text-main);
-            border: 1px solid var(--border-color); box-shadow: 0 0 50px var(--modal-shadow);
-        }
-        [data-bs-theme="light"] .table-hover tbody tr:hover > * {
-            background-color: #e9ecef !important; color: #000 !important;
-        }
-        .user-row-actions { opacity: 0.4; transition: opacity 0.2s; white-space: nowrap; }
-        tr:hover .user-row-actions { opacity: 1; }
-
-        /* --- POPUP STYLES --- */
-        .leaflet-popup-content { margin: 0; width: 450px !important; }
-        .popup-container { font-family: 'Segoe UI', sans-serif; color: var(--text-main); }
-        .popup-header {
-            padding: 10px 15px; border-bottom: 1px solid var(--border-color);
-            display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2);
-        }
-        .popup-body { display: flex; height: 200px; }
-        .popup-notes { width: 50%; padding: 10px; border-right: 1px solid var(--border-color); }
-        .popup-notes textarea {
-            width: 100%; height: 100%; background: transparent; border: none;
-            color: var(--text-main); resize: none; font-size: 0.9rem;
-        }
-        .popup-notes textarea:focus { outline: none; }
-        .popup-image {
-            width: 50%; position: relative; cursor: pointer; background: #333;
-            display: flex; align-items: center; justify-content: center; overflow: hidden;
-        }
-        .popup-image img { width: 100%; height: 100%; object-fit: cover; }
-        .popup-image-overlay {
-            position: absolute; opacity: 0; transition: opacity 0.2s; background: rgba(0,0,0,0.6);
-            width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
-            color: white; font-size: 0.8rem;
-        }
-        .popup-image:hover .popup-image-overlay { opacity: 1; }
-        .popup-tabs { background: rgba(0,0,0,0.2); }
-        .popup-tabs .nav-link {
-            border-radius: 0; color: var(--text-muted); font-size: 0.85rem; padding: 8px 15px;
-        }
-        .popup-tabs .nav-link.active {
-            background: transparent; color: var(--tab-hover); border-bottom: 2px solid var(--tab-hover);
-        }
-        .popup-tab-content { padding: 15px; height: 120px; overflow-y: auto; }
-        .leaflet-popup-content-wrapper { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; }
-        .leaflet-popup-tip { background: var(--border-color); }
-        
-        /* Custom Button for Keli */
-        .btn-outline-custom-purple {
-            --bs-btn-color: #a370f7;
-            --bs-btn-border-color: #a370f7;
-            --bs-btn-hover-bg: #a370f7;
-            --bs-btn-hover-border-color: #a370f7;
-            --bs-btn-hover-color: #fff;
-        }
-
-        /* Loading Overlay */
-        #globalLoader {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 9999; display: none;
-            justify-content: center; align-items: center; flex-direction: column;
-        }
-
-        {% block styles %}{% endblock %}
-    </style>
+    {% block styles %}{% endblock %}
 </head>
 <body>
     {% block content %}{% endblock %}
