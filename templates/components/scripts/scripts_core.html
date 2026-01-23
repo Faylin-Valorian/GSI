@@ -1,40 +1,33 @@
 <script>
-    // ==========================================
+// ==========================================
     // GSI CORE SYSTEM (UNIFIED)
-    // Includes: Map, Sidebar, Admin, Maintenance
     // ==========================================
 
     // --- 1. GLOBAL VARIABLES ---
-    // Map
     var map, stateLayerGroup, countyLayerGroup, darkLayer, lightLayer, currentLayer;
     var selectedGeoId = null, countyMap = {};
-    
-    // UI & Timers
-    var activePanelId = null;
-    var pendingConfirmationAction = null;
+    var activePanelId = null, pendingConfirmationAction = null;
     var inactT, logT; 
 
-    // Modals (Declared once globally)
+    // Modals
+    var alertModal, confirmationModal, adminAuthModal, codeViewerModal, timeoutModal;
     var seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal;
     var dbCompatModal, dbDowngradeModal, proceduresModal, driveModal, alterDbModal, patchModal;
     var cleanupModal, initialPrepModal, edataErrorsModal, importEdeModal, linkupModal, eDataModal, keliModal;
     var unindexedReviewModal, instCorrectionModal;
-    var confirmationModal, notificationModal, adminAuthModal, codeViewerModal, timeoutModal;
 
     // --- 2. INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
-        console.log("Initializing GSI Core...");
-        
-        // Helper to grab modals safely
         const init = (id) => { const el = document.getElementById(id); return el ? new bootstrap.Modal(el) : null; };
         
-        // A. Init All Modals
+        // Init System Modals
+        alertModal = init('universalAlertModal');
         confirmationModal = init('confirmationModal');
-        notificationModal = init('notificationModal');
         adminAuthModal = init('adminAuthModal');
         codeViewerModal = init('codeViewerModal');
         timeoutModal = init('timeoutModal');
         
+        // Init Tool Modals
         seedConfirmModal = init('seedConfirmModal');
         seedSuccessModal = init('seedSuccessModal');
         statesModal = init('statesModal');
@@ -42,13 +35,11 @@
         accountsModal = init('accountsModal');
         userEditModal = init('userEditModal');
         patchModal = init('patchModal');
-
         driveModal = init('driveModal');
         dbCompatModal = init('dbCompatModal');
         dbDowngradeModal = init('dbDowngradeModal');
         proceduresModal = init('proceduresModal');
         alterDbModal = init('alterDbModal');
-        
         cleanupModal = init('cleanupModal');
         initialPrepModal = init('initialPrepModal');
         edataErrorsModal = init('edataErrorsModal');
@@ -56,58 +47,143 @@
         linkupModal = init('keliLinkupModal');
         eDataModal = init('eDataModal');
         keliModal = init('keliModal');
-        
         unindexedReviewModal = init('unindexedReviewModal');
         instCorrectionModal = document.getElementById('itcModalDialog') ? new bootstrap.Modal(document.getElementById('instCorrectionModal')) : init('instCorrectionModal');
 
-        // B. Init Map
+        // Start Systems
         if(document.getElementById('map')) initMapLogic();
-
-        // C. Start Systems
         startInactivityTimer();
         loadDebugStatus();
-        
-        console.log("GSI Core Initialized");
     });
 
     // ==========================================
-    // 3. WINDOW MANAGER (Close All)
+    // 3. ALERT & CONFIRMATION SYSTEM
     // ==========================================
-    function closeAllModals() {
-        const all = [
-            seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, 
-            dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, 
-            alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, 
-            instCorrectionModal, eDataModal, keliModal, confirmationModal, notificationModal, 
-            adminAuthModal, codeViewerModal, driveModal
-        ];
-        all.forEach(m => { if(m) m.hide(); });
-        
-        // Cleanup Backdrops
-        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
-        document.body.classList.remove('modal-open');
-        document.body.style = '';
+    
+    // Shows a dynamic alert (Success = Green, Error = Red, Info = Blue)
+    function showNotification(message, type = 'info') {
+        const titleEl = document.getElementById('alertModalTitle');
+        const msgEl = document.getElementById('alertModalMessage');
+        const headerEl = document.getElementById('alertModalHeader');
+        const iconEl = document.getElementById('alertModalIcon');
+        const contentEl = document.getElementById('alertModalContent');
+
+        // Reset Classes
+        headerEl.className = 'modal-header border-secondary text-white';
+        contentEl.className = 'modal-content custom-panel';
+        iconEl.className = 'bi me-2';
+
+        // Apply Styling
+        if (type === 'success') {
+            headerEl.classList.add('bg-success');
+            contentEl.classList.add('border-success');
+            iconEl.classList.add('bi-check-circle-fill');
+            titleEl.innerText = "Success";
+        } else if (type === 'error') {
+            headerEl.classList.add('bg-danger');
+            contentEl.classList.add('border-danger');
+            iconEl.classList.add('bi-exclamation-octagon-fill');
+            titleEl.innerText = "Error";
+        } else {
+            // Info / Default
+            headerEl.classList.add('bg-info');
+            contentEl.classList.add('border-info');
+            iconEl.classList.add('bi-info-circle-fill');
+            titleEl.innerText = "System Message";
+        }
+
+        msgEl.innerText = message;
+        if(alertModal) alertModal.show();
     }
 
-    // --- SYSTEM ALERTS ---
     function showConfirmation(message, actionCallback) {
         document.getElementById('confirmationMessage').innerText = message;
         pendingConfirmationAction = actionCallback; 
         if(confirmationModal) confirmationModal.show();
     }
+
     function executeConfirmation() {
         if (pendingConfirmationAction) pendingConfirmationAction(); 
+        closeConfirmationModal();
+    }
+
+    function closeConfirmationModal() {
         pendingConfirmationAction = null; 
         if(confirmationModal) confirmationModal.hide();
     }
-    function closeConfirmationModal() {
-        pendingConfirmationAction = null;
-        if(confirmationModal) confirmationModal.hide();
+
+    // ==========================================
+    // 4. TIMEOUT & ACTIVITY
+    // ==========================================
+    
+    function startInactivityTimer() { 
+        clearTimeout(inactT); clearTimeout(logT); 
+        // Show timeout warning after 55 mins (3300000ms), Logout after 60
+        // Reduced for testing? Default: 55m warning, 60m logout.
+        inactT = setTimeout(() => { 
+            if(timeoutModal) timeoutModal.show(); 
+            logT = setTimeout(() => window.location.href="/logout", 5 * 60 * 1000); // 5 mins after warning
+        }, 55 * 60 * 1000); 
     }
-    function showNotification(message) {
-        const el = document.getElementById('notificationMessage');
-        if(el) el.innerText = message;
-        if(notificationModal) notificationModal.show();
+
+    function resetActivity() {
+        fetch('/keep-alive', {method:'POST'}).then(() => {
+            // BUG FIX: Explicitly hide the modal
+            if(timeoutModal) timeoutModal.hide();
+            startInactivityTimer();
+        });
+    }
+
+    document.onmousemove = function() {
+        // Only reset if no modal is open (prevent reset loop during active work)
+        if(!document.querySelector('.modal.show')) startInactivityTimer();
+    };
+
+    // ==========================================
+    // 5. WINDOW MANAGER
+    // ==========================================
+    function closeAllModals() {
+        const all = [
+            alertModal, confirmationModal, adminAuthModal, codeViewerModal, timeoutModal,
+            seedConfirmModal, seedSuccessModal, statesModal, countiesModal, accountsModal, userEditModal, 
+            dbCompatModal, dbDowngradeModal, proceduresModal, patchModal, cleanupModal, initialPrepModal, 
+            alterDbModal, edataErrorsModal, importEdeModal, linkupModal, unindexedReviewModal, 
+            instCorrectionModal, eDataModal, keliModal, driveModal
+        ];
+        all.forEach(m => { if(m) m.hide(); });
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style = '';
+    }
+
+    // ==========================================
+    // 6. DEBUG & ADMIN AUTH
+    // ==========================================
+    function openAdminAuthModal() { 
+        document.getElementById('adminAuthUser').value=''; 
+        document.getElementById('adminAuthPass').value=''; 
+        if(adminAuthModal) adminAuthModal.show(); 
+    }
+    
+    function closeAdminAuthModal() { if(adminAuthModal) adminAuthModal.hide(); }
+
+    function submitAdminAuth() {
+        const u=document.getElementById('adminAuthUser').value;
+        const p=document.getElementById('adminAuthPass').value;
+        if(!u||!p) return;
+        
+        fetch('/api/user/debug/auth-enable', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({username: u, password: p})
+        }).then(r => r.json()).then(d => { 
+            if(d.success) { 
+                closeAdminAuthModal(); 
+                document.getElementById('debugModeToggle').checked=true; 
+                showNotification("Debug Mode Enabled", "success"); 
+            } else { 
+                document.getElementById('adminAuthError').innerText="Invalid Credentials"; 
+            } 
+        });
     }
 
     // ==========================================

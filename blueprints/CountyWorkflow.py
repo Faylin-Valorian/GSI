@@ -1,5 +1,6 @@
 import os
-from flask import Blueprint, jsonify, request, url_for, current_app
+import time
+from flask import Blueprint, jsonify, request, url_for, current_app, render_template
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from extensions import db
@@ -8,11 +9,11 @@ from utils import format_error
 
 workflow_bp = Blueprint('workflow', __name__)
 
-@workflow_bp.route('/api/county/<int:id>/details', methods=['GET'])
+@workflow_bp.route('/api/county/<int:id>/popup', methods=['GET'])
 @login_required
-def get_county_details(id):
+def get_county_popup(id):
     c = db.session.get(IndexingCounties, id)
-    if not c: return jsonify({'success': False})
+    if not c: return "Error: County not found", 404
     
     s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
     state_name = s.state_name if s else "Unknown"
@@ -22,13 +23,18 @@ def get_county_details(id):
     
     occupier = Users.query.filter(Users.current_working_county_id == id, Users.id != current_user.id).first()
     
-    return jsonify({
-        'success': True,
-        'id': c.id, 'name': c.county_name, 'state_name': state_name,
-        'notes': c.notes, 'image_url': img_url,
-        'is_mine': current_user.current_working_county_id == id,
-        'occupied_by': occupier.username if occupier else None
-    })
+    # Render the template on the server
+    return render_template('components/popups/CountyPopup.html',
+        id=c.id,
+        name=c.county_name,
+        state_name=state_name,
+        notes=c.notes or "",
+        image_url=img_url,
+        is_active=c.is_active,
+        is_mine=(current_user.current_working_county_id == id),
+        occupied_by=occupier.username if occupier else None,
+        time=int(time.time()) # For cache busting images
+    )
 
 @workflow_bp.route('/api/user/set-working', methods=['POST'])
 @login_required
@@ -49,6 +55,18 @@ def set_working():
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
+
+@workflow_bp.route('/api/county/<int:id>/set-global-active', methods=['POST'])
+@login_required
+def set_global_active(id):
+    # Allows Admin to toggle status from the popup
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'})
+    c = db.session.get(IndexingCounties, id)
+    if c:
+        c.is_active = not c.is_active
+        db.session.commit()
+        return jsonify({'success': True})
+    return jsonify({'success': False})
 
 @workflow_bp.route('/api/county/<int:id>/save-notes', methods=['POST'])
 @login_required

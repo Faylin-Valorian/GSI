@@ -1,4 +1,7 @@
 <script>
+    // ==========================================
+    // MAP VISUALIZATION ENGINE
+    // ==========================================
     var map, stateLayerGroup, countyLayerGroup;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -12,9 +15,11 @@
             attribution: 'CARTO'
         }).addTo(map);
 
+        // Z-Index Panes
         map.createPane('statePane'); map.getPane('statePane').style.zIndex = 350; 
         map.createPane('countyPane'); map.getPane('countyPane').style.zIndex = 450;
         
+        // Layer Groups
         stateLayerGroup = L.layerGroup().addTo(map);
         countyLayerGroup = L.layerGroup().addTo(map);
 
@@ -24,16 +29,16 @@
     function refreshMapLayers() {
         if(!map) return;
         
-        // Load States
+        // LOAD STATES (Updated URL: /api/map/states)
         fetch('/api/map/states?t=' + Date.now()).then(r=>r.json()).then(geo => {
             stateLayerGroup.clearLayers();
             stateLayerGroup.addLayer(L.geoJSON(geo, {
                 pane: 'statePane',
                 style: { color: '#6c757d', weight: 1, fillOpacity: 0.1 }
             }));
-        });
+        }).catch(e => console.error("State Load Error:", e));
 
-        // Load Counties
+        // LOAD COUNTIES (Updated URL: /api/map/counties)
         fetch('/api/map/counties?t=' + Date.now()).then(r=>r.json()).then(geo => {
             countyLayerGroup.clearLayers();
             countyLayerGroup.addLayer(L.geoJSON(geo, {
@@ -41,14 +46,14 @@
                 style: getCountyStyle,
                 onEachFeature: (feature, layer) => {
                     layer.on('click', () => {
-                        // Delegate Popup logic to Workflow Script
+                        // Delegate to Workflow Script for Popups
                         if(typeof openCountyPopup === 'function') {
                             openCountyPopup(feature.properties, layer);
                         }
                     });
                 }
             }));
-        });
+        }).catch(e => console.error("County Load Error:", e));
     }
 
     function getCountyStyle(feature) {
@@ -58,4 +63,19 @@
         if(p.is_active) return {color: '#0dcaf0', weight: 1, fillOpacity: 0.2}; // Cyan (Active)
         return {color: '#dc3545', weight: 1, fillOpacity: 0.1}; // Red (Inactive)
     }
+
+    // --- TOGGLE HELPERS (For Sidebar/Admin Compatibility) ---
+    function toggleStateLayer() {
+        if(map.hasLayer(stateLayerGroup)) map.removeLayer(stateLayerGroup);
+        else map.addLayer(stateLayerGroup);
+    }
+
+    function toggleCountyLayer() {
+        if(map.hasLayer(countyLayerGroup)) map.removeLayer(countyLayerGroup);
+        else map.addLayer(countyLayerGroup);
+    }
+    
+    // Alias for old calls if they exist
+    window.loadStateLayers = refreshMapLayers;
+    window.loadCountyLayers = refreshMapLayers;
 </script>

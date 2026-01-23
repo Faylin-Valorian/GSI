@@ -1,30 +1,22 @@
 <script>
+    // ==========================================
+    // COUNTY WORKFLOW & POPUP LOGIC
+    // ==========================================
+
     function openCountyPopup(props, layer) {
         const dbId = props.db_id;
         
-        fetch(`/api/county/${dbId}/details`).then(r=>r.json()).then(data => {
-            if(!data.success) return;
-            
-            // Build Popup HTML (Simplified for brevity, add your Tabs back here)
-            const isMine = data.is_mine;
-            const lockedText = data.occupied_by ? `LOCKED BY ${data.occupied_by}` : 'AVAILABLE';
-            
-            const content = `
-                <div class="text-center">
-                    <h6>${data.name} County, ${data.state_name}</h6>
-                    <span class="badge ${isMine ? 'bg-primary' : (data.occupied_by ? 'bg-warning' : 'bg-success')}">${isMine ? 'WORKING' : lockedText}</span>
-                    <hr>
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-sm btn-outline-primary" onclick="toggleWork(${dbId}, ${!isMine})">
-                            ${isMine ? 'Stop Working' : 'Start Working'}
-                        </button>
-                        </div>
-                </div>
-            `;
-            
-            layer.bindPopup(content, {minWidth: 300}).openPopup();
-        });
+        // Fetch the pre-rendered HTML from the server
+        fetch(`/api/county/${dbId}/popup`)
+            .then(r => r.text())
+            .then(html => {
+                // Bind the HTML directly to the popup
+                layer.bindPopup(html, {minWidth: 460, maxWidth: 500}).openPopup();
+            })
+            .catch(err => console.error("Popup Error:", err));
     }
+
+    // --- WORKFLOW ACTIONS ---
 
     function toggleWork(id, status) {
         fetch('/api/user/set-working', {
@@ -32,11 +24,58 @@
             body: JSON.stringify({county_id: id, active: status})
         }).then(r=>r.json()).then(d => {
             if(d.success) {
-                refreshMapLayers(); // Reload map to update colors
-                map.closePopup();
+                if(typeof refreshMapLayers === 'function') refreshMapLayers(); 
+                map.closePopup(); 
+                showNotification(status ? "Set as Working County" : "Stopped Working");
             } else {
-                alert(d.message);
+                showNotification(d.message);
+                // Optional: Re-open popup to show state didn't change, or just alert user
             }
         });
+    }
+
+    function toggleGlobalActiveFromPopup(id) {
+        fetch(`/api/county/${id}/set-global-active`, {method: 'POST'})
+        .then(r=>r.json()).then(d => {
+            if(d.success) {
+                if(typeof refreshMapLayers === 'function') refreshMapLayers();
+                map.closePopup(); 
+                showNotification("County Status Updated");
+            } else {
+                showNotification("Action Failed: " + (d.message || "Unknown error"));
+            }
+        });
+    }
+
+    function saveNotes(id, text) {
+        fetch(`/api/county/${id}/save-notes`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({notes: text})
+        });
+    }
+
+    function triggerUpload(id, isMine) {
+        if(!isMine) return;
+        document.getElementById(`upload-${id}`).click();
+    }
+
+    function uploadImage(id, input) {
+        if (input.files && input.files[0]) {
+            const formData = new FormData();
+            formData.append('file', input.files[0]);
+
+            fetch(`/api/county/${id}/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.success) {
+                     map.closePopup(); // Refresh popup to force image reload
+                } else {
+                    showNotification("Upload failed: " + d.message);
+                }
+            });
+        }
     }
 </script>

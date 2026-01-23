@@ -1,15 +1,18 @@
-<div class="modal fade" id="notificationModal" tabindex="-1" style="z-index: 1150;">
+<div class="modal fade" id="universalAlertModal" tabindex="-1" style="z-index: 1150;">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content custom-panel border-info">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title"><i class="bi bi-info-circle-fill me-2"></i>System Message</h5>
+        <div class="modal-content custom-panel" id="alertModalContent">
+            <div class="modal-header border-secondary text-white" id="alertModalHeader">
+                <h5 class="modal-title">
+                    <i id="alertModalIcon" class="bi bi-info-circle-fill me-2"></i>
+                    <span id="alertModalTitle">System Message</span>
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body text-center py-4">
-                <p id="notificationMessage" class="fs-5 mb-0"></p>
+                <p id="alertModalMessage" class="fs-5 mb-0">...</p>
             </div>
             <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-info" data-bs-dismiss="modal">OK</button>
+                <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">OK</button>
             </div>
         </div>
     </div>
@@ -19,14 +22,14 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content custom-panel border-warning">
             <div class="modal-header border-secondary bg-warning text-dark">
-                <h5 class="modal-title"><i class="bi bi-question-circle-fill me-2"></i>Confirmation Required</h5>
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirmation Required</h5>
                 <button type="button" class="btn-close" onclick="closeConfirmationModal()"></button>
             </div>
             <div class="modal-body text-center py-4">
                 <p id="confirmationMessage" class="fs-5 mb-0 text-light"></p>
             </div>
-            <div class="modal-footer border-secondary justify-content-center">
-                <button type="button" class="btn btn-secondary px-4" onclick="closeConfirmationModal()">Cancel</button>
+            <div class="modal-footer border-secondary justify-content-center gap-2">
+                <button type="button" class="btn btn-outline-light px-4" onclick="closeConfirmationModal()">Cancel</button>
                 <button type="button" class="btn btn-warning px-4 fw-bold" onclick="executeConfirmation()">Yes, Proceed</button>
             </div>
         </div>
@@ -41,14 +44,15 @@
                 <button type="button" class="btn-close btn-close-white" onclick="closeAdminAuthModal()"></button>
             </div>
             <div class="modal-body">
-                <p class="small text-muted mb-3">Administrator credentials are required to enable Debug Mode on this account.</p>
-                <div class="mb-3">
-                    <label class="form-label small text-light">Admin Username</label>
-                    <input type="text" id="adminAuthUser" class="form-control bg-dark text-light border-secondary">
+                <div class="text-center mb-3">
+                    <i class="bi bi-lock-fill fs-1 text-danger"></i>
+                    <p class="small text-muted mt-2">Administrator credentials required.</p>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small text-light">Admin Password</label>
-                    <input type="password" id="adminAuthPass" class="form-control bg-dark text-light border-secondary">
+                    <input type="text" id="adminAuthUser" class="form-control bg-dark text-light border-secondary text-center" placeholder="Username">
+                </div>
+                <div class="mb-3">
+                    <input type="password" id="adminAuthPass" class="form-control bg-dark text-light border-secondary text-center" placeholder="Password">
                 </div>
                 <div id="adminAuthError" class="text-danger small text-center fw-bold"></div>
             </div>
@@ -60,12 +64,18 @@
     </div>
 </div>
 
-<div class="modal fade" id="timeoutModal" data-bs-backdrop="static">
+<div class="modal fade" id="timeoutModal" data-bs-backdrop="static" style="z-index: 1300;">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-dark"><h5 class="modal-title">Session Expiring</h5></div>
-            <div class="modal-body">Logout in 10 minutes.</div>
-            <div class="modal-footer"><button type="button" class="btn btn-primary" onclick="resetActivity()">I'm still here</button></div>
+        <div class="modal-content custom-panel border-warning">
+            <div class="modal-header bg-warning text-dark border-secondary">
+                <h5 class="modal-title"><i class="bi bi-alarm-fill me-2"></i>Session Expiring</h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p class="fs-5 mb-0">Your session will expire in 1 minute due to inactivity.</p>
+            </div>
+            <div class="modal-footer border-secondary justify-content-center">
+                <button type="button" class="btn btn-primary px-4 fw-bold" onclick="resetActivity()">I'm still here</button>
+            </div>
         </div>
     </div>
 </div>
@@ -74,19 +84,14 @@
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content custom-panel border-info">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title text-info">
-                    <i class="bi bi-database me-2"></i>Extracted SQL Commands
-                </h5>
+                <h5 class="modal-title text-info"><i class="bi bi-code-slash me-2"></i>SQL Viewer</h5>
                 <span id="codeViewerFilename" class="ms-3 badge bg-secondary text-light font-monospace"></span>
                 <button type="button" class="btn-close btn-close-white" onclick="closeCodeViewer()"></button>
             </div>
-            <div class="modal-body bg-dark">
-                <pre><code id="codeViewerContent" class="text-light small" style="white-space: pre-wrap; font-family: 'Consolas', monospace;"></code></pre>
+            <div class="modal-body bg-dark p-0">
+                <pre class="m-0 p-3"><code id="codeViewerContent" class="text-light small" style="white-space: pre-wrap; font-family: 'Consolas', monospace;"></code></pre>
             </div>
             <div class="modal-footer border-secondary">
-                <small class="text-muted me-auto">
-                    <i class="bi bi-info-circle me-1"></i> Shows logical SQL commands extracted from Python.
-                </small>
                 <button type="button" class="btn btn-secondary" onclick="closeCodeViewer()">Close</button>
             </div>
         </div>
