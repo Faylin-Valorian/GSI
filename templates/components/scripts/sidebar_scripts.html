@@ -123,39 +123,6 @@
             });
     }
 
-    // --- CODE VIEWER ---
-    function closeCodeViewer() { if(codeViewerModal) codeViewerModal.hide(); }
-
-    function viewActiveToolCode() {
-        let activeTool = null;
-        if (document.getElementById('driveModal')?.classList.contains('show')) activeTool = 'drive';
-        else if (document.getElementById('dbCompatModal')?.classList.contains('show')) activeTool = 'compat';
-        else if (document.getElementById('proceduresModal')?.classList.contains('show')) activeTool = 'procedures';
-        else if (document.getElementById('eDataModal')?.classList.contains('show')) activeTool = 'edata';
-        else if (document.getElementById('keliModal')?.classList.contains('show')) activeTool = 'keli';
-        else if (document.getElementById('alterDbModal')?.classList.contains('show')) activeTool = 'schema';
-        
-        if (!activeTool) {
-            showNotification("No supported tool is currently open.");
-            return;
-        }
-
-        fetch('/api/admin/view-code', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ tool: activeTool })
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success) {
-                document.getElementById('codeViewerFilename').innerText = d.filename;
-                document.getElementById('codeViewerContent').innerText = d.code;
-                if(codeViewerModal) codeViewerModal.show();
-            } else {
-                showNotification("Error: " + d.message);
-            }
-        });
-    }
-
     // --- ACTIVITY MONITOR ---
     function resetActivity(){fetch('/keep-alive',{method:'POST'}).then(()=>startInactivityTimer())}
     let inactT,logT;

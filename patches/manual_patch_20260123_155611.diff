@@ -1,0 +1,162 @@
+--- a/blueprints/SystemTools.py
++++ b/blueprints/SystemTools.py
+@@ -1,6 +1,5 @@
+ from flask import Blueprint, jsonify, request, session, current_app
+ from flask_login import login_required, current_user
+-import os, re
+ from models import Users
+ 
+ sys_bp = Blueprint('system', __name__)
+@@ -36,30 +35,3 @@
+ def disable_user_debug():
+     session['debug_mode'] = False
+     return jsonify({'success': True})
+-
+-# --- SQL VIEWER ---
+-@sys_bp.route('/api/admin/view-code', methods=['POST'])
+-@login_required
+-def view_code():
+-    if current_user.role != 'admin': return jsonify({'success': False})
+-    tool_key = request.json.get('tool')
+-    
+-    # Map tool keys to filenames
+-    file_map = {
+-        'drive': 'blueprints/OpenDriveConnection.py',
+-        'compat': 'blueprints/DatabaseCompatibility.py',
+-        'procedures': 'blueprints/SetupDatabaseProcedures.py',
+-        'edata': 'blueprints/SetupEDataTable.py',
+-        'keli': 'blueprints/SetupKeliTables.py',
+-        'seed': 'blueprints/StateManagement.py', # Moved here
+-        'unindexed': 'blueprints/UnindexedImages.py' 
+-    }
+-    
+-    filename = file_map.get(tool_key)
+-    if not filename: return jsonify({'success': False, 'message': 'Unknown Tool'})
+-    
+-    try:
+-        file_path = os.path.join(current_app.root_path, filename)
+-        with open(file_path, 'r', encoding='utf-8') as f: content = f.read()
+-        
+-        # Simple extraction logic
+-        extracted_sql = []
+-        lines = content.split('\n')
+-        for line in lines:
+-            clean = line.strip()
+-            if (clean.startswith('sql =') or clean.startswith('cmd =') or 'text(' in clean) and any(k in clean.upper() for k in ['ALTER ', 'SELECT ', 'INSERT ', 'UPDATE ', 'DELETE ', 'CREATE ']):
+-                clean = clean.replace('sql = f"', '').replace('sql = "', '').replace('"', '').replace('text(', '').replace(')', '')
+-                extracted_sql.append(clean.strip())
+-                
+-        final = "\n\n".join(extracted_sql) if extracted_sql else "-- No explicit SQL found in this file"
+-        return jsonify({'success': True, 'filename': filename, 'code': final})
+-    except Exception as e: return jsonify({'success': False, 'message': str(e)})
+--- a/templates/components/sidebar.html
++++ b/templates/components/sidebar.html
+@@ -55,9 +55,6 @@
+                 <button class="btn btn-outline-danger text-start mt-2" onclick="openPatchModal()">
+                     <i class="bi bi-tools me-2"></i> System Patcher
+                 </button>
+             </div>
+-            
+-            <button class="btn btn-outline-light text-start w-100 mb-3" onclick="viewActiveToolCode()">
+-                <i class="bi bi-filetype-sql me-2"></i>View Tool SQL
+-            </button>
+         {% endif %}
+ 
+         <div class="card border-danger bg-transparent">
+--- a/templates/components/scripts/sidebar_scripts.html
++++ b/templates/components/scripts/sidebar_scripts.html
+@@ -107,31 +107,3 @@
+             });
+     }
+ 
+-    // --- CODE VIEWER ---
+-    function closeCodeViewer() { if(codeViewerModal) codeViewerModal.hide(); }
+-
+-    function viewActiveToolCode() {
+-        let activeTool = null;
+-        if (document.getElementById('driveModal')?.classList.contains('show')) activeTool = 'drive';
+-        else if (document.getElementById('dbCompatModal')?.classList.contains('show')) activeTool = 'compat';
+-        else if (document.getElementById('proceduresModal')?.classList.contains('show')) activeTool = 'procedures';
+-        else if (document.getElementById('eDataModal')?.classList.contains('show')) activeTool = 'edata';
+-        else if (document.getElementById('keliModal')?.classList.contains('show')) activeTool = 'keli';
+-        else if (document.getElementById('alterDbModal')?.classList.contains('show')) activeTool = 'schema';
+-        
+-        if (!activeTool) {
+-            showNotification("No supported tool is currently open.");
+-            return;
+-        }
+-
+-        fetch('/api/admin/view-code', {
+-            method: 'POST', headers: {'Content-Type': 'application/json'},
+-            body: JSON.stringify({ tool: activeTool })
+-        })
+-        .then(r => r.json())
+-        .then(d => {
+-            if (d.success) {
+-                document.getElementById('codeViewerFilename').innerText = d.filename;
+-                document.getElementById('codeViewerContent').innerText = d.code;
+-                if(codeViewerModal) codeViewerModal.show();
+-            } else {
+-                showNotification("Error: " + d.message);
+-            }
+-        });
+-    }
+-
+     // --- ACTIVITY MONITOR ---
+     function resetActivity(){fetch('/keep-alive',{method:'POST'}).then(()=>startInactivityTimer())}
+--- a/templates/components/scripts/SystemTools.html
++++ b/templates/components/scripts/SystemTools.html
+@@ -63,24 +63,2 @@
+             if (btn) isDebug ? btn.classList.remove('d-none') : btn.classList.add('d-none');
+         });
+     }
+-
+-    // --- CODE VIEWER ---
+-    function viewActiveToolCode() {
+-        let activeTool = null;
+-        if (document.getElementById('driveModal')?.classList.contains('show')) activeTool = 'drive';
+-        else if (document.getElementById('dbCompatModal')?.classList.contains('show')) activeTool = 'compat';
+-        else if (document.getElementById('proceduresModal')?.classList.contains('show')) activeTool = 'procedures';
+-        else if (document.getElementById('eDataModal')?.classList.contains('show')) activeTool = 'edata';
+-        else if (document.getElementById('keliModal')?.classList.contains('show')) activeTool = 'keli';
+-        else if (document.getElementById('alterDbModal')?.classList.contains('show')) activeTool = 'schema';
+-        
+-        if (!activeTool) return showNotification("Open a tool first.");
+-        
+-        fetch('/api/admin/view-code', {
+-            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+-            body: JSON.stringify({ tool: activeTool })
+-        })
+-        .then(r => r.json()).then(d => { 
+-            if(d.success) { 
+-                document.getElementById('codeViewerFilename').innerText=d.filename; 
+-                document.getElementById('codeViewerContent').innerText=d.code; 
+-                new bootstrap.Modal(document.getElementById('codeViewerModal')).show(); 
+-            }
+-        });
+-    }
+ </script>
+--- a/templates/components/modals/modals_system.html
++++ b/templates/components/modals/modals_system.html
+@@ -75,15 +75,2 @@
+         </div>
+     </div>
+ </div>
+-
+-<div class="modal fade" id="codeViewerModal" tabindex="-1" style="z-index: 1100;">
+-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+-        <div class="modal-content custom-panel border-info">
+-            <div class="modal-header border-secondary">
+-                <h5 class="modal-title text-info"><i class="bi bi-code-slash me-2"></i>SQL Viewer</h5>
+-                <span id="codeViewerFilename" class="ms-3 badge bg-secondary text-light font-monospace"></span>
+-                <button type="button" class="btn-close btn-close-white" onclick="closeCodeViewer()"></button>
+-            </div>
+-            <div class="modal-body bg-dark p-0">
+-                <pre class="m-0 p-3"><code id="codeViewerContent" class="text-light small" style="white-space: pre-wrap; font-family: 'Consolas', monospace;"></code></pre>
+-            </div>
+-            <div class="modal-footer border-secondary">
+-                <button type="button" class="btn btn-secondary" onclick="closeCodeViewer()">Close</button>
+-            </div>
+-        </div>
+-    </div>
+-</div>
