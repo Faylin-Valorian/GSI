@@ -1,0 +1,106 @@
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDebugStatus();
+    });
+
+    // --- DEBUG LOGIC ---
+    function loadDebugStatus() { 
+        fetch('/api/admin/debug/status')
+        .then(r => r.json())
+        .then(d => { 
+            const t = document.getElementById('debugModeToggle'); 
+            if(t) t.checked = d.debug_mode; 
+            updateAllToolsDebug();
+        })
+        .catch(err => console.log("Debug Status Error (Ignore if not Admin):", err));
+    }
+
+    function toggleDebugMode(cb) {
+        const userRole = cb.getAttribute('data-user-role');
+        const isTurningOn = cb.checked;
+        
+        if (userRole === 'admin') {
+            fetch('/api/admin/debug/toggle', {method: 'POST'})
+            .then(r => r.json())
+            .then(d => { 
+                if(!d.success) cb.checked = !cb.checked; 
+                updateAllToolsDebug();
+            });
+        } else {
+            if (isTurningOn) { 
+                cb.checked = false; 
+                openAdminAuthModal(); 
+            } else { 
+                fetch('/api/user/debug/disable', {method: 'POST'})
+                .then(() => updateAllToolsDebug());
+            }
+        }
+    }
+
+    // --- ADMIN AUTH MODAL HELPERS ---
+    function openAdminAuthModal() { 
+        const m = new bootstrap.Modal(document.getElementById('adminAuthModal'));
+        document.getElementById('adminAuthUser').value=''; 
+        document.getElementById('adminAuthPass').value=''; 
+        m.show(); 
+    }
+    
+    function submitAdminAuth() {
+        const u=document.getElementById('adminAuthUser').value;
+        const p=document.getElementById('adminAuthPass').value;
+        if(!u||!p) return;
+        
+        fetch('/api/user/debug/auth-enable', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({username: u, password: p})
+        }).then(r => r.json()).then(d => { 
+            const el = document.getElementById('adminAuthModal');
+            const modal = bootstrap.Modal.getInstance(el);
+            if(d.success) { 
+                modal.hide(); 
+                document.getElementById('debugModeToggle').checked=true; 
+                showNotification("Debug Mode Enabled", "success");
+                updateAllToolsDebug();
+            } else { 
+                document.getElementById('adminAuthError').innerText="Invalid Credentials"; 
+            } 
+        });
+    }
+
+    // --- VISIBILITY TOGGLE ---
+    function updateAllToolsDebug() {
+        const toggle = document.getElementById('debugModeToggle');
+        const isDebug = toggle ? toggle.checked : false;
+        
+        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview'];
+        debugButtons.forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) isDebug ? btn.classList.remove('d-none') : btn.classList.add('d-none');
+        });
+    }
+
+    // --- CODE VIEWER ---
+    function viewActiveToolCode() {
+        let activeTool = null;
+        if (document.getElementById('driveModal')?.classList.contains('show')) activeTool = 'drive';
+        else if (document.getElementById('dbCompatModal')?.classList.contains('show')) activeTool = 'compat';
+        else if (document.getElementById('proceduresModal')?.classList.contains('show')) activeTool = 'procedures';
+        else if (document.getElementById('eDataModal')?.classList.contains('show')) activeTool = 'edata';
+        else if (document.getElementById('keliModal')?.classList.contains('show')) activeTool = 'keli';
+        else if (document.getElementById('alterDbModal')?.classList.contains('show')) activeTool = 'schema';
+        
+        if (!activeTool) return showNotification("Open a tool first.");
+        
+        fetch('/api/admin/view-code', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ tool: activeTool })
+        })
+        .then(r => r.json()).then(d => { 
+            if(d.success) { 
+                document.getElementById('codeViewerFilename').innerText=d.filename; 
+                document.getElementById('codeViewerContent').innerText=d.code; 
+                new bootstrap.Modal(document.getElementById('codeViewerModal')).show(); 
+            }
+        });
+    }
+</script>

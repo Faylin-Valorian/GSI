@@ -78,4 +78,7 @@
         }).catch(e => { btn.disabled = false; document.getElementById('alterDbStatus').innerText = 'Connection Failed'; });
     }
     function copyAlterDbSql() { navigator.clipboard.writeText(document.getElementById('alterDbSqlOutput').innerText); }
+
+    // --- FIX: Add Alias for Popup Compatibility ---
+    window.openAlterDbTool = openAlterDbModal;
 </script>
