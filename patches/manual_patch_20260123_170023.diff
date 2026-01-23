@@ -1,0 +1,944 @@
+--- a/blueprints/ImportEDataErrors.py
++++ b/blueprints/ImportEDataErrors.py
+@@ -1,6 +1,6 @@
+ import os
+ import json
+ import time
+ from flask import Blueprint, request, Response, stream_with_context, current_app, jsonify
+ from flask_login import login_required, current_user
+ from sqlalchemy import text
+ from extensions import db
+ from models import IndexingCounties, IndexingStates
+ from utils import format_error
+ from werkzeug.utils import secure_filename
+ 
+ import_edata_errors_bp = Blueprint('import_edata_errors', __name__)
+ 
+ # Standard Schema
+ CREATE_TABLE_SQL = """
+ CREATE TABLE [{table_name}] (
+     [ID] varchar(255), [FN] varchar(255), [OriginalValue] varchar(max),
+     [col01varchar] varchar(255), [col02varchar] varchar(255), [col03varchar] varchar(255),
+     [col04varchar] varchar(255), [col05varchar] varchar(255), [col06varchar] varchar(255),
+     [col07varchar] varchar(255), [col08varchar] varchar(255), [col09varchar] varchar(255),
+     [col10varchar] varchar(255), [key_id] varchar(255), [book] varchar(255),
+     [page_number] varchar(255), [stech_image_path] varchar(max), [keli_image_path] varchar(max),
+     [beginning_page] varchar(255), [ending_page] varchar(255), [record_series_internal_id] varchar(255),
+     [record_series_external_id] varchar(255), [instrument_type_internal_id] varchar(255),
+     [instrument_type_external_id] varchar(255), [grantor_suffix_internal_id] varchar(255),
+     [grantee_suffix_internal_id] varchar(255), [manual_page_count] varchar(255),
+     [legal_type] varchar(255), [addition_internal_id] varchar(255), [addition_external_id] varchar(255),
+     [township_range_internal_id] varchar(255), [township_range_external_id] varchar(255),
+     [col20other] varchar(255), [uf1] varchar(255), [uf2] varchar(255), [uf3] varchar(255),
+     [leftovers] varchar(max), [instTypeOriginal] varchar(255), [keyOriginalValue] varchar(255),
+     [deleteFlag] varchar(50), [change_script_locations] varchar(max), [instrumentid] varchar(50),
+     [checked] varchar(50)
+ )
+ """
+ 
++@import_edata_errors_bp.route('/api/tools/import-edata-errors/preview', methods=['POST'])
++@login_required
++def preview_import():
++    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
++    
++    data = request.json
++    county_id = data.get('county_id')
++    
++    c = db.session.get(IndexingCounties, county_id)
++    if not c: return jsonify({'success': False, 'message': 'County not found'})
++    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
++    if not s: return jsonify({'success': False, 'message': 'State not found'})
++
++    state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
++    
++    base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
++    
++    if not os.path.exists(base_path):
++        return jsonify({'success': False, 'message': 'Directory not found'})
++        
++    files = [f for f in os.listdir(base_path) if f.lower().endswith('.csv')]
++    if not files:
++        return jsonify({'success': True, 'sql': '-- No .csv files found in eData Errors directory.'})
++        
++    sql_output = f"-- PREVIEW: Found {len(files)} files to import\n\n"
++    
++    for filename in files:
++        clean_name = os.path.splitext(filename)[0].replace(' ', '_').replace('-', '_')
++        table_name = f"{state_abbr}_{c.county_name}_eData_Errors_{clean_name}"
++        file_full_path = os.path.join(base_path, filename)
++        
++        sql_output += f"-- File: {filename}\n"
++        sql_output += f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]\n"
++        sql_output += CREATE_TABLE_SQL.format(table_name=table_name) + "\n"
++        sql_output += f"BULK INSERT [{table_name}] FROM '{file_full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDTERMINATOR = ',', ROWTERMINATOR = '\\n', TABLOCK)\nGO\n\n"
++        
++    return jsonify({'success': True, 'sql': sql_output})
++
+ @import_edata_errors_bp.route('/api/tools/import-edata-errors/init', methods=['POST'])
+ @login_required
+ def init_import():
+     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+     data = request.json
+     county_id = data.get('county_id')
+     try:
+         c = db.session.get(IndexingCounties, county_id)
+         if not c: return jsonify({'success': False, 'message': 'County not found'})
+         s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+         
+         path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
+         files = []
+         if os.path.exists(path):
+             files = [f for f in os.listdir(path) if f.lower().endswith('.csv')]
+             
+         return jsonify({'success': True, 'path': path, 'file_count': len(files), 'files': files})
+     except Exception as e:
+         return jsonify({'success': False, 'message': str(e)})
+ 
+ @import_edata_errors_bp.route('/api/tools/import-edata-errors/execute', methods=['POST'])
+ @login_required
+ def execute_import():
+     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+     data = request.json
+     county_id = data.get('county_id')
+     debug_mode = data.get('debug', False) # Check Debug Flag
+     
+     c = db.session.get(IndexingCounties, county_id)
+     if not c: return jsonify({'success': False, 'message': 'County not found'})
+     s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+     
+     # Validation: Ensure State Abbr exists
+     state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
+     
+     base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
+     
+     def generate_stream():
+         yield json.dumps({'type': 'start', 'message': f'Starting Import for {c.county_name}...'}) + '\n'
+         
+         if debug_mode:
+             yield json.dumps({'type': 'log', 'message': f"DEBUG: State Abbr [{state_abbr}]"}) + '\n'
+             yield json.dumps({'type': 'log', 'message': f"DEBUG: Source Path [{base_path}]"}) + '\n'
+ 
+         if not os.path.exists(base_path):
+             yield json.dumps({'type': 'error', 'message': 'Directory not found.'}) + '\n'
+             return
+ 
+         files = [f for f in os.listdir(base_path) if f.lower().endswith('.csv')]
+         total = len(files)
+         
+         if total == 0:
+             yield json.dumps({'type': 'complete', 'message': 'No CSV files found.'}) + '\n'
+             return
+ 
+         # Using explicit connection for raw SQL control
+         engine = db.engine
+         connection = engine.raw_connection()
+         cursor = connection.cursor()
+ 
+         try:
+             for i, filename in enumerate(files):
+                 # 1. Naming Convention: [StateAbbr]_[County]_eData_Errors_[File]
+                 # Clean filename: remove extension, replace spaces/dashes
+                 clean_name = os.path.splitext(filename)[0].replace(' ', '_').replace('-', '_')
+                 table_name = f"{state_abbr}_{c.county_name}_eData_Errors_{clean_name}"
+                 
+                 if debug_mode:
+                     yield json.dumps({'type': 'log', 'message': f"DEBUG: Target Table -> [{table_name}]"}) + '\n'
+ 
+                 # 2. Drop & Create
+                 drop_sql = f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]"
+                 create_sql = CREATE_TABLE_SQL.format(table_name=table_name)
+                 
+                 cursor.execute(drop_sql)
+                 cursor.execute(create_sql)
+                 connection.commit() # Commit schema change
+ 
+                 # 3. Bulk Insert
+                 file_full_path = os.path.join(base_path, filename)
+                 bulk_sql = f"""
+                     BULK INSERT [{table_name}]
+                     FROM '{file_full_path}'
+                     WITH (
+                         FORMAT = 'CSV',
+                         FIRSTROW = 2,
+                         FIELDTERMINATOR = ',',
+                         ROWTERMINATOR = '\\n',
+                         TABLOCK
+                     )
+                 """
+                 
+                 if debug_mode:
+                     yield json.dumps({'type': 'log', 'message': f"DEBUG: Executing Bulk Insert on {filename}..."}) + '\n'
+ 
+                 try:
+                     cursor.execute(bulk_sql)
+                     connection.commit() # Commit data
+                     row_count = cursor.rowcount
+                     
+                     msg = f"Imported {filename} ({row_count} rows)"
+                     if debug_mode:
+                         yield json.dumps({'type': 'log', 'message': f"SUCCESS: {msg}"}) + '\n'
+                         
+                 except Exception as sql_err:
+                     connection.rollback()
+                     err_msg = f"SQL Error on {filename}: {str(sql_err)}"
+                     yield json.dumps({'type': 'log', 'message': err_msg}) + '\n'
+                     yield json.dumps({'type': 'error', 'message': err_msg}) + '\n'
+ 
+                 percent = int(((i + 1) / total) * 100)
+                 yield json.dumps({'type': 'progress', 'percent': percent, 'message': f"Importing {filename}..."}) + '\n'
+                 time.sleep(0.1)
+ 
+             yield json.dumps({'type': 'complete', 'message': 'Import Process Completed.'}) + '\n'
+ 
+         except Exception as e:
+             yield json.dumps({'type': 'error', 'message': str(e)}) + '\n'
+         finally:
+             cursor.close()
+             connection.close()
+ 
+     return Response(stream_with_context(generate_stream()), mimetype='application/json')
+--- a/blueprints/SetupEDataTable.py
++++ b/blueprints/SetupEDataTable.py
+@@ -1,6 +1,6 @@
+ import os
+ import json
+ from flask import Blueprint, request, Response, stream_with_context, current_app, jsonify
+ from flask_login import login_required, current_user
+ from sqlalchemy import text
+ from werkzeug.utils import secure_filename
+ from extensions import db
+ from models import IndexingCounties, IndexingStates
+ from utils import format_error  # <--- IMPORTED
+ 
+ setup_edata_bp = Blueprint('setup_edata', __name__)
+ 
+ def parse_line_waterfall(line):
+     """
+     Replicates the logic of tvf_ParseGenericRow:
+     1. Extracts 10 quoted values sequentially.
+     2. Splits the remainder by comma into 20 values.
+     """
+     c_cols = []
+     remainder = line
+     
+     # Step 1: Extract 10 quoted values (c1..c10)
+     for _ in range(10):
+         try:
+             p1 = remainder.find('"')
+             if p1 == -1: 
+                 c_cols.append('')
+                 continue
+                 
+             p2 = remainder.find('"', p1 + 1)
+             if p2 == -1: 
+                 c_cols.append('')
+                 continue
+             
+             # Extract content between quotes
+             val = remainder[p1+1:p2].strip()
+             c_cols.append(val)
+             
+             # Remove processed part (STUFF logic)
+             remainder = remainder[p2+1:]
+         except Exception:
+             c_cols.append('')
+ 
+     # Step 2: Split remainder by comma (o1..o20)
+     o_raw = remainder.split(',')
+     o_cols = [x.strip() for x in o_raw]
+     
+     # Pad or Trim to exactly 20 columns
+     if len(o_cols) < 20:
+         o_cols.extend([''] * (20 - len(o_cols)))
+     else:
+         o_cols = o_cols[:20]
+         
+     return c_cols, o_cols, remainder
+ 
++@setup_edata_bp.route('/api/tools/setup-edata/preview', methods=['POST'])
++@login_required
++def preview_generic_import():
++    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
++    
++    sql = """-- PREVIEW: GenericDataImport Schema
++IF OBJECT_ID('[dbo].[GenericDataImport]', 'U') IS NOT NULL DROP TABLE [dbo].[GenericDataImport]
++CREATE TABLE [dbo].[GenericDataImport] (
++    ID INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
++    FN VARCHAR(1000), OriginalValue VARCHAR(MAX),
++    col01varchar VARCHAR(1000), col02varchar VARCHAR(1000), col03varchar VARCHAR(1000), col04varchar VARCHAR(1000), col05varchar VARCHAR(1000),
++    col06varchar VARCHAR(1000), col07varchar VARCHAR(1000), col08varchar VARCHAR(1000), col09varchar VARCHAR(1000), col10varchar VARCHAR(1000),
++    col01other VARCHAR(1000), col02other VARCHAR(1000), col03other VARCHAR(1000), col04other VARCHAR(1000), col05other VARCHAR(1000),
++    col06other VARCHAR(1000), col07other VARCHAR(1000), col08other VARCHAR(1000), col09other VARCHAR(1000), col10other VARCHAR(1000),
++    col11other VARCHAR(1000), col12other VARCHAR(1000), col13other VARCHAR(1000), col14other VARCHAR(1000), col15other VARCHAR(1000),
++    col16other VARCHAR(1000), col17other VARCHAR(1000), col18other VARCHAR(1000), col19other VARCHAR(1000), col20other VARCHAR(1000),
++    uf1 VARCHAR(1000), uf2 VARCHAR(1000), uf3 VARCHAR(1000), leftovers VARCHAR(1000)
++)"""
++    return jsonify({'success': True, 'sql': sql})
++
+ @setup_edata_bp.route('/api/tools/setup-edata', methods=['POST'])
+ @login_required
+ def run_generic_import():
+     req_data = request.json
+     user_role = current_user.role
+ 
+     def generate():
+         if user_role != 'admin':
+             yield json.dumps({'type': 'error', 'message': 'Unauthorized'}) + '\n'
+             return
+ 
+         county_id = req_data.get('county_id')
+         import_mode = req_data.get('mode', 'D') # D=Drop, A=Append
+ 
+         if not county_id:
+             yield json.dumps({'type': 'error', 'message': 'Context missing'}) + '\n'
+             return
+ 
+         # 1. Resolve Paths
+         county = db.session.get(IndexingCounties, county_id)
+         state = IndexingStates.query.filter_by(fips_code=county.state_fips).first()
+         
+         if not county or not state:
+             yield json.dumps({'type': 'error', 'message': 'Invalid State/County'}) + '\n'
+             return
+ 
+         s_clean = secure_filename(state.state_name)
+         c_clean = secure_filename(county.county_name)
+         base_folder = os.path.join(current_app.root_path, 'data', s_clean, c_clean, 'eData Files')
+         abs_folder_path = os.path.abspath(base_folder)
+ 
+         if not os.path.exists(abs_folder_path):
+             yield json.dumps({'type': 'error', 'message': 'eData Files folder not found.'}) + '\n'
+             return
+ 
+         # 2. Database Prep
+         if import_mode == 'D':
+             try:
+                 db.session.execute(text("IF OBJECT_ID('[dbo].[GenericDataImport]', 'U') IS NOT NULL DROP TABLE [dbo].[GenericDataImport]"))
+                 create_sql = """
+                 CREATE TABLE [dbo].[GenericDataImport] (
+                     ID INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
+                     FN VARCHAR(1000),
+                     OriginalValue VARCHAR(MAX),
+                     col01varchar VARCHAR(1000), col02varchar VARCHAR(1000), col03varchar VARCHAR(1000), col04varchar VARCHAR(1000), col05varchar VARCHAR(1000),
+                     col06varchar VARCHAR(1000), col07varchar VARCHAR(1000), col08varchar VARCHAR(1000), col09varchar VARCHAR(1000), col10varchar VARCHAR(1000),
+                     col01other VARCHAR(1000), col02other VARCHAR(1000), col03other VARCHAR(1000), col04other VARCHAR(1000), col05other VARCHAR(1000),
+                     col06other VARCHAR(1000), col07other VARCHAR(1000), col08other VARCHAR(1000), col09other VARCHAR(1000), col10other VARCHAR(1000),
+                     col11other VARCHAR(1000), col12other VARCHAR(1000), col13other VARCHAR(1000), col14other VARCHAR(1000), col15other VARCHAR(1000),
+                     col16other VARCHAR(1000), col17other VARCHAR(1000), col18other VARCHAR(1000), col19other VARCHAR(1000), col20other VARCHAR(1000),
+                     uf1 VARCHAR(1000), uf2 VARCHAR(1000), uf3 VARCHAR(1000),
+                     leftovers VARCHAR(1000)
+                 )
+                 """
+                 db.session.execute(text(create_sql))
+                 db.session.commit()
+             except Exception as e:
+                 # Use format_error here too if desired, though this is schema setup
+                 yield json.dumps({'type': 'error', 'message': f'Table Creation Failed: {format_error(e)}'}) + '\n'
+                 return
+ 
+         # 3. Collect Files
+         csv_files = []
+         for root, dirs, files in os.walk(abs_folder_path):
+             for file in files:
+                 if file.lower().endswith('.csv'):
+                     csv_files.append(os.path.join(root, file))
+ 
+         total_files = len(csv_files)
+         if total_files == 0:
+             yield json.dumps({'type': 'error', 'message': 'No .csv files found.'}) + '\n'
+             return
+ 
+         yield json.dumps({'type': 'progress', 'current': 0, 'total': total_files, 'percent': 0}) + '\n'
+ 
+         processed_files = 0
+         errors = []
+ 
+         # 4. Processing Loop (Python Logic)
+         insert_query = text("""
+             INSERT INTO [dbo].[GenericDataImport] (
+                 FN, OriginalValue,
+                 col01varchar, col02varchar, col03varchar, col04varchar, col05varchar,
+                 col06varchar, col07varchar, col08varchar, col09varchar, col10varchar,
+                 col01other, col02other, col03other, col04other, col05other,
+                 col06other, col07other, col08other, col09other, col10other,
+                 col11other, col12other, col13other, col14other, col15other,
+                 col16other, col17other, col18other, col19other, col20other,
+                 uf1, uf2, uf3, leftovers
+             ) VALUES (
+                 :fn, :orig,
+                 :c1, :c2, :c3, :c4, :c5, :c6, :c7, :c8, :c9, :c10,
+                 :o1, :o2, :o3, :o4, :o5, :o6, :o7, :o8, :o9, :o10,
+                 :o11, :o12, :o13, :o14, :o15, :o16, :o17, :o18, :o19, :o20,
+                 '', '', '', :left
+             )
+         """)
+ 
+         for i, full_path in enumerate(csv_files):
+             filename = os.path.basename(full_path)
+             batch_data = []
+             
+             try:
+                 # Open with errors='replace' to prevent encoding crashes
+                 with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                     # Skip basic header? Usually handled by logic, but raw text often has it. 
+                     # If we need to skip first row, uncomment:
+                     # next(f, None) 
+                     
+                     for line in f:
+                         clean_line = line.strip()
+                         if not clean_line: continue
+                         
+                         # PARSE
+                         c_vals, o_vals, left_val = parse_line_waterfall(clean_line)
+                         
+                         row_dict = {
+                             'fn': filename,
+                             'orig': clean_line[:8000], # Truncate safely if huge
+                             'c1': c_vals[0], 'c2': c_vals[1], 'c3': c_vals[2], 'c4': c_vals[3], 'c5': c_vals[4],
+                             'c6': c_vals[5], 'c7': c_vals[6], 'c8': c_vals[7], 'c9': c_vals[8], 'c10': c_vals[9],
+                             'o1': o_vals[0], 'o2': o_vals[1], 'o3': o_vals[2], 'o4': o_vals[3], 'o5': o_vals[4],
+                             'o6': o_vals[5], 'o7': o_vals[6], 'o8': o_vals[7], 'o9': o_vals[8], 'o10': o_vals[9],
+                             'o11': o_vals[10], 'o12': o_vals[11], 'o13': o_vals[12], 'o14': o_vals[13], 'o15': o_vals[14],
+                             'o16': o_vals[15], 'o17': o_vals[16], 'o18': o_vals[17], 'o19': o_vals[18], 'o20': o_vals[19],
+                             'left': left_val
+                         }
+                         batch_data.append(row_dict)
+ 
+                         # BATCH INSERT (Every 1000 rows)
+                         if len(batch_data) >= 1000:
+                             db.session.execute(insert_query, batch_data)
+                             db.session.commit()
+                             batch_data = []
+ 
+                     # Insert remaining rows for this file
+                     if batch_data:
+                         db.session.execute(insert_query, batch_data)
+                         db.session.commit()
+ 
+                 processed_files += 1
+ 
+             except Exception as e:
+                 db.session.rollback()
+                 
+                 # --- NEW ERROR HANDLING ---
+                 error_message = format_error(e)
+                 errors.append(f"{filename}: {error_message}")
+ 
+             # Update Progress Bar
+             percent = int(((i + 1) / total_files) * 100)
+             yield json.dumps({
+                 'type': 'progress',
+                 'current': i + 1,
+                 'total': total_files,
+                 'percent': percent,
+                 'filename': filename
+             }) + '\n'
+ 
+         # 5. Final Report
+         if processed_files == 0 and len(errors) > 0:
+             yield json.dumps({'type': 'error', 'message': f"All failed. First: {errors[0]}"}) + '\n'
+         else:
+             msg = f"Processed {processed_files} files."
+             if errors: msg += f" ({len(errors)} errors)"
+             yield json.dumps({'type': 'complete', 'message': msg}) + '\n'
+ 
+     return Response(stream_with_context(generate()), mimetype='application/json')
+--- a/blueprints/SetupKeliTables.py
++++ b/blueprints/SetupKeliTables.py
+@@ -1,6 +1,6 @@
+ import os
+ import json
+ import csv
+ from flask import Blueprint, request, Response, stream_with_context, current_app, jsonify
+ from flask_login import login_required, current_user
+ from sqlalchemy import text
+ from werkzeug.utils import secure_filename
+ from extensions import db
+ from models import IndexingCounties, IndexingStates
+ from utils import format_error
+ 
+ setup_keli_bp = Blueprint('setup_keli', __name__)
+ 
++@setup_keli_bp.route('/api/tools/setup-keli/preview', methods=['POST'])
++@login_required
++def preview_keli_import():
++    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
++    
++    data = request.json
++    county_id = data.get('county_id')
++    
++    county = db.session.get(IndexingCounties, county_id)
++    if not county: return jsonify({'success': False, 'message': 'County not found'})
++    
++    state = IndexingStates.query.filter_by(fips_code=county.state_fips).first()
++    if not state: return jsonify({'success': False, 'message': 'State not found'})
++    
++    s_clean = secure_filename(state.state_name)
++    c_clean = secure_filename(county.county_name)
++    base_folder = os.path.join(current_app.root_path, 'data', s_clean, c_clean, 'Keli Files')
++    
++    if not os.path.exists(base_folder): return jsonify({'success': False, 'message': 'Folder not found'})
++    
++    csv_files = [f for f in os.listdir(base_folder) if f.lower().endswith('.csv')]
++    if not csv_files: return jsonify({'success': True, 'sql': '-- No CSV files found'})
++    
++    sql_output = f"-- PREVIEW: Found {len(csv_files)} files\n\n"
++    
++    for filename in csv_files:
++        full_path = os.path.join(base_folder, filename)
++        raw_name = os.path.splitext(filename)[0]
++        safe_raw = "".join([c for c in raw_name if c.isalnum() or c in ('_')])
++        table_name = f"{c_clean}_keli_{safe_raw}"
++        full_table_name = f"[dbo].[{table_name}]"
++        
++        try:
++            # Read only header for preview
++            with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
++                header_line = f.readline().strip()
++                reader = csv.reader([header_line])
++                headers = next(reader)
++            
++            cols_def = ", ".join([f"[{h.strip()}] VARCHAR(MAX)" for h in headers if h.strip()])
++            sql_output += f"-- File: {filename}\nDROP TABLE IF EXISTS {full_table_name};\nCREATE TABLE {full_table_name} ({cols_def});\n"
++            sql_output += f"BULK INSERT {full_table_name} FROM '{full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDQUOTE = '\"', FIELDTERMINATOR = ',', ROWTERMINATOR = '0x0a', TABLOCK);\nGO\n\n"
++        except Exception as e:
++            sql_output += f"-- Error reading {filename}: {str(e)}\n\n"
++            
++    return jsonify({'success': True, 'sql': sql_output})
++
+ @setup_keli_bp.route('/api/tools/setup-keli', methods=['POST'])
+ @login_required
+ def run_keli_import():
+     req_data = request.json
+     user_role = current_user.role
+ 
+     def generate():
+         # 1. Security & Validation
+         if user_role != 'admin':
+             yield json.dumps({'type': 'error', 'message': 'Unauthorized'}) + '\n'
+             return
+ 
+         county_id = req_data.get('county_id')
+         if not county_id:
+             yield json.dumps({'type': 'error', 'message': 'Context missing'}) + '\n'
+             return
+ 
+         county = db.session.get(IndexingCounties, county_id)
++        if not county:
++             yield json.dumps({'type': 'error', 'message': 'County not found'}) + '\n'
++             return
++             
+         state = IndexingStates.query.filter_by(fips_code=county.state_fips).first()
+         
+-        if not county or not state:
+-            yield json.dumps({'type': 'error', 'message': 'Invalid State/County'}) + '\n'
++        if not state:
++            yield json.dumps({'type': 'error', 'message': 'State not found'}) + '\n'
+             return
+ 
+         # 2. Path Resolution
+         s_clean = secure_filename(state.state_name)
+         c_clean = secure_filename(county.county_name)
+         
+         # Target: /data/{State}/{County}/Keli Files
+         base_folder = os.path.join(current_app.root_path, 'data', s_clean, c_clean, 'Keli Files')
+         abs_folder_path = os.path.abspath(base_folder)
+ 
+         if not os.path.exists(abs_folder_path):
+             yield json.dumps({'type': 'error', 'message': 'Keli Files folder not found.'}) + '\n'
+             return
+ 
+         # 3. Scan Files
+         csv_files = [f for f in os.listdir(abs_folder_path) if f.lower().endswith('.csv')]
+         total_files = len(csv_files)
+         
+         if total_files == 0:
+             yield json.dumps({'type': 'error', 'message': 'No .csv files found in Keli folder.'}) + '\n'
+             return
+ 
+         yield json.dumps({'type': 'progress', 'current': 0, 'total': total_files, 'percent': 0}) + '\n'
+ 
+         processed_count = 0
+         errors = []
+ 
+         # 4. Process Loop
+         for i, filename in enumerate(csv_files):
+             full_path = os.path.join(abs_folder_path, filename)
+             
+             # Construct Table Name: [dbo].[county_keli_filename]
+             raw_name = os.path.splitext(filename)[0]
+             # Sanitize simple chars only for table name to avoid SQL Injection risks
+             safe_raw = "".join([c for c in raw_name if c.isalnum() or c in ('_')])
+             table_name = f"{c_clean}_keli_{safe_raw}"
+             full_table_name = f"[dbo].[{table_name}]"
+ 
+             try:
+                 # --- STEP A: READ HEADER (Python) ---
+                 with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                     header_line = f.readline().strip()
+                     if not header_line:
+                         raise Exception("Empty file")
+                     
+                     # Use CSV reader to handle quoted headers correctly
+                     reader = csv.reader([header_line])
+                     headers = next(reader)
+ 
+                 if not headers:
+                     raise Exception("No headers found")
+ 
+                 # --- STEP B: CREATE TABLE ---
+                 # Build columns list: [Col1] VARCHAR(MAX), [Col2] VARCHAR(MAX)...
+                 cols_def = ", ".join([f"[{h.strip()}] VARCHAR(MAX)" for h in headers if h.strip()])
+                 
+                 drop_create_sql = f"""
+                     DROP TABLE IF EXISTS {full_table_name};
+                     CREATE TABLE {full_table_name} ({cols_def});
+                 """
+                 db.session.execute(text(drop_create_sql))
+                 db.session.commit()
+ 
+                 # --- STEP C: BULK INSERT (SQL) ---
+                 # Escape single quotes in path for SQL (e.g. O'Brien folder)
+                 sql_safe_path = full_path.replace("'", "''")
+                 
+                 # We inject the path directly because BULK INSERT does NOT support parameters (e.g. @Path)
+                 bulk_sql = f"""
+                     BULK INSERT {full_table_name} 
+                     FROM '{sql_safe_path}' 
+                     WITH (
+                         FORMAT = 'CSV', 
+                         FIRSTROW = 2, 
+                         FIELDQUOTE = '"', 
+                         FIELDTERMINATOR = ',', 
+                         ROWTERMINATOR = '0x0a',
+                         TABLOCK
+                     );
+                 """
+                 db.session.execute(text(bulk_sql))
+                 db.session.commit()
+ 
+                 processed_count += 1
+ 
+             except Exception as e:
+                 db.session.rollback()
+                 
+                 # --- NEW ERROR HANDLING ---
+                 error_message = format_error(e)
+                 errors.append(f"{filename}: {error_message}")
+ 
+             # Yield Progress
+             percent = int(((i + 1) / total_files) * 100)
+             yield json.dumps({
+                 'type': 'progress',
+                 'current': i + 1,
+                 'total': total_files,
+                 'percent': percent,
+                 'filename': filename
+             }) + '\n'
+ 
+         # 5. Final Summary
+         if processed_count == 0 and len(errors) > 0:
+             yield json.dumps({'type': 'error', 'message': f"All failed. First: {errors[0]}"}) + '\n'
+         else:
+             msg = f"Processed {processed_count} files."
+             if errors: msg += f" ({len(errors)} errors)"
+             yield json.dumps({'type': 'complete', 'message': msg}) + '\n'
+ 
+     return Response(stream_with_context(generate()), mimetype='application/json')
+--- a/templates/components/modals/ImportEDataErrors.html
++++ b/templates/components/modals/ImportEDataErrors.html
+@@ -1,23 +1,30 @@
+ <div class="modal fade" id="importEDataErrorsModal" tabindex="-1" data-bs-backdrop="static">
+     <div class="modal-dialog modal-lg modal-dialog-centered">
+         <div class="modal-content custom-panel" style="border-color: #dc3545;">
+             <div class="modal-header border-secondary">
+                 <h5 class="modal-title" style="color: #dc3545;"><i class="bi bi-upload me-2"></i>Import eData Errors</h5>
+                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+             </div>
+             <div class="modal-body">
+                 <p class="mb-2 text-muted small">Target Directory:</p>
+                 <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                     <i class="bi bi-folder-fill me-2" style="color: #dc3545;"></i>
+                     <span id="importEdeDisplayPath" class="text-light">Loading...</span>
+                 </div>
+                 <div class="text-center mb-3">
+                     <span class="badge bg-secondary" id="importEdeFileCount">Scanning...</span>
+                 </div>
+                 <div id="importEdeProgressContainer" class="d-none mb-3">
+                     <div class="d-flex justify-content-between small mb-1">
+                         <span class="text-muted">Importing...</span>
+                         <span id="importEdeProgressText" class="text-light">0%</span>
+                     </div>
+                     <div class="progress bg-dark border border-secondary" style="height: 20px;">
+                         <div id="importEdeProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #dc3545;"></div>
+                     </div>
+                     <div id="importEdeCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
+-                <div id="importEdeDebugPanel" class="d-none mt-3">
+-                    <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug Logs</label>
+-                    <div id="importEdeLogContent" class="bg-black border border-secondary p-2 small font-monospace text-muted" style="height: 150px; overflow-y: auto;"></div>
++                <div id="importEdePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
++                    <div class="d-flex justify-content-between align-items-center mb-2">
++                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
++                    </div>
++                    <pre id="importEdeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
+                 <div id="importEdeResult" class="text-center small mt-3"></div>
+             </div>
+-            <div class="modal-footer border-secondary">
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewImportEde()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                 <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
+                     <i class="bi bi-box-arrow-in-down me-1"></i>Run Import
+                 </button>
++                </div>
+             </div>
+         </div>
+     </div>
+ </div>
+--- a/templates/components/modals/SetupEDataTable.html
++++ b/templates/components/modals/SetupEDataTable.html
+@@ -1,25 +1,33 @@
+ <div class="modal fade" id="eDataModal" tabindex="-1" style="z-index: 1080;">
+     <div class="modal-dialog modal-dialog-centered">
+         <div class="modal-content custom-panel border-success">
+             <div class="modal-header border-secondary">
+                 <h5 class="modal-title"><i class="bi bi-table me-2"></i>Setup eData Table</h5>
+                 <button type="button" class="btn-close btn-close-white" onclick="closeEDataModal()"></button>
+             </div>
+             <div class="modal-body">
+                 <p class="mb-2 text-muted small">Target Directory:</p>
+                 <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                     <i class="bi bi-folder2-open me-2 text-warning"></i>
+                     <span id="eDataDisplayPath" class="text-light">Loading...</span>
+                 </div>
+                 <div class="mb-3">
+                     <label class="form-label small text-muted">Import Mode</label>
+                     <select id="eDataImportMode" class="form-select border-secondary bg-transparent text-light">
+                         <option value="D" selected>Overwrite Existing Data (Drop)</option>
+                         <option value="A">Append to Existing Data (Append)</option>
+                     </select>
+                     <div class="form-text text-end small fst-italic text-muted">Select 'Overwrite' to clear table before importing.</div>
+                 </div>
+                 <div id="eDataProgressContainer" class="d-none mb-3">
+                     <div class="d-flex justify-content-between small mb-1">
+                         <span class="text-muted">Importing...</span>
+                         <span id="eDataProgressText" class="text-light">0%</span>
+                     </div>
+                     <div class="progress" style="height: 10px; background-color: #333;">
+                         <div id="eDataProgressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%;"></div>
+                     </div>
+                     <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
++                <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
++                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++                    <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
++                </div>
+                 <div id="eDataResult" class="text-center small"></div>
+                 <input type="hidden" id="eDataCountyId">
+             </div>
+-            <div class="modal-footer border-secondary">
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                 <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
++                </div>
+             </div>
+         </div>
+     </div>
+ </div>
+--- a/templates/components/modals/SetupKeliTables.html
++++ b/templates/components/modals/SetupKeliTables.html
+@@ -1,23 +1,31 @@
+ <div class="modal fade" id="keliModal" tabindex="-1" style="z-index: 1080;">
+     <div class="modal-dialog modal-dialog-centered">
+         <div class="modal-content custom-panel" style="border-color: #a370f7;">
+             <div class="modal-header border-secondary">
+                 <h5 class="modal-title" style="color: #a370f7;"><i class="bi bi-collection me-2"></i>Setup Keli Tables</h5>
+                 <button type="button" class="btn-close btn-close-white" onclick="closeKeliModal()"></button>
+             </div>
+             <div class="modal-body">
+                 <p class="mb-2 text-muted small">Target Directory:</p>
+                 <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
+                     <i class="bi bi-folder-fill me-2" style="color: #a370f7;"></i>
+                     <span id="keliDisplayPath" class="text-light">Loading...</span>
+                 </div>
+                 <div id="keliProgressContainer" class="d-none mb-3">
+                     <div class="d-flex justify-content-between small mb-1">
+                         <span class="text-muted">Importing...</span>
+                         <span id="keliProgressText" class="text-light">0%</span>
+                     </div>
+                     <div class="progress" style="height: 10px; background-color: #333;">
+                         <div id="keliProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #a370f7;"></div>
+                     </div>
+                     <div id="keliCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
++                <div id="keliPreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
++                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++                    <pre id="keliSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
++                </div>
+                 <div id="keliResult" class="text-center small"></div>
+                 <input type="hidden" id="keliCountyId">
+             </div>
+-            <div class="modal-footer border-secondary">
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnKeliPreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewKeliSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
+                 <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
++                </div>
+             </div>
+         </div>
+     </div>
+ </div>
+--- a/templates/components/scripts/ImportEDataErrors.html
++++ b/templates/components/scripts/ImportEDataErrors.html
+@@ -1,23 +1,31 @@
+ <script>
+     var currentImportEdeCountyId = null; 
+     function openImportEDataErrorsModal(passedId) {
+         closeAllModals(); currentImportEdeCountyId = passedId;
+         if(importEdeModal) importEdeModal.show();
+         document.getElementById('importEdeResult').innerText = '';
+         document.getElementById('importEdeProgressContainer').classList.add('d-none');
++        document.getElementById('importEdePreviewContainer').classList.add('d-none');
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+-        if(document.getElementById('debugModeToggle').checked) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
+         fetch('/api/tools/import-edata-errors/init', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: passedId })})
+         .then(r => r.json()).then(d => {
+             if(d.success) {
+                 document.getElementById('importEdeDisplayPath').innerText = d.path;
+                 document.getElementById('importEdeFileCount').innerText = d.file_count + " files";
+                 document.getElementById('btnRunImportEde').disabled = (d.file_count === 0);
+             }
+         });
+     }
++    function previewImportEde() {
++        const out = document.getElementById('importEdeSqlOutput'); out.innerText = 'Generating...';
++        document.getElementById('importEdePreviewContainer').classList.remove('d-none');
++        fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
++        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
++    }
+     function runImportEDataErrors() {
+         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;
+         document.getElementById('importEdeProgressContainer').classList.remove('d-none');
++        document.getElementById('importEdePreviewContainer').classList.add('d-none');
+         const pBar = document.getElementById('importEdeProgressBar'); pBar.style.width = '0%';
+         fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId, debug: document.getElementById('debugModeToggle').checked })})
+         .then(response => {
+             const reader = response.body.getReader(); const decoder = new TextDecoder();
+             function read() { reader.read().then(({ done, value }) => {
+                 if (done) { btn.disabled = false; document.getElementById('importEdeResult').innerText = "Completed"; pBar.style.width = '100%'; return; }
+                 const lines = decoder.decode(value).split('\n');
+                 lines.forEach(l => { try { const d = JSON.parse(l); 
+                     if(d.type==='progress') pBar.style.width = d.percent + '%';
+-                    if(d.type==='log') { const div = document.createElement('div'); div.innerText = d.message; document.getElementById('importEdeLogContent').appendChild(div); }
+                 } catch(e){} });
+                 read();
+             }); } read();
+         });
+     }
+ </script>
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -1,23 +1,31 @@
+ <script>
+     function openEDataModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('eDataCountyId').value = id;
+         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
++        document.getElementById('edePreviewContainer').classList.add('d-none');
++        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(eDataModal) eDataModal.show(); 
+     }
+     function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
++    function previewEDataSetup() {
++        const out = document.getElementById('edeSqlOutput'); out.innerText = 'Generating...';
++        document.getElementById('edePreviewContainer').classList.remove('d-none');
++        fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
++        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
++    }
+     async function submitEDataSetup() {
+         const btn = document.querySelector('#eDataModal .btn-success');
+         const resultDiv = document.getElementById('eDataResult');
+         btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...';
+         resultDiv.innerHTML = ''; 
+         document.getElementById('eDataProgressContainer').classList.remove('d-none');
++        document.getElementById('edePreviewContainer').classList.add('d-none');
+         document.getElementById('eDataProgressBar').style.width = '0%';
+         document.getElementById('eDataProgressText').innerText = '0%';
+         try {
+             const response = await fetch('/api/tools/setup-edata', {
+                 method: 'POST', headers: {'Content-Type': 'application/json'},
+                 body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value, mode: document.getElementById('eDataImportMode').value })
+             });
+             const reader = response.body.getReader(); const decoder = new TextDecoder();
+             while (true) {
+                 const { done, value } = await reader.read(); if (done) break;
+                 const lines = decoder.decode(value).split('\n');
+                 lines.forEach(l => { if(l) try {
+                     const d = JSON.parse(l);
+                     if(d.type==='progress') { document.getElementById('eDataProgressBar').style.width = d.percent+'%'; document.getElementById('eDataProgressText').innerText = d.percent+'%'; }
+                     if(d.type==='complete') { document.getElementById('eDataProgressBar').style.width = '100%'; resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`; }
+                 } catch(e){} });
+             }
+         } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Connection Failed</div>'; } 
+         finally { btn.disabled = false; btn.innerText = 'Run Import'; }
+     }
+ </script>
+--- a/templates/components/scripts/SetupKeliTables.html
++++ b/templates/components/scripts/SetupKeliTables.html
+@@ -1,23 +1,31 @@
+ <script>
+     function openKeliModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('keliCountyId').value = id;
+         document.getElementById('keliDisplayPath').innerText = `/data/${stateName}/${countyName}/Keli Files`;
++        document.getElementById('keliPreviewContainer').classList.add('d-none');
++        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(keliModal) keliModal.show(); 
+     }
+     function closeKeliModal() { if(keliModal) keliModal.hide(); }
++    function previewKeliSetup() {
++        const out = document.getElementById('keliSqlOutput'); out.innerText = 'Generating...';
++        document.getElementById('keliPreviewContainer').classList.remove('d-none');
++        fetch('/api/tools/setup-keli/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('keliCountyId').value })})
++        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
++    }
+     async function submitKeliSetup() {
+         const btn = document.querySelector('#keliModal .btn');
+         const resultDiv = document.getElementById('keliResult');
+         btn.disabled = true; resultDiv.innerHTML = '';
+         document.getElementById('keliProgressContainer').classList.remove('d-none');
++        document.getElementById('keliPreviewContainer').classList.add('d-none');
+         document.getElementById('keliProgressBar').style.width = '0%';
+         try {
+             const response = await fetch('/api/tools/setup-keli', {
+                 method: 'POST', headers: {'Content-Type': 'application/json'},
+                 body: JSON.stringify({ county_id: document.getElementById('keliCountyId').value })
+             });
+             const reader = response.body.getReader(); const decoder = new TextDecoder();
+             while (true) {
+                 const { done, value } = await reader.read(); if (done) break;
+                 const lines = decoder.decode(value).split('\n');
+                 lines.forEach(l => { if(l) try { const d = JSON.parse(l);
+                     if(d.type==='progress') document.getElementById('keliProgressBar').style.width = d.percent+'%';
+                     if(d.type==='complete') { document.getElementById('keliProgressBar').style.width = '100%'; resultDiv.innerHTML=`<div class="alert alert-success">${d.message}</div>`; }
+                 } catch(e){} });
+             }
+         } catch (e) { resultDiv.innerHTML = '<div class="alert alert-danger">Failed</div>'; } 
+         finally { btn.disabled = false; }
+     }
+ </script>
+--- a/templates/components/scripts/SystemTools.html
++++ b/templates/components/scripts/SystemTools.html
+@@ -51,7 +51,7 @@
+         const toggle = document.getElementById('debugModeToggle');
+         const isDebug = toggle ? toggle.checked : false;
+         
+-        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview'];
++        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview', 'btnKeliPreview', 'btnImportEdePreview'];
+         debugButtons.forEach(id => {
+             const btn = document.getElementById(id);
+             if (btn) isDebug ? btn.classList.remove('d-none') : btn.classList.add('d-none');

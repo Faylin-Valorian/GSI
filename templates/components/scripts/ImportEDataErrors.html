@@ -5,8 +5,8 @@
         if(importEdeModal) importEdeModal.show();
         document.getElementById('importEdeResult').innerText = '';
         document.getElementById('importEdeProgressContainer').classList.add('d-none');
+        document.getElementById('importEdePreviewContainer').classList.add('d-none');
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
-        if(document.getElementById('debugModeToggle').checked) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
         fetch('/api/tools/import-edata-errors/init', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: passedId })})
         .then(r => r.json()).then(d => {
             if(d.success) {
@@ -16,9 +16,16 @@
             }
         });
     }
+    function previewImportEde() {
+        const out = document.getElementById('importEdeSqlOutput'); out.innerText = 'Generating...';
+        document.getElementById('importEdePreviewContainer').classList.remove('d-none');
+        fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
+        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+    }
     function runImportEDataErrors() {
         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;
         document.getElementById('importEdeProgressContainer').classList.remove('d-none');
+        document.getElementById('importEdePreviewContainer').classList.add('d-none');
         const pBar = document.getElementById('importEdeProgressBar'); pBar.style.width = '0%';
         fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId, debug: document.getElementById('debugModeToggle').checked })})
         .then(response => {
@@ -28,7 +35,6 @@
                 const lines = decoder.decode(value).split('\n');
                 lines.forEach(l => { try { const d = JSON.parse(l); 
                     if(d.type==='progress') pBar.style.width = d.percent + '%';
-                    if(d.type==='log') { const div = document.createElement('div'); div.innerText = d.message; document.getElementById('importEdeLogContent').appendChild(div); }
                 } catch(e){} });
                 read();
             }); } read();

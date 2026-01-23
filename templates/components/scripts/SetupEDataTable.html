@@ -2,15 +2,24 @@
     function openEDataModal(id, stateName, countyName) { 
         closeAllModals(); document.getElementById('eDataCountyId').value = id;
         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+        document.getElementById('edePreviewContainer').classList.add('d-none');
+        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
         if(eDataModal) eDataModal.show(); 
     }
     function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
+    function previewEDataSetup() {
+        const out = document.getElementById('edeSqlOutput'); out.innerText = 'Generating...';
+        document.getElementById('edePreviewContainer').classList.remove('d-none');
+        fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
+        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+    }
     async function submitEDataSetup() {
         const btn = document.querySelector('#eDataModal .btn-success');
         const resultDiv = document.getElementById('eDataResult');
         btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...';
         resultDiv.innerHTML = ''; 
         document.getElementById('eDataProgressContainer').classList.remove('d-none');
+        document.getElementById('edePreviewContainer').classList.add('d-none');
         document.getElementById('eDataProgressBar').style.width = '0%';
         document.getElementById('eDataProgressText').innerText = '0%';
         try {
