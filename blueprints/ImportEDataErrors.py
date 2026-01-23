@@ -33,6 +33,42 @@ CREATE TABLE [{table_name}] (
 )
 """
 
+@import_edata_errors_bp.route('/api/tools/import-edata-errors/download-sql', methods=['GET'])
+@login_required
+def download_sql():
+    if current_user.role != 'admin': return Response("Unauthorized", 403)
+    
+    county_id = request.args.get('county_id')
+    c = db.session.get(IndexingCounties, county_id)
+    if not c: return Response("County not found", 404)
+    
+    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+    if not s: return Response("State not found", 404)
+    state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
+    
+    base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
+    
+    def generate():
+        yield f"-- GSI IMPORT EDATA ERRORS SCRIPT\n-- County: {c.county_name}\n-- Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        
+        if not os.path.exists(base_path):
+            yield "-- Error: Source directory not found.\n"
+            return
+            
+        files = [f for f in os.listdir(base_path) if f.lower().endswith('.csv')]
+        for filename in files:
+            clean_name = os.path.splitext(filename)[0].replace(' ', '_').replace('-', '_')
+            table_name = f"{state_abbr}_{c.county_name}_eData_Errors_{clean_name}"
+            file_full_path = os.path.join(base_path, filename)
+            
+            yield f"-- File: {filename}\n"
+            yield f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]\n"
+            yield CREATE_TABLE_SQL.format(table_name=table_name) + "\n"
+            yield f"BULK INSERT [{table_name}] FROM '{file_full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDTERMINATOR = ',', ROWTERMINATOR = '\\n', TABLOCK)\nGO\n\n"
+
+    filename = f"Import_Errors_{c.county_name}.sql"
+    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+
 @import_edata_errors_bp.route('/api/tools/import-edata-errors/preview', methods=['POST'])
 @login_required
 def preview_import():
@@ -44,6 +80,8 @@ def preview_import():
     c = db.session.get(IndexingCounties, county_id)
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+    if not s: return jsonify({'success': False, 'message': 'State not found'})
+
     state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
     
     base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')

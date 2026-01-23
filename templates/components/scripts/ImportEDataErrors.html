@@ -17,10 +17,15 @@
         });
     }
     function previewImportEde() {
-        const out = document.getElementById('importEdeSqlOutput'); out.innerText = 'Generating...';
-        document.getElementById('importEdePreviewContainer').classList.remove('d-none');
+        const cont = document.getElementById('importEdePreviewContainer');
+        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
+        cont.classList.remove('d-none');
+        document.getElementById('importEdeSqlOutput').innerText = 'Generating Preview...';
         fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
         .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+    }
+    function downloadImportEdeSQL() {
+        window.location.href = `/api/tools/import-edata-errors/download-sql?county_id=${currentImportEdeCountyId}`;
     }
     function runImportEDataErrors() {
         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;

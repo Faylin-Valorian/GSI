@@ -6,7 +6,7 @@ from sqlalchemy import text
 from werkzeug.utils import secure_filename
 from extensions import db
 from models import IndexingCounties, IndexingStates
-from utils import format_error  # <--- IMPORTED
+from utils import format_error
 
 setup_edata_bp = Blueprint('setup_edata', __name__)
 
@@ -53,6 +53,47 @@ def parse_line_waterfall(line):
         
     return c_cols, o_cols, remainder
 
+@setup_edata_bp.route('/api/tools/setup-edata/download-sql', methods=['GET'])
+@login_required
+def download_sql():
+    if current_user.role != 'admin': return Response("Unauthorized", 403)
+    
+    county_id = request.args.get('county_id')
+    c = db.session.get(IndexingCounties, county_id)
+    if not c: return Response("County not found", 404)
+    
+    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+    if not s: return Response("State not found", 404)
+
+    base_folder = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Files')
+    
+    def generate():
+        yield f"-- GSI EDATA IMPORT SCRIPT\n-- County: {c.county_name}\n\n"
+        yield "IF OBJECT_ID('[dbo].[GenericDataImport]', 'U') IS NOT NULL DROP TABLE [dbo].[GenericDataImport]\n"
+        yield "CREATE TABLE [dbo].[GenericDataImport] (ID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, FN VARCHAR(1000), OriginalValue VARCHAR(MAX), col01varchar VARCHAR(1000), col02varchar VARCHAR(1000), col03varchar VARCHAR(1000), col04varchar VARCHAR(1000), col05varchar VARCHAR(1000), col06varchar VARCHAR(1000), col07varchar VARCHAR(1000), col08varchar VARCHAR(1000), col09varchar VARCHAR(1000), col10varchar VARCHAR(1000), col01other VARCHAR(1000), col02other VARCHAR(1000), col03other VARCHAR(1000), col04other VARCHAR(1000), col05other VARCHAR(1000), col06other VARCHAR(1000), col07other VARCHAR(1000), col08other VARCHAR(1000), col09other VARCHAR(1000), col10other VARCHAR(1000), col11other VARCHAR(1000), col12other VARCHAR(1000), col13other VARCHAR(1000), col14other VARCHAR(1000), col15other VARCHAR(1000), col16other VARCHAR(1000), col17other VARCHAR(1000), col18other VARCHAR(1000), col19other VARCHAR(1000), col20other VARCHAR(1000), uf1 VARCHAR(1000), uf2 VARCHAR(1000), uf3 VARCHAR(1000), leftovers VARCHAR(1000))\nGO\n\n"
+
+        col_list = "FN, OriginalValue, col01varchar, col02varchar, col03varchar, col04varchar, col05varchar, col06varchar, col07varchar, col08varchar, col09varchar, col10varchar, col01other, col02other, col03other, col04other, col05other, col06other, col07other, col08other, col09other, col10other, col11other, col12other, col13other, col14other, col15other, col16other, col17other, col18other, col19other, col20other, uf1, uf2, uf3, leftovers"
+        
+        for root, dirs, files in os.walk(base_folder):
+            for file in files:
+                if file.lower().endswith('.csv'):
+                    full_path = os.path.join(root, file)
+                    filename = os.path.basename(full_path)
+                    try:
+                        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                            for line in f:
+                                clean = line.strip()
+                                if not clean: continue
+                                c_vals, o_vals, left = parse_line_waterfall(clean)
+                                vals = [filename, clean[:8000]] + c_vals + o_vals + ['', '', '', left]
+                                vals_sql = ", ".join([f"'{v.replace('\'', '\'\'')}'" for v in vals])
+                                yield f"INSERT INTO [dbo].[GenericDataImport] ({col_list}) VALUES ({vals_sql});\n"
+                    except Exception as e:
+                        yield f"-- Error reading {filename}: {str(e)}\n"
+
+    filename = f"Setup_eData_{c.county_name}.sql"
+    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+
 @setup_edata_bp.route('/api/tools/setup-edata/preview', methods=['POST'])
 @login_required
 def preview_generic_import():
@@ -71,21 +112,30 @@ def preview_generic_import():
     s_clean = secure_filename(state.state_name)
     c_clean = secure_filename(county.county_name)
     base_folder = os.path.join(current_app.root_path, 'data', s_clean, c_clean, 'eData Files')
+    abs_folder_path = os.path.abspath(base_folder)
     
-    if not os.path.exists(base_folder):
+    if not os.path.exists(abs_folder_path):
         return jsonify({'success': False, 'message': 'eData Files folder not found.'})
 
-    csv_files = [f for f in os.listdir(base_folder) if f.lower().endswith('.csv')]
+    # Recursive scan to match the RUN logic
+    csv_files = []
+    for root, dirs, files in os.walk(abs_folder_path):
+        for file in files:
+            if file.lower().endswith('.csv'):
+                csv_files.append(os.path.join(root, file))
+
     if not csv_files:
-        return jsonify({'success': True, 'sql': '-- No .csv files found.'})
+        return jsonify({'success': True, 'sql': '-- No .csv files found in directory or subdirectories.'})
 
     # 2. Generate Preview (First 5 rows of first file)
+    full_path = csv_files[0]
+    filename = os.path.basename(full_path)
+    
     sql_preview = "-- PREVIEW: Generated Insert Statements (First 5 rows of first file)\n"
-    sql_preview += f"-- Source: {csv_files[0]}\n\n"
+    sql_preview += f"-- Source: {filename}\n-- Path: {full_path}\n\n"
 
     col_list = "FN, OriginalValue, col01varchar, col02varchar, col03varchar, col04varchar, col05varchar, col06varchar, col07varchar, col08varchar, col09varchar, col10varchar, col01other, col02other, col03other, col04other, col05other, col06other, col07other, col08other, col09other, col10other, col11other, col12other, col13other, col14other, col15other, col16other, col17other, col18other, col19other, col20other, uf1, uf2, uf3, leftovers"
 
-    full_path = os.path.join(base_folder, csv_files[0])
     try:
         with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
             rows_shown = 0
@@ -97,7 +147,7 @@ def preview_generic_import():
                 c_vals, o_vals, left_val = parse_line_waterfall(clean_line)
                 
                 # Escape and Format
-                vals = [csv_files[0], clean_line[:8000]] + c_vals + o_vals + ['', '', '', left_val]
+                vals = [filename, clean_line[:8000]] + c_vals + o_vals + ['', '', '', left_val]
                 vals_sql = ", ".join([f"'{v.replace('\'', '\'\'')}'" for v in vals])
                 
                 sql_preview += f"INSERT INTO [dbo].[GenericDataImport] ({col_list}) VALUES ({vals_sql});\n"

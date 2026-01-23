@@ -1,0 +1,241 @@
+--- a/blueprints/ImportEDataErrors.py
++++ b/blueprints/ImportEDataErrors.py
+@@ -34,6 +34,42 @@
+ )
+ """
+ 
++@import_edata_errors_bp.route('/api/tools/import-edata-errors/download-sql', methods=['GET'])
++@login_required
++def download_sql():
++    if current_user.role != 'admin': return Response("Unauthorized", 403)
++    
++    county_id = request.args.get('county_id')
++    c = db.session.get(IndexingCounties, county_id)
++    if not c: return Response("County not found", 404)
++    
++    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
++    if not s: return Response("State not found", 404)
++    state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
++    
++    base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
++    
++    def generate():
++        yield f"-- GSI IMPORT EDATA ERRORS SCRIPT\n-- County: {c.county_name}\n-- Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
++        
++        if not os.path.exists(base_path):
++            yield "-- Error: Source directory not found.\n"
++            return
++            
++        files = [f for f in os.listdir(base_path) if f.lower().endswith('.csv')]
++        for filename in files:
++            clean_name = os.path.splitext(filename)[0].replace(' ', '_').replace('-', '_')
++            table_name = f"{state_abbr}_{c.county_name}_eData_Errors_{clean_name}"
++            file_full_path = os.path.join(base_path, filename)
++            
++            yield f"-- File: {filename}\n"
++            yield f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]\n"
++            yield CREATE_TABLE_SQL.format(table_name=table_name) + "\n"
++            yield f"BULK INSERT [{table_name}] FROM '{file_full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDTERMINATOR = ',', ROWTERMINATOR = '\\n', TABLOCK)\nGO\n\n"
++
++    filename = f"Import_Errors_{c.county_name}.sql"
++    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
++
+ @import_edata_errors_bp.route('/api/tools/import-edata-errors/preview', methods=['POST'])
+ @login_required
+ def preview_import():
+--- a/blueprints/SetupEDataTable.py
++++ b/blueprints/SetupEDataTable.py
+@@ -53,6 +53,46 @@
+         
+     return c_cols, o_cols, remainder
+ 
++@setup_edata_bp.route('/api/tools/setup-edata/download-sql', methods=['GET'])
++@login_required
++def download_sql():
++    if current_user.role != 'admin': return Response("Unauthorized", 403)
++    
++    county_id = request.args.get('county_id')
++    c = db.session.get(IndexingCounties, county_id)
++    if not c: return Response("County not found", 404)
++    
++    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
++    if not s: return Response("State not found", 404)
++
++    base_folder = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Files')
++    
++    def generate():
++        yield f"-- GSI EDATA IMPORT SCRIPT\n-- County: {c.county_name}\n\n"
++        yield "IF OBJECT_ID('[dbo].[GenericDataImport]', 'U') IS NOT NULL DROP TABLE [dbo].[GenericDataImport]\n"
++        yield "CREATE TABLE [dbo].[GenericDataImport] (ID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, FN VARCHAR(1000), OriginalValue VARCHAR(MAX), col01varchar VARCHAR(1000), col02varchar VARCHAR(1000), col03varchar VARCHAR(1000), col04varchar VARCHAR(1000), col05varchar VARCHAR(1000), col06varchar VARCHAR(1000), col07varchar VARCHAR(1000), col08varchar VARCHAR(1000), col09varchar VARCHAR(1000), col10varchar VARCHAR(1000), col01other VARCHAR(1000), col02other VARCHAR(1000), col03other VARCHAR(1000), col04other VARCHAR(1000), col05other VARCHAR(1000), col06other VARCHAR(1000), col07other VARCHAR(1000), col08other VARCHAR(1000), col09other VARCHAR(1000), col10other VARCHAR(1000), col11other VARCHAR(1000), col12other VARCHAR(1000), col13other VARCHAR(1000), col14other VARCHAR(1000), col15other VARCHAR(1000), col16other VARCHAR(1000), col17other VARCHAR(1000), col18other VARCHAR(1000), col19other VARCHAR(1000), col20other VARCHAR(1000), uf1 VARCHAR(1000), uf2 VARCHAR(1000), uf3 VARCHAR(1000), leftovers VARCHAR(1000))\nGO\n\n"
++
++        col_list = "FN, OriginalValue, col01varchar, col02varchar, col03varchar, col04varchar, col05varchar, col06varchar, col07varchar, col08varchar, col09varchar, col10varchar, col01other, col02other, col03other, col04other, col05other, col06other, col07other, col08other, col09other, col10other, col11other, col12other, col13other, col14other, col15other, col16other, col17other, col18other, col19other, col20other, uf1, uf2, uf3, leftovers"
++        
++        for root, dirs, files in os.walk(base_folder):
++            for file in files:
++                if file.lower().endswith('.csv'):
++                    full_path = os.path.join(root, file)
++                    filename = os.path.basename(full_path)
++                    try:
++                        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
++                            for line in f:
++                                clean = line.strip()
++                                if not clean: continue
++                                c_vals, o_vals, left = parse_line_waterfall(clean)
++                                vals = [filename, clean[:8000]] + c_vals + o_vals + ['', '', '', left]
++                                vals_sql = ", ".join([f"'{v.replace('\'', '\'\'')}'" for v in vals])
++                                yield f"INSERT INTO [dbo].[GenericDataImport] ({col_list}) VALUES ({vals_sql});\n"
++                    except Exception as e:
++                        yield f"-- Error reading {filename}: {str(e)}\n"
++
++    filename = f"Setup_eData_{c.county_name}.sql"
++    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
++
+ @setup_edata_bp.route('/api/tools/setup-edata/preview', methods=['POST'])
+ @login_required
+ def preview_generic_import():
+--- a/blueprints/SetupKeliTables.py
++++ b/blueprints/SetupKeliTables.py
+@@ -11,6 +11,46 @@
+ 
+ setup_keli_bp = Blueprint('setup_keli', __name__)
+ 
++@setup_keli_bp.route('/api/tools/setup-keli/download-sql', methods=['GET'])
++@login_required
++def download_sql():
++    if current_user.role != 'admin': return Response("Unauthorized", 403)
++    
++    county_id = request.args.get('county_id')
++    c = db.session.get(IndexingCounties, county_id)
++    if not c: return Response("County not found", 404)
++    
++    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
++    if not s: return Response("State not found", 404)
++
++    base_folder = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'Keli Files')
++    c_clean = secure_filename(c.county_name)
++
++    def generate():
++        yield f"-- GSI KELI IMPORT SCRIPT\n-- County: {c.county_name}\n\n"
++        
++        for root, dirs, files in os.walk(base_folder):
++            for file in files:
++                if file.lower().endswith('.csv'):
++                    full_path = os.path.join(root, file)
++                    filename = os.path.basename(full_path)
++                    raw_name = os.path.splitext(filename)[0]
++                    safe_raw = "".join([c for c in raw_name if c.isalnum() or c in ('_')])
++                    table_name = f"{c_clean}_keli_{safe_raw}"
++                    
++                    try:
++                        with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
++                            header = f.readline().strip()
++                            rdr = csv.reader([header])
++                            cols = next(rdr)
++                        cols_def = ", ".join([f"[{h.strip()}] VARCHAR(MAX)" for h in cols if h.strip()])
++                        yield f"-- File: {filename}\nDROP TABLE IF EXISTS [dbo].[{table_name}];\nCREATE TABLE [dbo].[{table_name}] ({cols_def});\n"
++                        yield f"BULK INSERT [dbo].[{table_name}] FROM '{full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDQUOTE = '\"', FIELDTERMINATOR = ',', ROWTERMINATOR = '0x0a', TABLOCK);\nGO\n\n"
++                    except Exception as e:
++                        yield f"-- Error: {str(e)}\n"
++
++    filename = f"Setup_Keli_{c.county_name}.sql"
++    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
++
+ @setup_keli_bp.route('/api/tools/setup-keli/preview', methods=['POST'])
+ @login_required
+ def preview_keli_import():
+--- a/templates/components/modals/ImportEDataErrors.html
++++ b/templates/components/modals/ImportEDataErrors.html
+@@ -21,7 +21,8 @@
+                 </div>
+                 <div id="importEdePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+                     <div class="d-flex justify-content-between align-items-center mb-2">
+-                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
++                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (Snippet)</label>
++                        <button class="btn btn-sm btn-outline-light" onclick="downloadImportEdeSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
+                     </div>
+                     <pre id="importEdeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
+--- a/templates/components/modals/SetupEDataTable.html
++++ b/templates/components/modals/SetupEDataTable.html
+@@ -30,7 +30,10 @@
+                     <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
+                 <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+-                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++                    <div class="d-flex justify-content-between align-items-center mb-2">
++                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (First 5 Rows)</label>
++                        <button class="btn btn-sm btn-outline-light" onclick="downloadEDataSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
++                    </div>
+                     <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
+                 <div id="eDataResult" class="text-center small"></div>
+--- a/templates/components/modals/SetupKeliTables.html
++++ b/templates/components/modals/SetupKeliTables.html
+@@ -22,7 +22,10 @@
+                     <div id="keliCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
+                 <div id="keliPreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+-                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++                    <div class="d-flex justify-content-between align-items-center mb-2">
++                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (Snippet)</label>
++                        <button class="btn btn-sm btn-outline-light" onclick="downloadKeliSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
++                    </div>
+                     <pre id="keliSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
+                 <div id="keliResult" class="text-center small"></div>
+--- a/templates/components/scripts/ImportEDataErrors.html
++++ b/templates/components/scripts/ImportEDataErrors.html
+@@ -17,9 +17,14 @@
+         });
+     }
+     function previewImportEde() {
+-        const out = document.getElementById('importEdeSqlOutput'); out.innerText = 'Generating...';
+-        document.getElementById('importEdePreviewContainer').classList.remove('d-none');
+-        fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
++        const cont = document.getElementById('importEdePreviewContainer');
++        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
++        cont.classList.remove('d-none');
++        document.getElementById('importEdeSqlOutput').innerText = 'Generating Preview...';
++        fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
+         .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+     }
++    function downloadImportEdeSQL() {
++        window.location.href = `/api/tools/import-edata-errors/download-sql?county_id=${currentImportEdeCountyId}`;
++    }
+     function runImportEDataErrors() {
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -8,9 +8,14 @@
+     function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
+     function previewEDataSetup() {
+-        const out = document.getElementById('edeSqlOutput'); out.innerText = 'Generating...';
+-        document.getElementById('edePreviewContainer').classList.remove('d-none');
++        const cont = document.getElementById('edePreviewContainer');
++        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
++        cont.classList.remove('d-none');
++        document.getElementById('edeSqlOutput').innerText = 'Generating Preview...';
+         fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
+         .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+     }
++    function downloadEDataSQL() {
++        window.location.href = `/api/tools/setup-edata/download-sql?county_id=${document.getElementById('eDataCountyId').value}`;
++    }
+     async function submitEDataSetup() {
+--- a/templates/components/scripts/SetupKeliTables.html
++++ b/templates/components/scripts/SetupKeliTables.html
+@@ -8,9 +8,14 @@
+     function closeKeliModal() { if(keliModal) keliModal.hide(); }
+     function previewKeliSetup() {
+-        const out = document.getElementById('keliSqlOutput'); out.innerText = 'Generating...';
+-        document.getElementById('keliPreviewContainer').classList.remove('d-none');
++        const cont = document.getElementById('keliPreviewContainer');
++        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
++        cont.classList.remove('d-none');
++        document.getElementById('keliSqlOutput').innerText = 'Generating Preview...';
+         fetch('/api/tools/setup-keli/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('keliCountyId').value })})
+         .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+     }
++    function downloadKeliSQL() {
++        window.location.href = `/api/tools/setup-keli/download-sql?county_id=${document.getElementById('keliCountyId').value}`;
++    }
+     async function submitKeliSetup() {

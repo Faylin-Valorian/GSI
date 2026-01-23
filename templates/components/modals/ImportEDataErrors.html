@@ -26,7 +26,8 @@
                 </div>
                 <div id="importEdePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
+                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (Snippet)</label>
+                        <button class="btn btn-sm btn-outline-light" onclick="downloadImportEdeSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
                     </div>
                     <pre id="importEdeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
                 </div>

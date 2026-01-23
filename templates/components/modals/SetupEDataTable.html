@@ -30,7 +30,10 @@
                     <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
                 <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
-                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (First 5 Rows)</label>
+                        <button class="btn btn-sm btn-outline-light" onclick="downloadEDataSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
+                    </div>
                     <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
                 </div>
                 <div id="eDataResult" class="text-center small"></div>
