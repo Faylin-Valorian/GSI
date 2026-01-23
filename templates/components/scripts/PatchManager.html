@@ -21,6 +21,10 @@
         
         // 4. Reset UI
         document.getElementById('patchFileInput').value = '';
+        document.getElementById('patchContentInput').value = '';
+        document.getElementById('patchModeSwitch').checked = false; // Default to unchecked (Text Paste)
+        togglePatchMode();
+        
         document.getElementById('patchError').innerHTML = '';
         document.getElementById('patchLogOutput').classList.add('d-none');
         document.getElementById('patchLogOutput').innerText = '';
@@ -30,14 +34,41 @@
         if(patchModal) patchModal.hide();
     }
 
+    function togglePatchMode() {
+        const isUpload = document.getElementById('patchModeSwitch').checked;
+        const pasteCont = document.getElementById('pasteContainer');
+        const uploadCont = document.getElementById('uploadContainer');
+        
+        if (isUpload) {
+            pasteCont.classList.add('d-none');
+            uploadCont.classList.remove('d-none');
+        } else {
+            pasteCont.classList.remove('d-none');
+            uploadCont.classList.add('d-none');
+        }
+    }
+
     function submitPatchFile() {
+        const isUpload = document.getElementById('patchModeSwitch').checked;
         const fileInput = document.getElementById('patchFileInput');
+        const contentInput = document.getElementById('patchContentInput');
         const errorDiv = document.getElementById('patchError');
         const logDiv = document.getElementById('patchLogOutput');
         
-        if (!fileInput.files.length) {
-            errorDiv.innerHTML = '<span class="text-danger">Please select a .diff file</span>';
-            return;
+        const formData = new FormData();
+
+        if (isUpload) {
+            if (!fileInput.files.length) {
+                errorDiv.innerHTML = '<span class="text-danger">Please select a .diff file</span>';
+                return;
+            }
+            formData.append('file', fileInput.files[0]);
+        } else {
+            if (!contentInput.value.trim()) {
+                errorDiv.innerHTML = '<span class="text-danger">Please paste the patch content</span>';
+                return;
+            }
+            formData.append('patch_content', contentInput.value);
         }
 
         // Show Full Screen Loader
@@ -54,9 +85,6 @@
                 </ul>
             `;
         }
-
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
 
         fetch('/api/admin/patch/apply', {
             method: 'POST',

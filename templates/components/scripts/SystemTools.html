@@ -78,29 +78,4 @@
             if (btn) isDebug ? btn.classList.remove('d-none') : btn.classList.add('d-none');
         });
     }
-
-    // --- CODE VIEWER ---
-    function viewActiveToolCode() {
-        let activeTool = null;
-        if (document.getElementById('driveModal')?.classList.contains('show')) activeTool = 'drive';
-        else if (document.getElementById('dbCompatModal')?.classList.contains('show')) activeTool = 'compat';
-        else if (document.getElementById('proceduresModal')?.classList.contains('show')) activeTool = 'procedures';
-        else if (document.getElementById('eDataModal')?.classList.contains('show')) activeTool = 'edata';
-        else if (document.getElementById('keliModal')?.classList.contains('show')) activeTool = 'keli';
-        else if (document.getElementById('alterDbModal')?.classList.contains('show')) activeTool = 'schema';
-        
-        if (!activeTool) return showNotification("Open a tool first.");
-        
-        fetch('/api/admin/view-code', {
-            method: 'POST', headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ tool: activeTool })
-        })
-        .then(r => r.json()).then(d => { 
-            if(d.success) { 
-                document.getElementById('codeViewerFilename').innerText=d.filename; 
-                document.getElementById('codeViewerContent').innerText=d.code; 
-                new bootstrap.Modal(document.getElementById('codeViewerModal')).show(); 
-            }
-        });
-    }
 </script>

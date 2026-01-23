@@ -50,7 +50,7 @@ def increment_version(root):
 def create_backup(root, current_ver):
     """
     Zips the entire application folder into /versions/YYYYMMDD_vX.X.X.zip
-    Excludes: The versions folder itself, .git, __pycache__, and instance.
+    Excludes: versions, data, .git, __pycache__, instance, venv, .idea
     """
     backup_folder = os.path.join(root, BACKUP_DIR)
     os.makedirs(backup_folder, exist_ok=True)
@@ -66,7 +66,8 @@ def create_backup(root, current_ver):
             for foldername, subfolders, filenames in os.walk(root):
                 # Filter out excluded folders
                 # We modify 'subfolders' in-place to prevent walking into them
-                subfolders[:] = [d for d in subfolders if d not in [BACKUP_DIR, '.git', '__pycache__', 'instance', 'venv', '.idea']]
+                # ADDED 'data' to the exclusion list here
+                subfolders[:] = [d for d in subfolders if d not in [BACKUP_DIR, 'data', '.git', '__pycache__', 'instance', 'venv', '.idea']]
 
                 for filename in filenames:
                     if filename == zip_name: continue # Don't backup the file we are writing
@@ -181,12 +182,31 @@ def apply_patch():
     if not session.get('debug_mode'):
         return jsonify({'success': False, 'message': 'Debug Mode must be enabled.'}), 403
 
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': 'No file uploaded'}), 400
+    patch_content = ""
 
-    file = request.files['file']
-    if not file.filename.endswith('.diff'):
-        return jsonify({'success': False, 'message': 'Invalid file format. .diff required.'}), 400
+    # Determine Source (File vs Text)
+    # Priority to text content if provided
+    if 'patch_content' in request.form and request.form['patch_content'].strip():
+        patch_content = request.form['patch_content']
+        
+        # Save manual patch for reversion/history
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"manual_patch_{timestamp}.diff"
+        patches_dir = os.path.join(current_app.root_path, 'patches')
+        try:
+            os.makedirs(patches_dir, exist_ok=True)
+            with open(os.path.join(patches_dir, filename), 'w', encoding='utf-8') as f:
+                f.write(patch_content)
+        except Exception as e:
+            print(f"Warning: Could not save manual patch backup: {e}")
+
+    elif 'file' in request.files:
+        file = request.files['file']
+        if not file.filename.endswith('.diff'):
+            return jsonify({'success': False, 'message': 'Invalid file format. .diff required.'}), 400
+        patch_content = file.read().decode('utf-8')
+    else:
+        return jsonify({'success': False, 'message': 'No patch data provided'}), 400
 
     try:
         root = current_app.root_path
@@ -199,7 +219,8 @@ def apply_patch():
             return jsonify({'success': False, 'message': 'Backup failed. Update aborted.'}), 500
 
         # 3. APPLY PATCH
-        patch_content = file.read().decode('utf-8').replace('\r\n', '\n')
+        # Normalize line endings
+        patch_content = patch_content.replace('\r\n', '\n')
         patcher = SimplePatcher()
         logs = patcher.apply(patch_content, root)
         
