@@ -192,6 +192,23 @@ def preview_prep():
     full_script = "\n".join([s[1] for s in steps])
     return jsonify({'success': True, 'sql': full_script})
 
+@initial_prep_bp.route('/api/tools/initial-prep/download-sql', methods=['POST'])
+@login_required
+def download_sql():
+    if current_user.role != 'admin': return Response("Unauthorized", 403)
+    data = request.json
+    c = db.session.get(IndexingCounties, data.get('county_id'))
+    if not c: return Response("County not found", 404)
+
+    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'))
+    
+    def generate():
+        for name, sql in steps:
+            yield f"-- STEP: {name}\n{sql}\nGO\n\n"
+            
+    filename = f"Initial_Prep_{c.county_name}.sql"
+    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+
 @initial_prep_bp.route('/api/tools/initial-prep/execute', methods=['POST'])
 @login_required
 def execute_prep():

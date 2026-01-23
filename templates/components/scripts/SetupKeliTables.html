@@ -13,7 +13,7 @@
         cont.classList.remove('d-none');
         document.getElementById('keliSqlOutput').innerText = 'Generating Preview...';
         fetch('/api/tools/setup-keli/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('keliCountyId').value })})
-        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+        .then(r => r.json()).then(d => { document.getElementById('keliSqlOutput').innerText = d.success ? d.sql : 'Error: ' + d.message; });
     }
     function downloadKeliSQL() {
         window.location.href = `/api/tools/setup-keli/download-sql?county_id=${document.getElementById('keliCountyId').value}`;

@@ -57,11 +57,24 @@
     }
 
     function alterDbGeneratePreview() {
+        const cont = document.getElementById('alterDbPreviewContainer');
+        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
+        cont.classList.remove('d-none');
         const payload = alterDbCollectData();
         document.getElementById('alterDbSqlOutput').innerText = 'Generating...';
-        document.getElementById('alterDbPreviewContainer').classList.remove('d-none');
         fetch('/api/tools/alter-db/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
         .then(r => r.json()).then(d => document.getElementById('alterDbSqlOutput').innerText = d.success ? d.sql : "Error: " + d.message);
+    }
+
+    function downloadAlterDbSQL() {
+        const payload = alterDbCollectData();
+        fetch('/api/tools/alter-db/download-sql', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = "Schema_Update.sql";
+            document.body.appendChild(a); a.click(); a.remove();
+        });
     }
 
     function alterDbRun() {

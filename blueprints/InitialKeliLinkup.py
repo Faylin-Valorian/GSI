@@ -192,6 +192,26 @@ def preview_linkup():
     full_script = "\n".join([s[1] for s in steps])
     return jsonify({'success': True, 'sql': full_script})
 
+@initial_linkup_bp.route('/api/tools/initial-keli-linkup/download-sql', methods=['POST'])
+@login_required
+def download_sql():
+    if current_user.role != 'admin': return Response("Unauthorized", 403)
+    data = request.json
+    c = db.session.get(IndexingCounties, data.get('county_id'))
+    if not c: return Response("County not found", 404)
+
+    steps = generate_linkup_sql(
+        c.county_name, data.get('use_book_range'), data.get('book_start'), data.get('book_end'),
+        data.get('use_path'), data.get('image_path_prefix'), data.get('linkup_mode'), data.get('split_images')
+    )
+    
+    def generate():
+        for name, sql in steps:
+            yield f"-- STEP: {name}\n{sql}\nGO\n\n"
+            
+    filename = f"Keli_Linkup_{c.county_name}.sql"
+    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+
 @initial_linkup_bp.route('/api/tools/initial-keli-linkup/execute', methods=['POST'])
 @login_required
 def execute_linkup():

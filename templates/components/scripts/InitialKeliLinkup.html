@@ -31,6 +31,9 @@
     }
     function previewLinkupSql() {
         const btn = document.getElementById('btnLinkupPreview'); btn.disabled = true;
+        const cont = document.getElementById('linkupDebugPanel');
+        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); btn.disabled = false; return; }
+        
         const payload = {
             county_id: currentLinkupCountyId,
             use_book_range: document.getElementById('linkupToggleBook').checked,
@@ -44,9 +47,28 @@
         fetch('/api/tools/initial-keli-linkup/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
         .then(r => r.json()).then(d => {
             btn.disabled = false;
-            if(d.success) { document.getElementById('linkupDebugPanel').classList.remove('d-none'); document.getElementById('linkupSqlPreview').value = d.sql; document.getElementById('linkupResult').innerHTML = ''; } 
+            if(d.success) { cont.classList.remove('d-none'); document.getElementById('linkupSqlPreview').value = d.sql; document.getElementById('linkupResult').innerHTML = ''; } 
             else { document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
         }).catch(e => { btn.disabled = false; document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+    function downloadLinkupSQL() {
+        const payload = {
+            county_id: currentLinkupCountyId,
+            use_book_range: document.getElementById('linkupToggleBook').checked,
+            book_start: document.getElementById('linkupBookStart').value,
+            book_end: document.getElementById('linkupBookEnd').value,
+            use_path: document.getElementById('linkupTogglePath').checked,
+            image_path_prefix: document.getElementById('linkupImgPath').value,
+            split_images: document.getElementById('linkupSplitImages').checked,
+            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+        };
+        fetch('/api/tools/initial-keli-linkup/download-sql', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = "Keli_Linkup.sql";
+            document.body.appendChild(a); a.click(); a.remove();
+        });
     }
     function copyLinkupSql() { navigator.clipboard.writeText(document.getElementById("linkupSqlPreview").value); }
     function runLinkupTool() {

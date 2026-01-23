@@ -113,6 +113,35 @@ def preview_sql():
             sql += "END\nGO\n\n"
     return jsonify({'success': True, 'sql': sql})
 
+@alter_db_bp.route('/api/tools/alter-db/download-sql', methods=['POST'])
+@login_required
+def download_sql():
+    if current_user.role != 'admin': return Response("Unauthorized", 403)
+    
+    data = request.json
+    renames = data.get('renames', {})
+    new_fields = data.get('new_fields', [])
+    
+    def generate():
+        yield "-- GSI SCHEMA UPDATE SCRIPT\n-- Generated: " + str(sqlalchemy.func.now()) + "\n\n"
+        if renames:
+            yield "-- 1. Renames\n"
+            for old, new in renames.items():
+                if old != new:
+                    yield f"IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'{old}' AND Object_ID = Object_ID(N'GenericDataImport'))\n"
+                    yield f"BEGIN\n    EXEC sp_rename 'GenericDataImport.{old}', '{new}', 'COLUMN';\nEND\nGO\n\n"
+        if new_fields:
+            yield "-- 2. New Columns\n"
+            for f in new_fields:
+                name, ftype, default = f['name'], f['type'], f.get('default', '')
+                yield f"IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'{name}' AND Object_ID = Object_ID(N'GenericDataImport'))\n"
+                yield f"BEGIN\n    ALTER TABLE GenericDataImport ADD [{name}] {ftype};\n"
+                if default and 'IDENTITY' not in ftype.upper():
+                    yield f"    ALTER TABLE GenericDataImport ADD CONSTRAINT [DF_GDI_{name}] DEFAULT {default} FOR [{name}];\n"
+                yield "END\nGO\n\n"
+
+    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': 'attachment; filename=Schema_Update.sql'})
+
 @alter_db_bp.route('/api/tools/alter-db/execute', methods=['POST'])
 @login_required
 def execute_sql():

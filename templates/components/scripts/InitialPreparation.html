@@ -16,6 +16,9 @@
     }
     function previewPrepSql() {
         const btn = document.getElementById('btnPrepPreview');
+        const cont = document.getElementById('prepDebugPanel');
+        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
+        
         const textarea = document.getElementById('prepSqlPreview');
         btn.disabled = true;
         fetch('/api/tools/initial-prep/preview', {
@@ -23,9 +26,21 @@
             body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
         }).then(r => r.json()).then(d => {
             btn.disabled = false;
-            if(d.success) { document.getElementById('prepDebugPanel').classList.remove('d-none'); textarea.value = d.sql; document.getElementById('prepResult').innerHTML = ''; } 
+            if(d.success) { cont.classList.remove('d-none'); textarea.value = d.sql; document.getElementById('prepResult').innerHTML = ''; } 
             else { document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
         }).catch(e => { btn.disabled = false; document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+    }
+    function downloadPrepSQL() {
+        fetch('/api/tools/initial-prep/download-sql', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
+        })
+        .then(r => r.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = "Initial_Prep.sql";
+            document.body.appendChild(a); a.click(); a.remove();
+        });
     }
     function copyPrepSql() { navigator.clipboard.writeText(document.getElementById("prepSqlPreview").value); }
     function runPrepTool() {

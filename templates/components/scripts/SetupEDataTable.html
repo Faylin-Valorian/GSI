@@ -13,7 +13,7 @@
         cont.classList.remove('d-none');
         document.getElementById('edeSqlOutput').innerText = 'Generating Preview...';
         fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
-        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+        .then(r => r.json()).then(d => { document.getElementById('edeSqlOutput').innerText = d.success ? d.sql : 'Error: ' + d.message; });
     }
     function downloadEDataSQL() {
         window.location.href = `/api/tools/setup-edata/download-sql?county_id=${document.getElementById('eDataCountyId').value}`;
