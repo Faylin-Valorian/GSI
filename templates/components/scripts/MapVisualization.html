@@ -1,0 +1,61 @@
+<script>
+    var map, stateLayerGroup, countyLayerGroup;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if(document.getElementById('map')) initMap();
+    });
+
+    function initMap() {
+        map = L.map('map', { zoomControl: false }).setView([39.8, -98.5], 4);
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: 'CARTO'
+        }).addTo(map);
+
+        map.createPane('statePane'); map.getPane('statePane').style.zIndex = 350; 
+        map.createPane('countyPane'); map.getPane('countyPane').style.zIndex = 450;
+        
+        stateLayerGroup = L.layerGroup().addTo(map);
+        countyLayerGroup = L.layerGroup().addTo(map);
+
+        refreshMapLayers();
+    }
+
+    function refreshMapLayers() {
+        if(!map) return;
+        
+        // Load States
+        fetch('/api/map/states?t=' + Date.now()).then(r=>r.json()).then(geo => {
+            stateLayerGroup.clearLayers();
+            stateLayerGroup.addLayer(L.geoJSON(geo, {
+                pane: 'statePane',
+                style: { color: '#6c757d', weight: 1, fillOpacity: 0.1 }
+            }));
+        });
+
+        // Load Counties
+        fetch('/api/map/counties?t=' + Date.now()).then(r=>r.json()).then(geo => {
+            countyLayerGroup.clearLayers();
+            countyLayerGroup.addLayer(L.geoJSON(geo, {
+                pane: 'countyPane',
+                style: getCountyStyle,
+                onEachFeature: (feature, layer) => {
+                    layer.on('click', () => {
+                        // Delegate Popup logic to Workflow Script
+                        if(typeof openCountyPopup === 'function') {
+                            openCountyPopup(feature.properties, layer);
+                        }
+                    });
+                }
+            }));
+        });
+    }
+
+    function getCountyStyle(feature) {
+        const p = feature.properties;
+        if(p.is_mine) return {color: '#0d6efd', weight: 3, fillOpacity: 0.5}; // Blue (Mine)
+        if(p.is_occupied) return {color: '#fd7e14', weight: 2, fillOpacity: 0.4}; // Orange (Taken)
+        if(p.is_active) return {color: '#0dcaf0', weight: 1, fillOpacity: 0.2}; // Cyan (Active)
+        return {color: '#dc3545', weight: 1, fillOpacity: 0.1}; // Red (Inactive)
+    }
+</script>

@@ -15,7 +15,13 @@
                     <input type="text" id="countySearchInput" class="form-control border-secondary bg-transparent text-light" placeholder="Search counties..." onkeyup="filterCountiesTable()">
                 </div>
                 <table class="table table-hover align-middle">
-                    <thead><tr><th>County</th><th>Visibility</th><th class="text-end">Global Status / Visibility</th></tr></thead>
+                    <thead>
+                        <tr>
+                            <th>County</th>
+                            <th class="text-center">Map Visibility</th>
+                            <th class="text-end">Workflow Status</th>
+                        </tr>
+                    </thead>
                     <tbody id="countiesTableBody"></tbody>
                 </table>
             </div>

@@ -1,49 +1,43 @@
 <script>
-    // Generic function to load a modal from a Blueprint
-    function loadBlueprintModal(endpoint, modalId) {
-        // 1. Check if modal already exists in DOM
-        let existingModal = document.getElementById(modalId);
-        if (existingModal) {
-            // Optional: Remove it to force refresh, or just show it
-            existingModal.remove(); 
+    // =========================================================
+    // BLUEPRINT BRIDGE: Compatibility for Sidebar Navigation
+    // =========================================================
+    // This file maps legacy function calls from the sidebar to 
+    // the new split architecture functions defined in specific scripts.
+
+    function openStatesManager() {
+        // Redirects to StateManagement.html logic
+        if(typeof openStatesModal === 'function') {
+            openStatesModal();
+        } else {
+            console.error("StateManagement script not loaded");
+            alert("Error: State Management tool is not loaded.");
         }
-
-        // 2. Show Global Loader
-        const loader = document.getElementById('globalLoader');
-        if(loader) loader.style.display = 'flex';
-
-        // 3. Fetch HTML from Backend
-        fetch(endpoint)
-            .then(response => {
-                if (!response.ok) throw new Error("Failed to load window");
-                return response.text();
-            })
-            .then(html => {
-                // 4. Inject HTML into Body
-                document.body.insertAdjacentHTML('beforeend', html);
-                
-                // 5. Initialize and Show Bootstrap Modal
-                const modalEl = document.getElementById(modalId);
-                const bsModal = new bootstrap.Modal(modalEl);
-                bsModal.show();
-                
-                // 6. Clean up on close (remove from DOM)
-                modalEl.addEventListener('hidden.bs.modal', function () {
-                    bsModal.dispose();
-                    modalEl.remove();
-                });
-
-                if(loader) loader.style.display = 'none';
-            })
-            .catch(err => {
-                console.error(err);
-                if(loader) loader.style.display = 'none';
-                alert("Error loading tool: " + err.message);
-            });
     }
 
-    // Shortcuts for your specific tools
-    function openStatesManager() { loadBlueprintModal('/api/admin/states/window', 'statesModal'); }
-    function openCountiesManager() { loadBlueprintModal('/api/admin/counties/window', 'countiesModal'); }
-    function openUserManager() { loadBlueprintModal('/api/admin/users/window', 'accountsModal'); }
+    function openCountiesManager() {
+        // Redirects to CountyManagement.html logic
+        if(typeof openCountiesModal === 'function') {
+            openCountiesModal();
+        } else {
+            console.error("CountyManagement script not loaded");
+            alert("Error: County Management tool is not loaded.");
+        }
+    }
+
+    function openUserManager() {
+        // Redirects to UserManagement.html logic
+        if(typeof openAccountsModal === 'function') {
+            openAccountsModal();
+        } else {
+            console.error("UserManagement script not loaded");
+            alert("Error: User Management tool is not loaded.");
+        }
+    }
+
+    // --- GENERIC FALLBACK (For any tools not yet migrated) ---
+    function loadBlueprintModal(endpoint, modalId) {
+        // If you still have tools that fetch HTML from python return:
+        console.warn("loadBlueprintModal is deprecated. Please migrate tool at " + endpoint);
+    }
 </script>

@@ -1,0 +1,42 @@
+<script>
+    function openCountyPopup(props, layer) {
+        const dbId = props.db_id;
+        
+        fetch(`/api/county/${dbId}/details`).then(r=>r.json()).then(data => {
+            if(!data.success) return;
+            
+            // Build Popup HTML (Simplified for brevity, add your Tabs back here)
+            const isMine = data.is_mine;
+            const lockedText = data.occupied_by ? `LOCKED BY ${data.occupied_by}` : 'AVAILABLE';
+            
+            const content = `
+                <div class="text-center">
+                    <h6>${data.name} County, ${data.state_name}</h6>
+                    <span class="badge ${isMine ? 'bg-primary' : (data.occupied_by ? 'bg-warning' : 'bg-success')}">${isMine ? 'WORKING' : lockedText}</span>
+                    <hr>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="toggleWork(${dbId}, ${!isMine})">
+                            ${isMine ? 'Stop Working' : 'Start Working'}
+                        </button>
+                        </div>
+                </div>
+            `;
+            
+            layer.bindPopup(content, {minWidth: 300}).openPopup();
+        });
+    }
+
+    function toggleWork(id, status) {
+        fetch('/api/user/set-working', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({county_id: id, active: status})
+        }).then(r=>r.json()).then(d => {
+            if(d.success) {
+                refreshMapLayers(); // Reload map to update colors
+                map.closePopup();
+            } else {
+                alert(d.message);
+            }
+        });
+    }
+</script>

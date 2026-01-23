@@ -18,7 +18,12 @@ from blueprints.auth import auth_bp
 from blueprints.StateManagement import state_mgmt_bp
 from blueprints.CountyManagement import county_mgmt_bp
 from blueprints.UserManagement import user_mgmt_bp
-from blueprints.geospatial import geo_bp
+
+# --- NEW SPLIT BLUEPRINTS ---
+from blueprints.MapVisualization import map_viz_bp
+from blueprints.CountyWorkflow import workflow_bp
+from blueprints.SystemTools import sys_bp
+
 from blueprints.OpenDriveConnection import open_drive_bp
 from blueprints.DatabaseCompatibility import db_compat_bp
 from blueprints.SetupDatabaseProcedures import setup_procedures_bp
@@ -64,7 +69,6 @@ def load_db_config():
 
 def get_db_uri(cfg):
     driver = '{ODBC Driver 17 for SQL Server}'
-    # This line will raise an error if decrypt_password fails (bad key)
     conn_str = f"DRIVER={driver};SERVER={cfg['server']};DATABASE={cfg['database']};UID={cfg['user']};PWD={decrypt_password(cfg['password'])}"
     return f"mssql+pyodbc:///?odbc_connect={requests.utils.quote(conn_str)}"
 
@@ -73,22 +77,15 @@ db_config = None
 try:
     db_config = load_db_config()
     if db_config:
-        # Attempt to generate URI. This validates the secret key against the config.
         app.config['SQLALCHEMY_DATABASE_URI'] = get_db_uri(db_config)
         app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
         db.init_app(app)
 except Exception as e:
     print(f" >>> CONFIG/KEY ERROR: {e}")
     print(" >>> Resetting configuration to force setup...")
-    
-    # 1. Delete the mismatched/corrupt files
     if os.path.exists('db_config.json'): os.remove('db_config.json')
     if os.path.exists('secret.key'): os.remove('secret.key')
-    
-    # 2. Reset global cipher with a fresh key (since we just deleted the old one)
     cipher = Fernet(load_key())
-    
-    # 3. Ensure db_config is None to trigger setup mode
     db_config = None
 
 if not db_config:
@@ -101,7 +98,6 @@ login_manager.login_view = 'auth.login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    # FIX: Prevent crash if DB is not initialized (e.g. during setup or after reset)
     if 'SQLALCHEMY_DATABASE_URI' not in app.config:
         return None
     return db.session.get(Users, int(user_id))
@@ -111,7 +107,12 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(state_mgmt_bp)
 app.register_blueprint(county_mgmt_bp)
 app.register_blueprint(user_mgmt_bp)
-app.register_blueprint(geo_bp)
+
+# New Split Blueprints (Replaces geo_bp)
+app.register_blueprint(map_viz_bp)
+app.register_blueprint(workflow_bp)
+app.register_blueprint(sys_bp)
+
 app.register_blueprint(open_drive_bp)
 app.register_blueprint(db_compat_bp)
 app.register_blueprint(setup_procedures_bp)
@@ -129,22 +130,11 @@ app.register_blueprint(import_edata_errors_bp)
 # --- MIDDLEWARE: FORCE SETUP ---
 @app.before_request
 def check_db_config():
-    """
-    Intercepts every request to ensure the database is configured.
-    If db_config.json is missing, redirect to /setup.
-    """
-    # 1. Check if the config file exists
     config_path = os.path.join(app.root_path, 'db_config.json')
     is_configured = os.path.exists(config_path)
-
-    # 2. Define endpoints that must remain accessible during setup
     allowed_endpoints = ['first_time_setup', 'restart_app']
-
-    # 3. Allow access to static files (CSS/JS) and the allowed endpoints
     if request.endpoint and ('static' in request.endpoint or request.endpoint in allowed_endpoints):
         return
-
-    # 4. If not configured, force redirect to setup
     if not is_configured:
         return redirect(url_for('first_time_setup'))
 
@@ -161,8 +151,6 @@ def first_time_setup():
         database = request.form.get('database')
         user = request.form.get('user')
         password = request.form.get('password')
-        
-        # Test Connection
         try:
             test_uri = f"mssql+pyodbc://{user}:{password}@{server}/{database}?driver=ODBC+Driver+17+for+SQL+Server"
             eng = create_engine(test_uri)
@@ -178,46 +166,13 @@ def first_time_setup():
 
 @app.route('/restart', methods=['POST'])
 def restart_app():
-    # 1. Define the restart job in a separate thread
     def restart_job():
-        # Small delay ensures the HTML response below is fully sent to the client
-        # before we kill the process.
         time.sleep(1) 
         print(" >>> RESTARTING APPLICATION...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
-
-    # 2. Start the restart job
     threading.Thread(target=restart_job).start()
-
-    # 3. Return a user-friendly waiting page immediately
     return """
-    <html>
-    <head>
-        <title>Restarting...</title>
-        <meta http-equiv="refresh" content="5;url=/">
-        <style>
-            body { 
-                background-color: #222; 
-                color: #fff; 
-                font-family: sans-serif; 
-                display: flex; 
-                justify-content: center; 
-                align-items: center; 
-                height: 100vh; 
-                margin: 0; 
-            }
-            .loader { border: 4px solid #333; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
-            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        </style>
-    </head>
-    <body>
-        <div style="text-align: center;">
-            <h1>Restarting System</h1>
-            <div class="loader"></div>
-            <p>Please wait...</p>
-        </div>
-    </body>
-    </html>
+    <html><head><title>Restarting...</title><meta http-equiv="refresh" content="5;url=/"><style>body{background-color:#222;color:#fff;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;}.loader{border:4px solid #333;border-top:4px solid #3498db;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:20px auto;}@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}</style></head><body><div style="text-align:center;"><h1>Restarting System</h1><div class="loader"></div><p>Please wait...</p></div></body></html>
     """
 
 @app.route('/keep-alive', methods=['POST'])

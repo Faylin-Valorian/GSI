@@ -3,6 +3,19 @@
     // STATE MANAGEMENT & SEEDING
     // ==========================================
 
+    // Ensure Loader Exists
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!document.getElementById('globalLoader')) {
+            const loader = document.createElement('div');
+            loader.id = 'globalLoader';
+            loader.className = 'position-fixed top-0 start-0 w-100 h-100 d-none justify-content-center align-items-center';
+            loader.style.zIndex = '2000';
+            loader.style.background = 'rgba(0,0,0,0.8)';
+            loader.innerHTML = '<div class="text-center"><div class="spinner-border text-warning mb-3" style="width: 3rem; height: 3rem;"></div><h5 class="text-light">Processing Data...</h5></div>';
+            document.body.appendChild(loader);
+        }
+    });
+
     function openStatesModal() { 
         closeAllModals(); 
         if(statesModal) statesModal.show(); 
@@ -20,17 +33,33 @@
 
     function runSeeding() {
         if(seedConfirmModal) seedConfirmModal.hide();
-        // Trigger seeding
+        
+        // SHOW LOADER
+        const loader = document.getElementById('globalLoader');
+        if(loader) loader.classList.remove('d-none');
+        if(loader) loader.classList.add('d-flex');
+
         fetch('/api/admin/seed-db', {method: 'POST'})
         .then(r => r.json())
         .then(d => {
+            // HIDE LOADER
+            if(loader) loader.classList.add('d-none');
+            if(loader) loader.classList.remove('d-flex');
+
             if(d.success) {
                 document.getElementById('seedSuccessMessage').innerText = d.message;
                 if(seedSuccessModal) seedSuccessModal.show();
-                fetchStatesList(); // Refresh list
+                fetchStatesList(); 
+                
+                // REFRESH MAP LAYERS IF STATES WERE ADDED
+                if(typeof loadStateLayers === 'function') loadStateLayers();
             } else {
                 showNotification("Seeding Failed: " + d.message);
             }
+        })
+        .catch(e => {
+            if(loader) loader.classList.add('d-none');
+            showNotification("Connection Error: " + e);
         });
     }
 
@@ -42,7 +71,11 @@
                     <td>${s.name}</td>
                     <td>${s.fips}</td>
                     <td><span class="badge ${s.status ? 'bg-success' : 'bg-secondary'}">${s.status ? 'Enabled' : 'Disabled'}</span></td>
-                    <td class="text-end"><button class="btn btn-sm ${s.status ? 'btn-danger' : 'btn-success'}" onclick="toggleStateStatus(${s.id}, ${!s.status})">${s.status ? 'Disable' : 'Enable'}</button></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm ${s.status ? 'btn-danger' : 'btn-success'}" onclick="toggleStateStatus(${s.id}, ${!s.status})">
+                            ${s.status ? '<i class="bi bi-eye-slash-fill me-1"></i>Disable' : '<i class="bi bi-eye-fill me-1"></i>Enable'}
+                        </button>
+                    </td>
                 </tr>`;
             });
         });
@@ -52,6 +85,13 @@
         fetch('/api/admin/states/toggle', {
             method:'POST', headers:{'Content-Type':'application/json'}, 
             body:JSON.stringify({id:id, status:newStatus})
-        }).then(r=>r.json()).then(d=>{ if(d.success) fetchStatesList(); });
+        }).then(r=>r.json()).then(d=>{ 
+            if(d.success) {
+                fetchStatesList();
+                // IMMEDIATE MAP REFRESH
+                if(typeof loadStateLayers === 'function') loadStateLayers();
+                if(typeof loadCountyLayers === 'function') loadCountyLayers(); // Counties might depend on state
+            }
+        });
     }
 </script>

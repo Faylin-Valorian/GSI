@@ -27,18 +27,43 @@
             data.forEach(c => {
                 b.innerHTML += `<tr>
                     <td class="county-name">${c.name}</td>
-                    <td><button class="btn btn-sm ${c.status ? 'btn-success' : 'btn-secondary'}" onclick="toggleCountyStatus(${c.id}, ${!c.status})">${c.status ? 'Visible' : 'Hidden'}</button></td>
-                    <td class="text-end text-muted small">${c.status ? 'Active' : 'Inactive'}</td>
+                    
+                    <td class="text-center">
+                        <button class="btn btn-sm ${c.is_enabled ? 'btn-info' : 'btn-outline-secondary'} w-100" 
+                                onclick="toggleCountyField(${c.id}, 'enabled', ${!c.is_enabled})" style="max-width: 120px;">
+                            ${c.is_enabled ? '<i class="bi bi-eye-fill me-2"></i>Visible' : '<i class="bi bi-eye-slash me-2"></i>Hidden'}
+                        </button>
+                    </td>
+
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end align-items-center gap-2">
+                            <span class="small text-muted" style="min-width: 50px;">${c.is_active ? 'Active' : 'Inactive'}</span>
+                            <div class="form-check form-switch m-0" style="min-height: auto;">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" 
+                                       style="cursor: pointer;"
+                                       ${c.is_active ? 'checked' : ''} 
+                                       onchange="toggleCountyField(${c.id}, 'active', this.checked)">
+                            </div>
+                        </div>
+                    </td>
                 </tr>`;
             });
         });
     }
 
-    function toggleCountyStatus(id, newStatus) {
+    function toggleCountyField(id, field, newStatus) {
         fetch('/api/admin/counties/toggle', {
             method:'POST', headers:{'Content-Type':'application/json'}, 
-            body:JSON.stringify({id:id, status:newStatus})
-        }).then(r=>r.json()).then(d=>{ if(d.success) fetchCountiesForState(); });
+            body:JSON.stringify({id:id, field:field, status:newStatus})
+        }).then(r=>r.json()).then(d=>{ 
+            if(d.success) {
+                fetchCountiesForState(); // Refresh UI
+                // Update Map if Visibility changed
+                if(field === 'enabled' && typeof loadCountyLayers === 'function') {
+                    loadCountyLayers();
+                }
+            }
+        });
     }
     
     function filterCountiesTable() {
