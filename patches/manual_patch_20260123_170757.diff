@@ -1,0 +1,40 @@
+--- a/blueprints/SetupEDataTable.py
++++ b/blueprints/SetupEDataTable.py
+@@ -73,19 +73,23 @@
+     if not os.path.exists(base_folder):
+         return jsonify({'success': False, 'message': 'eData Files folder not found.'})
+ 
+-    csv_files = [f for f in os.listdir(base_folder) if f.lower().endswith('.csv')]
++    csv_files = []
++    for root, dirs, files in os.walk(base_folder):
++        for file in files:
++            if file.lower().endswith('.csv'):
++                csv_files.append(os.path.join(root, file))
++
+     if not csv_files:
+-        return jsonify({'success': True, 'sql': '-- No .csv files found.'})
++        return jsonify({'success': True, 'sql': '-- No .csv files found in directory or subdirectories.'})
+ 
+     # 2. Generate Preview (First 5 rows of first file)
++    full_path = csv_files[0]
++    filename = os.path.basename(full_path)
++    
+     sql_preview = "-- PREVIEW: Generated Insert Statements (First 5 rows of first file)\n"
+-    sql_preview += f"-- Source: {csv_files[0]}\n\n"
++    sql_preview += f"-- Source: {filename}\n-- Path: {full_path}\n\n"
+ 
+     col_list = "FN, OriginalValue, col01varchar, col02varchar, col03varchar, col04varchar, col05varchar, col06varchar, col07varchar, col08varchar, col09varchar, col10varchar, col01other, col02other, col03other, col04other, col05other, col06other, col07other, col08other, col09other, col10other, col11other, col12other, col13other, col14other, col15other, col16other, col17other, col18other, col19other, col20other, uf1, uf2, uf3, leftovers"
+ 
+-    full_path = os.path.join(base_folder, csv_files[0])
+     try:
+         with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+             rows_shown = 0
+@@ -97,7 +101,7 @@
+                 c_vals, o_vals, left_val = parse_line_waterfall(clean_line)
+                 
+                 # Escape and Format
+-                vals = [csv_files[0], clean_line[:8000]] + c_vals + o_vals + ['', '', '', left_val]
++                vals = [filename, clean_line[:8000]] + c_vals + o_vals + ['', '', '', left_val]
+                 vals_sql = ", ".join([f"'{v.replace('\'', '\'\'')}'" for v in vals])
+                 
+                 sql_preview += f"INSERT INTO [dbo].[GenericDataImport] ({col_list}) VALUES ({vals_sql});\n"

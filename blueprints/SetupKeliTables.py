@@ -1,7 +1,7 @@
 import os
 import json
 import csv
-from flask import Blueprint, request, Response, stream_with_context, current_app
+from flask import Blueprint, request, Response, stream_with_context, current_app, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import text
 from werkzeug.utils import secure_filename
