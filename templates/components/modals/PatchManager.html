@@ -2,21 +2,39 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content custom-panel border-warning">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title"><i class="bi bi-tools me-2"></i>System Updater</h5>
+                <h5 class="modal-title text-warning">
+                    <i class="bi bi-cpu-fill me-2"></i>System Updater
+                    <span id="currentVersionBadge" class="badge bg-secondary text-white ms-2 font-monospace" style="font-size: 0.7rem;">v...</span>
+                </h5>
                 <button type="button" class="btn-close btn-close-white" onclick="closePatchModal()"></button>
             </div>
+            
             <div class="modal-body">
-                <div class="alert alert-dark border-secondary small text-muted mb-3">
-                    <i class="bi bi-info-circle-fill me-2"></i>Upload a <code>.diff</code> patch file.
+                <div class="alert alert-dark border-secondary small text-muted mb-3 d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle-fill text-warning fs-4 me-3"></i>
+                    <div>
+                        <strong>Warning:</strong> Automated Process.<br>
+                        1. System Backup (/versions)<br>
+                        2. Apply Patch (.diff)<br>
+                        3. Server Restart
+                    </div>
                 </div>
+                
                 <div class="mb-3">
-                    <input class="form-control bg-dark text-light border-secondary" type="file" id="patchFileInput" accept=".diff">
+                    <label class="form-label small text-muted">Upload Patch File (.diff)</label>
+                    <input class="form-control bg-black text-light border-secondary" type="file" id="patchFileInput" accept=".diff">
                 </div>
-                <div id="patchError" class="text-danger small fw-bold text-center"></div>
+
+                <div id="patchError" class="text-center mb-2"></div>
+                <div id="patchLogOutput" class="d-none bg-black border border-secondary p-2 rounded small font-monospace text-muted" 
+                     style="max-height: 150px; overflow-y: auto; white-space: pre-wrap; font-size: 0.75rem;"></div>
             </div>
+            
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" onclick="closePatchModal()">Cancel</button>
-                <button type="button" class="btn btn-danger fw-bold" onclick="submitPatchFile()"><i class="bi bi-cloud-upload-fill me-1"></i>Apply Update</button>
+                <button type="button" class="btn btn-warning fw-bold" onclick="submitPatchFile()">
+                    <i class="bi bi-cloud-arrow-up-fill me-2"></i>Update System
+                </button>
             </div>
         </div>
     </div>

@@ -1,16 +1,102 @@
 <script>
-    function openPatchModal() { closeAllModals(); if(patchModal) patchModal.show(); document.getElementById('patchError').innerText = ''; }
-    function closePatchModal() { if(patchModal) patchModal.hide(); }
+    function openPatchModal() {
+        // 1. Check Debug Mode
+        const debugToggle = document.getElementById('debugModeToggle');
+        if (!debugToggle || !debugToggle.checked) {
+            showNotification("Debug Mode must be enabled to access System Updater.", "error");
+            return;
+        }
+
+        // 2. Fetch Version info for Badge
+        fetch('/api/admin/version')
+            .then(r => r.json())
+            .then(d => {
+                if(d.version) document.getElementById('currentVersionBadge').innerText = 'v' + d.version;
+            })
+            .catch(e => console.log("Ver Check Fail", e));
+
+        // 3. Open Modal
+        closeAllModals();
+        if(patchModal) patchModal.show();
+        
+        // 4. Reset UI
+        document.getElementById('patchFileInput').value = '';
+        document.getElementById('patchError').innerHTML = '';
+        document.getElementById('patchLogOutput').classList.add('d-none');
+        document.getElementById('patchLogOutput').innerText = '';
+    }
+
+    function closePatchModal() {
+        if(patchModal) patchModal.hide();
+    }
+
     function submitPatchFile() {
         const fileInput = document.getElementById('patchFileInput');
         const errorDiv = document.getElementById('patchError');
-        const btn = document.querySelector('#patchModal .btn-danger');
-        if (!fileInput.files.length) { errorDiv.innerText = "Please select a .diff file"; return; }
-        const formData = new FormData(); formData.append('patch_file', fileInput.files[0]);
-        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Applying...'; errorDiv.innerText = '';
-        fetch('/api/tools/patch/apply', { method: 'POST', body: formData }).then(r => r.json()).then(d => {
-            if (d.success) { alert("Patch Applied! Reloading."); window.location.reload(); } 
-            else { errorDiv.innerText = "Error: " + d.message; btn.disabled = false; btn.innerText = "Apply Update"; }
-        }).catch(e => { errorDiv.innerText = "Failed: " + e; btn.disabled = false; btn.innerText = "Apply Update"; });
+        const logDiv = document.getElementById('patchLogOutput');
+        
+        if (!fileInput.files.length) {
+            errorDiv.innerHTML = '<span class="text-danger">Please select a .diff file</span>';
+            return;
+        }
+
+        // Show Full Screen Loader
+        const loader = document.getElementById('globalLoader');
+        if(loader) {
+            loader.style.display = 'flex';
+            loader.innerHTML = `
+                <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+                <h4 class="text-white">Processing Update...</h4>
+                <ul class="text-muted text-start small mt-2" style="list-style: none;">
+                    <li><i class="bi bi-check2 text-success me-2"></i>Creating Backup...</li>
+                    <li><i class="bi bi-check2 text-success me-2"></i>Applying Patches...</li>
+                    <li><i class="bi bi-arrow-repeat text-warning me-2"></i>Restarting Server...</li>
+                </ul>
+            `;
+        }
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        fetch('/api/admin/patch/apply', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success) {
+                // SUCCESS STATE
+                if(loader) {
+                    loader.innerHTML = `
+                        <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;"></div>
+                        <h4 class="text-white">Update Complete!</h4>
+                        <p class="text-success">Restarting System...</p>
+                    `;
+                }
+                
+                // Wait 5 seconds for backend to restart, then reload page
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+
+            } else {
+                // FAILURE STATE
+                if(loader) {
+                    loader.style.display = 'none';
+                    loader.innerHTML = ''; // Clear loader content
+                }
+                
+                errorDiv.innerHTML = `<span class="text-danger fw-bold">Update Failed:</span> ${d.message}`;
+                
+                if (d.logs) {
+                    logDiv.classList.remove('d-none');
+                    logDiv.innerText = d.logs;
+                }
+            }
+        })
+        .catch(e => {
+            if(loader) loader.style.display = 'none';
+            errorDiv.innerHTML = `<span class="text-danger">Connection Error: ${e}</span>`;
+        });
     }
 </script>
