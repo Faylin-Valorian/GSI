@@ -29,12 +29,19 @@
                     </div>
                     <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
+                <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
+                    <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                </div>
                 <div id="eDataResult" class="text-center small"></div>
                 <input type="hidden" id="eDataCountyId">
             </div>
-            <div class="modal-footer border-secondary">
+            <div class="modal-footer border-secondary justify-content-between">
+                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                <div>
                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
                 <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
+                </div>
             </div>
         </div>
     </div>

@@ -1,0 +1,304 @@
+--- a/blueprints/ImportEDataErrors.py
++++ b/blueprints/ImportEDataErrors.py
+@@ -34,6 +34,42 @@
+ )
+ """
+ 
++@import_edata_errors_bp.route('/api/tools/import-edata-errors/preview', methods=['POST'])
++@login_required
++def preview_import():
++    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
++    
++    data = request.json
++    county_id = data.get('county_id')
++    
++    c = db.session.get(IndexingCounties, county_id)
++    if not c: return jsonify({'success': False, 'message': 'County not found'})
++    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
++    state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
++    
++    base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
++    
++    if not os.path.exists(base_path):
++        return jsonify({'success': False, 'message': 'Directory not found'})
++        
++    files = [f for f in os.listdir(base_path) if f.lower().endswith('.csv')]
++    if not files:
++        return jsonify({'success': True, 'sql': '-- No .csv files found in eData Errors directory.'})
++        
++    sql_output = f"-- PREVIEW: Found {len(files)} files to import\n\n"
++    
++    for filename in files:
++        clean_name = os.path.splitext(filename)[0].replace(' ', '_').replace('-', '_')
++        table_name = f"{state_abbr}_{c.county_name}_eData_Errors_{clean_name}"
++        file_full_path = os.path.join(base_path, filename)
++        
++        sql_output += f"-- File: {filename}\n"
++        sql_output += f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]\n"
++        sql_output += CREATE_TABLE_SQL.format(table_name=table_name) + "\n"
++        sql_output += f"BULK INSERT [{table_name}] FROM '{file_full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDTERMINATOR = ',', ROWTERMINATOR = '\\n', TABLOCK)\nGO\n\n"
++        
++    return jsonify({'success': True, 'sql': sql_output})
++
+ @import_edata_errors_bp.route('/api/tools/import-edata-errors/init', methods=['POST'])
+ @login_required
+ def init_import():
+--- a/blueprints/SetupEDataTable.py
++++ b/blueprints/SetupEDataTable.py
+@@ -53,6 +53,24 @@
+         
+     return c_cols, o_cols, remainder
+ 
++@setup_edata_bp.route('/api/tools/setup-edata/preview', methods=['POST'])
++@login_required
++def preview_generic_import():
++    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
++    
++    sql = """-- PREVIEW: GenericDataImport Schema
++IF OBJECT_ID('[dbo].[GenericDataImport]', 'U') IS NOT NULL DROP TABLE [dbo].[GenericDataImport]
++CREATE TABLE [dbo].[GenericDataImport] (
++    ID INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
++    FN VARCHAR(1000), OriginalValue VARCHAR(MAX),
++    col01varchar VARCHAR(1000), col02varchar VARCHAR(1000), col03varchar VARCHAR(1000), col04varchar VARCHAR(1000), col05varchar VARCHAR(1000),
++    col06varchar VARCHAR(1000), col07varchar VARCHAR(1000), col08varchar VARCHAR(1000), col09varchar VARCHAR(1000), col10varchar VARCHAR(1000),
++    col01other VARCHAR(1000), col02other VARCHAR(1000), col03other VARCHAR(1000), col04other VARCHAR(1000), col05other VARCHAR(1000),
++    col06other VARCHAR(1000), col07other VARCHAR(1000), col08other VARCHAR(1000), col09other VARCHAR(1000), col10other VARCHAR(1000),
++    col11other VARCHAR(1000), col12other VARCHAR(1000), col13other VARCHAR(1000), col14other VARCHAR(1000), col15other VARCHAR(1000),
++    col16other VARCHAR(1000), col17other VARCHAR(1000), col18other VARCHAR(1000), col19other VARCHAR(1000), col20other VARCHAR(1000),
++    uf1 VARCHAR(1000), uf2 VARCHAR(1000), uf3 VARCHAR(1000), leftovers VARCHAR(1000)
++)"""
++    return jsonify({'success': True, 'sql': sql})
++
+ @setup_edata_bp.route('/api/tools/setup-edata', methods=['POST'])
+ @login_required
+ def run_generic_import():
+--- a/blueprints/SetupKeliTables.py
++++ b/blueprints/SetupKeliTables.py
+@@ -11,6 +11,48 @@
+ 
+ setup_keli_bp = Blueprint('setup_keli', __name__)
+ 
++@setup_keli_bp.route('/api/tools/setup-keli/preview', methods=['POST'])
++@login_required
++def preview_keli_import():
++    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
++    
++    data = request.json
++    county_id = data.get('county_id')
++    county = db.session.get(IndexingCounties, county_id)
++    state = IndexingStates.query.filter_by(fips_code=county.state_fips).first()
++    
++    s_clean = secure_filename(state.state_name)
++    c_clean = secure_filename(county.county_name)
++    base_folder = os.path.join(current_app.root_path, 'data', s_clean, c_clean, 'Keli Files')
++    
++    if not os.path.exists(base_folder): return jsonify({'success': False, 'message': 'Folder not found'})
++    
++    csv_files = [f for f in os.listdir(base_folder) if f.lower().endswith('.csv')]
++    if not csv_files: return jsonify({'success': True, 'sql': '-- No CSV files found'})
++    
++    sql_output = f"-- PREVIEW: Found {len(csv_files)} files\n\n"
++    
++    for filename in csv_files:
++        full_path = os.path.join(base_folder, filename)
++        raw_name = os.path.splitext(filename)[0]
++        safe_raw = "".join([c for c in raw_name if c.isalnum() or c in ('_')])
++        table_name = f"{c_clean}_keli_{safe_raw}"
++        full_table_name = f"[dbo].[{table_name}]"
++        
++        try:
++            with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
++                header_line = f.readline().strip()
++                reader = csv.reader([header_line])
++                headers = next(reader)
++            
++            cols_def = ", ".join([f"[{h.strip()}] VARCHAR(MAX)" for h in headers if h.strip()])
++            sql_output += f"-- File: {filename}\nDROP TABLE IF EXISTS {full_table_name};\nCREATE TABLE {full_table_name} ({cols_def});\n"
++            sql_output += f"BULK INSERT {full_table_name} FROM '{full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDQUOTE = '\"', FIELDTERMINATOR = ',', ROWTERMINATOR = '0x0a', TABLOCK);\nGO\n\n"
++        except Exception as e:
++            sql_output += f"-- Error reading {filename}: {str(e)}\n\n"
++            
++    return jsonify({'success': True, 'sql': sql_output})
++
+ @setup_keli_bp.route('/api/tools/setup-keli', methods=['POST'])
+ @login_required
+ def run_keli_import():
+--- a/templates/components/modals/ImportEDataErrors.html
++++ b/templates/components/modals/ImportEDataErrors.html
+@@ -19,16 +19,15 @@
+                     </div>
+                     <div id="importEdeCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
+-                <div id="importEdeDebugPanel" class="d-none mt-3">
+-                    <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug Logs</label>
+-                    <div id="importEdeLogContent" class="bg-black border border-secondary p-2 small font-monospace text-muted" style="height: 150px; overflow-y: auto;"></div>
++                <div id="importEdePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
++                    <div class="d-flex justify-content-between align-items-center mb-2">
++                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
++                    </div>
++                    <pre id="importEdeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
+                 <div id="importEdeResult" class="text-center small mt-3"></div>
+             </div>
+-            <div class="modal-footer border-secondary">
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewImportEde()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                 <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
+                     <i class="bi bi-box-arrow-in-down me-1"></i>Run Import
+                 </button>
++                </div>
+             </div>
+         </div>
+     </div>
+--- a/templates/components/modals/SetupEDataTable.html
++++ b/templates/components/modals/SetupEDataTable.html
+@@ -21,11 +21,18 @@
+                     </div>
+                     <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
++                <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
++                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++                    <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
++                </div>
+                 <div id="eDataResult" class="text-center small"></div>
+                 <input type="hidden" id="eDataCountyId">
+             </div>
+-            <div class="modal-footer border-secondary">
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                 <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
++                </div>
+             </div>
+         </div>
+     </div>
+--- a/templates/components/modals/SetupKeliTables.html
++++ b/templates/components/modals/SetupKeliTables.html
+@@ -20,11 +20,18 @@
+                     </div>
+                     <div id="keliCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
+                 </div>
++                <div id="keliPreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
++                    <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++                    <pre id="keliSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
++                </div>
+                 <div id="keliResult" class="text-center small"></div>
+                 <input type="hidden" id="keliCountyId">
+             </div>
+-            <div class="modal-footer border-secondary">
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnKeliPreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewKeliSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
+                 <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
++                </div>
+             </div>
+         </div>
+     </div>
+--- a/templates/components/scripts/ImportEDataErrors.html
++++ b/templates/components/scripts/ImportEDataErrors.html
+@@ -6,7 +6,7 @@
+         document.getElementById('importEdeResult').innerText = '';
+         document.getElementById('importEdeProgressContainer').classList.add('d-none');
++        document.getElementById('importEdePreviewContainer').classList.add('d-none');
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+-        if(document.getElementById('debugModeToggle').checked) document.getElementById('importEdeDebugPanel').classList.remove('d-none');
+         fetch('/api/tools/import-edata-errors/init', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: passedId })})
+         .then(r => r.json()).then(d => {
+             if(d.success) {
+@@ -15,11 +15,19 @@
+                 document.getElementById('btnRunImportEde').disabled = (d.file_count === 0);
+             }
+         });
+     }
++    function previewImportEde() {
++        const out = document.getElementById('importEdeSqlOutput'); out.innerText = 'Generating...';
++        document.getElementById('importEdePreviewContainer').classList.remove('d-none');
++        fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
++        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
++    }
+     function runImportEDataErrors() {
+         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;
+         document.getElementById('importEdeProgressContainer').classList.remove('d-none');
++        document.getElementById('importEdePreviewContainer').classList.add('d-none');
+         const pBar = document.getElementById('importEdeProgressBar'); pBar.style.width = '0%';
+         fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId, debug: document.getElementById('debugModeToggle').checked })})
+         .then(response => {
+             const reader = response.body.getReader(); const decoder = new TextDecoder();
+             function read() { reader.read().then(({ done, value }) => {
+                 if (done) { btn.disabled = false; document.getElementById('importEdeResult').innerText = "Completed"; pBar.style.width = '100%'; return; }
+                 const lines = decoder.decode(value).split('\n');
+                 lines.forEach(l => { try { const d = JSON.parse(l); 
+                     if(d.type==='progress') pBar.style.width = d.percent + '%';
+-                    if(d.type==='log') { const div = document.createElement('div'); div.innerText = d.message; document.getElementById('importEdeLogContent').appendChild(div); }
+                 } catch(e){} });
+                 read();
+             }); } read();
+         });
+     }
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -2,10 +2,17 @@
+     function openEDataModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('eDataCountyId').value = id;
+         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
++        document.getElementById('edePreviewContainer').classList.add('d-none');
++        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(eDataModal) eDataModal.show(); 
+     }
+     function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
++    function previewEDataSetup() {
++        const out = document.getElementById('edeSqlOutput'); out.innerText = 'Generating...';
++        document.getElementById('edePreviewContainer').classList.remove('d-none');
++        fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
++        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
++    }
+     async function submitEDataSetup() {
+         const btn = document.querySelector('#eDataModal .btn-success');
+         const resultDiv = document.getElementById('eDataResult');
+@@ -13,6 +20,7 @@
+         resultDiv.innerHTML = ''; 
+         document.getElementById('eDataProgressContainer').classList.remove('d-none');
++        document.getElementById('edePreviewContainer').classList.add('d-none');
+         document.getElementById('eDataProgressBar').style.width = '0%';
+         document.getElementById('eDataProgressText').innerText = '0%';
+         try {
+--- a/templates/components/scripts/SetupKeliTables.html
++++ b/templates/components/scripts/SetupKeliTables.html
+@@ -2,12 +2,20 @@
+     function openKeliModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('keliCountyId').value = id;
+         document.getElementById('keliDisplayPath').innerText = `/data/${stateName}/${countyName}/Keli Files`;
++        document.getElementById('keliPreviewContainer').classList.add('d-none');
++        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(keliModal) keliModal.show(); 
+     }
+     function closeKeliModal() { if(keliModal) keliModal.hide(); }
++    function previewKeliSetup() {
++        const out = document.getElementById('keliSqlOutput'); out.innerText = 'Generating...';
++        document.getElementById('keliPreviewContainer').classList.remove('d-none');
++        fetch('/api/tools/setup-keli/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('keliCountyId').value })})
++        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
++    }
+     async function submitKeliSetup() {
+         const btn = document.querySelector('#keliModal .btn');
+         const resultDiv = document.getElementById('keliResult');
+         btn.disabled = true; resultDiv.innerHTML = '';
+         document.getElementById('keliProgressContainer').classList.remove('d-none');
++        document.getElementById('keliPreviewContainer').classList.add('d-none');
+         document.getElementById('keliProgressBar').style.width = '0%';
+         try {
+--- a/templates/components/scripts/SystemTools.html
++++ b/templates/components/scripts/SystemTools.html
+@@ -51,7 +51,7 @@
+         const toggle = document.getElementById('debugModeToggle');
+         const isDebug = toggle ? toggle.checked : false;
+         
+-        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview'];
++        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview', 'btnKeliPreview', 'btnImportEdePreview'];
+         debugButtons.forEach(id => {
+             const btn = document.getElementById(id);
+             if (btn) isDebug ? btn.classList.remove('d-none') : btn.classList.add('d-none');

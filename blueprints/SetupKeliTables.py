@@ -11,6 +11,48 @@ from utils import format_error  # <--- IMPORTED
 
 setup_keli_bp = Blueprint('setup_keli', __name__)
 
+@setup_keli_bp.route('/api/tools/setup-keli/preview', methods=['POST'])
+@login_required
+def preview_keli_import():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    data = request.json
+    county_id = data.get('county_id')
+    county = db.session.get(IndexingCounties, county_id)
+    state = IndexingStates.query.filter_by(fips_code=county.state_fips).first()
+    
+    s_clean = secure_filename(state.state_name)
+    c_clean = secure_filename(county.county_name)
+    base_folder = os.path.join(current_app.root_path, 'data', s_clean, c_clean, 'Keli Files')
+    
+    if not os.path.exists(base_folder): return jsonify({'success': False, 'message': 'Folder not found'})
+    
+    csv_files = [f for f in os.listdir(base_folder) if f.lower().endswith('.csv')]
+    if not csv_files: return jsonify({'success': True, 'sql': '-- No CSV files found'})
+    
+    sql_output = f"-- PREVIEW: Found {len(csv_files)} files\n\n"
+    
+    for filename in csv_files:
+        full_path = os.path.join(base_folder, filename)
+        raw_name = os.path.splitext(filename)[0]
+        safe_raw = "".join([c for c in raw_name if c.isalnum() or c in ('_')])
+        table_name = f"{c_clean}_keli_{safe_raw}"
+        full_table_name = f"[dbo].[{table_name}]"
+        
+        try:
+            with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+                header_line = f.readline().strip()
+                reader = csv.reader([header_line])
+                headers = next(reader)
+            
+            cols_def = ", ".join([f"[{h.strip()}] VARCHAR(MAX)" for h in headers if h.strip()])
+            sql_output += f"-- File: {filename}\nDROP TABLE IF EXISTS {full_table_name};\nCREATE TABLE {full_table_name} ({cols_def});\n"
+            sql_output += f"BULK INSERT {full_table_name} FROM '{full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDQUOTE = '\"', FIELDTERMINATOR = ',', ROWTERMINATOR = '0x0a', TABLOCK);\nGO\n\n"
+        except Exception as e:
+            sql_output += f"-- Error reading {filename}: {str(e)}\n\n"
+            
+    return jsonify({'success': True, 'sql': sql_output})
+
 @setup_keli_bp.route('/api/tools/setup-keli', methods=['POST'])
 @login_required
 def run_keli_import():

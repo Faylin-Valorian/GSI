@@ -72,7 +72,7 @@
         const toggle = document.getElementById('debugModeToggle');
         const isDebug = toggle ? toggle.checked : false;
         
-        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview'];
+        const debugButtons = ['btnEdePreview', 'btnAlterDbPreview', 'btnLinkupPreview', 'btnPrepPreview', 'btnKeliPreview', 'btnImportEdePreview'];
         debugButtons.forEach(id => {
             const btn = document.getElementById(id);
             if (btn) isDebug ? btn.classList.remove('d-none') : btn.classList.add('d-none');

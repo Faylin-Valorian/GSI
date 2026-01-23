@@ -33,6 +33,42 @@ CREATE TABLE [{table_name}] (
 )
 """
 
+@import_edata_errors_bp.route('/api/tools/import-edata-errors/preview', methods=['POST'])
+@login_required
+def preview_import():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    data = request.json
+    county_id = data.get('county_id')
+    
+    c = db.session.get(IndexingCounties, county_id)
+    if not c: return jsonify({'success': False, 'message': 'County not found'})
+    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+    state_abbr = s.state_abbr if s.state_abbr else s.state_name[:2].upper()
+    
+    base_path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'eData Errors')
+    
+    if not os.path.exists(base_path):
+        return jsonify({'success': False, 'message': 'Directory not found'})
+        
+    files = [f for f in os.listdir(base_path) if f.lower().endswith('.csv')]
+    if not files:
+        return jsonify({'success': True, 'sql': '-- No .csv files found in eData Errors directory.'})
+        
+    sql_output = f"-- PREVIEW: Found {len(files)} files to import\n\n"
+    
+    for filename in files:
+        clean_name = os.path.splitext(filename)[0].replace(' ', '_').replace('-', '_')
+        table_name = f"{state_abbr}_{c.county_name}_eData_Errors_{clean_name}"
+        file_full_path = os.path.join(base_path, filename)
+        
+        sql_output += f"-- File: {filename}\n"
+        sql_output += f"IF OBJECT_ID('{table_name}', 'U') IS NOT NULL DROP TABLE [{table_name}]\n"
+        sql_output += CREATE_TABLE_SQL.format(table_name=table_name) + "\n"
+        sql_output += f"BULK INSERT [{table_name}] FROM '{file_full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDTERMINATOR = ',', ROWTERMINATOR = '\\n', TABLOCK)\nGO\n\n"
+        
+    return jsonify({'success': True, 'sql': sql_output})
+
 @import_edata_errors_bp.route('/api/tools/import-edata-errors/init', methods=['POST'])
 @login_required
 def init_import():

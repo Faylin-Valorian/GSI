@@ -2,14 +2,23 @@
     function openKeliModal(id, stateName, countyName) { 
         closeAllModals(); document.getElementById('keliCountyId').value = id;
         document.getElementById('keliDisplayPath').innerText = `/data/${stateName}/${countyName}/Keli Files`;
+        document.getElementById('keliPreviewContainer').classList.add('d-none');
+        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
         if(keliModal) keliModal.show(); 
     }
     function closeKeliModal() { if(keliModal) keliModal.hide(); }
+    function previewKeliSetup() {
+        const out = document.getElementById('keliSqlOutput'); out.innerText = 'Generating...';
+        document.getElementById('keliPreviewContainer').classList.remove('d-none');
+        fetch('/api/tools/setup-keli/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('keliCountyId').value })})
+        .then(r => r.json()).then(d => { out.innerText = d.success ? d.sql : 'Error: ' + d.message; });
+    }
     async function submitKeliSetup() {
         const btn = document.querySelector('#keliModal .btn');
         const resultDiv = document.getElementById('keliResult');
         btn.disabled = true; resultDiv.innerHTML = '';
         document.getElementById('keliProgressContainer').classList.remove('d-none');
+        document.getElementById('keliPreviewContainer').classList.add('d-none');
         document.getElementById('keliProgressBar').style.width = '0%';
         try {
             const response = await fetch('/api/tools/setup-keli', {

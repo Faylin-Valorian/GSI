@@ -24,17 +24,22 @@
                     </div>
                     <div id="importEdeCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
-                <div id="importEdeDebugPanel" class="d-none mt-3">
-                    <label class="text-warning small fw-bold"><i class="bi bi-bug me-1"></i>Debug Logs</label>
-                    <div id="importEdeLogContent" class="bg-black border border-secondary p-2 small font-monospace text-muted" style="height: 150px; overflow-y: auto;"></div>
+                <div id="importEdePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
+                    </div>
+                    <pre id="importEdeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
                 </div>
                 <div id="importEdeResult" class="text-center small mt-3"></div>
             </div>
-            <div class="modal-footer border-secondary">
+            <div class="modal-footer border-secondary justify-content-between">
+                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewImportEde()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                <div>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
                     <i class="bi bi-box-arrow-in-down me-1"></i>Run Import
                 </button>
+                </div>
             </div>
         </div>
     </div>

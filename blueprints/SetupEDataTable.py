@@ -53,6 +53,26 @@ def parse_line_waterfall(line):
         
     return c_cols, o_cols, remainder
 
+@setup_edata_bp.route('/api/tools/setup-edata/preview', methods=['POST'])
+@login_required
+def preview_generic_import():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    sql = """-- PREVIEW: GenericDataImport Schema
+IF OBJECT_ID('[dbo].[GenericDataImport]', 'U') IS NOT NULL DROP TABLE [dbo].[GenericDataImport]
+CREATE TABLE [dbo].[GenericDataImport] (
+    ID INT NOT NULL IDENTITY(1,1) PRIMARY KEY,
+    FN VARCHAR(1000), OriginalValue VARCHAR(MAX),
+    col01varchar VARCHAR(1000), col02varchar VARCHAR(1000), col03varchar VARCHAR(1000), col04varchar VARCHAR(1000), col05varchar VARCHAR(1000),
+    col06varchar VARCHAR(1000), col07varchar VARCHAR(1000), col08varchar VARCHAR(1000), col09varchar VARCHAR(1000), col10varchar VARCHAR(1000),
+    col01other VARCHAR(1000), col02other VARCHAR(1000), col03other VARCHAR(1000), col04other VARCHAR(1000), col05other VARCHAR(1000),
+    col06other VARCHAR(1000), col07other VARCHAR(1000), col08other VARCHAR(1000), col09other VARCHAR(1000), col10other VARCHAR(1000),
+    col11other VARCHAR(1000), col12other VARCHAR(1000), col13other VARCHAR(1000), col14other VARCHAR(1000), col15other VARCHAR(1000),
+    col16other VARCHAR(1000), col17other VARCHAR(1000), col18other VARCHAR(1000), col19other VARCHAR(1000), col20other VARCHAR(1000),
+    uf1 VARCHAR(1000), uf2 VARCHAR(1000), uf3 VARCHAR(1000), leftovers VARCHAR(1000)
+)"""
+    return jsonify({'success': True, 'sql': sql})
+
 @setup_edata_bp.route('/api/tools/setup-edata', methods=['POST'])
 @login_required
 def run_generic_import():
