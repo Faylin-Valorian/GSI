@@ -1,14 +1,15 @@
+{% from 'components/parts/PreviewArea.html' import preview_area %}
 <div class="modal fade" id="keliModal" tabindex="-1" style="z-index: 1080;">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content custom-panel" style="border-color: #a370f7;">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" style="color: #a370f7;"><i class="bi bi-collection me-2"></i>Setup Keli Tables</h5>
+                <h5 class="modal-title"><i class="bi bi-table me-2"></i>Setup Keli Table</h5>
                 <button type="button" class="btn-close btn-close-white" onclick="closeKeliModal()"></button>
             </div>
             <div class="modal-body">
                 <p class="mb-2 text-muted small">Target Directory:</p>
                 <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
-                    <i class="bi bi-folder-fill me-2" style="color: #a370f7;"></i>
+                    <i class="bi bi-folder2-open me-2 text-warning"></i>
                     <span id="keliDisplayPath" class="text-light">Loading...</span>
                 </div>
                 <div id="keliProgressContainer" class="d-none mb-3">
@@ -21,21 +22,17 @@
                     </div>
                     <div id="keliCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
-                <div id="keliPreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (Snippet)</label>
-                        <button class="btn btn-sm btn-outline-light" onclick="downloadKeliSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
-                    </div>
-                    <pre id="keliSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
-                </div>
+                
+                {{ preview_area('keli') }}
+
                 <div id="keliResult" class="text-center small"></div>
                 <input type="hidden" id="keliCountyId">
             </div>
             <div class="modal-footer border-secondary justify-content-between">
-                <button id="btnKeliPreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewKeliSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                <button id="btnKeliPreview" class="btn btn-sm btn-outline-warning" onclick="keliMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
                 <div>
-                <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
-                <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
+                    <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
                 </div>
             </div>
         </div>

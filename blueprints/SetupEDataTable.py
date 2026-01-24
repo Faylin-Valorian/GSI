@@ -53,12 +53,15 @@ def parse_line_waterfall(line):
         
     return c_cols, o_cols, remainder
 
-@setup_edata_bp.route('/api/tools/setup-edata/download-sql', methods=['GET'])
+@setup_edata_bp.route('/api/tools/setup-edata/download-sql', methods=['POST'])
 @login_required
 def download_sql():
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     
-    county_id = request.args.get('county_id')
+    # FIXED: Read from JSON body (POST) instead of URL args (GET)
+    data = request.json or {}
+    county_id = data.get('county_id')
+    
     c = db.session.get(IndexingCounties, county_id)
     if not c: return Response("County not found", 404)
     

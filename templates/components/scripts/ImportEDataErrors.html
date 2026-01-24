@@ -1,11 +1,24 @@
 <script>
     var currentImportEdeCountyId = null; 
+    let importEdeMgr = null;
+
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
         if(importEdeModal) importEdeModal.show();
         document.getElementById('importEdeResult').innerText = '';
         document.getElementById('importEdeProgressContainer').classList.add('d-none');
-        document.getElementById('importEdePreviewContainer').classList.add('d-none');
+        
+        if(!importEdeMgr) {
+            importEdeMgr = new PreviewManager({
+                prefix: 'importEde',
+                apiPreview: '/api/tools/import-edata-errors/preview',
+                apiDownload: '/api/tools/import-edata-errors/download-sql',
+                filename: 'Import_Errors.sql',
+                payloadProvider: () => ({ county_id: currentImportEdeCountyId })
+            });
+        }
+        importEdeMgr.reset();
+        
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
         fetch('/api/tools/import-edata-errors/init', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: passedId })})
         .then(r => r.json()).then(d => {
@@ -16,33 +29,28 @@
             }
         });
     }
-    function previewImportEde() {
-        const cont = document.getElementById('importEdePreviewContainer');
-        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
-        cont.classList.remove('d-none');
-        document.getElementById('importEdeSqlOutput').innerText = 'Generating Preview...';
-        fetch('/api/tools/import-edata-errors/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
-        .then(r => r.json()).then(d => { document.getElementById('importEdeSqlOutput').innerText = d.success ? d.sql : 'Error: ' + d.message; });
-    }
-    function downloadImportEdeSQL() {
-        window.location.href = `/api/tools/import-edata-errors/download-sql?county_id=${currentImportEdeCountyId}`;
-    }
+
     function runImportEDataErrors() {
         const btn = document.getElementById('btnRunImportEde'); btn.disabled = true;
         document.getElementById('importEdeProgressContainer').classList.remove('d-none');
-        document.getElementById('importEdePreviewContainer').classList.add('d-none');
+        
+        if(importEdeMgr) importEdeMgr.reset();
+        
         const pBar = document.getElementById('importEdeProgressBar'); pBar.style.width = '0%';
-        fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId, debug: document.getElementById('debugModeToggle').checked })})
-        .then(response => {
+        fetch('/api/tools/import-edata-errors/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
+        .then(async response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
-            function read() { reader.read().then(({ done, value }) => {
-                if (done) { btn.disabled = false; document.getElementById('importEdeResult').innerText = "Completed"; pBar.style.width = '100%'; return; }
+            while(true) {
+                const {done, value} = await reader.read(); if(done) break;
                 const lines = decoder.decode(value).split('\n');
-                lines.forEach(l => { try { const d = JSON.parse(l); 
-                    if(d.type==='progress') pBar.style.width = d.percent + '%';
-                } catch(e){} });
-                read();
-            }); } read();
+                lines.forEach(l => { if(l) {
+                    try {
+                        const d = JSON.parse(l);
+                        if(d.type==='progress') { pBar.style.width = d.percent+'%'; document.getElementById('importEdeProgressText').innerText = d.percent+'%'; document.getElementById('importEdeCurrentFile').innerText = d.message; }
+                        if(d.type==='complete') { pBar.style.width = '100%'; document.getElementById('importEdeResult').innerHTML = `<div class="alert alert-success">${d.message}</div>`; btn.disabled = false; }
+                    } catch(e) {}
+                }});
+            }
         });
     }
 </script>

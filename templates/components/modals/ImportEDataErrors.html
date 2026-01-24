@@ -1,45 +1,41 @@
+{% from 'components/parts/PreviewArea.html' import preview_area %}
 <div class="modal fade" id="importEDataErrorsModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content custom-panel" style="border-color: #dc3545;">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title" style="color: #dc3545;"><i class="bi bi-upload me-2"></i>Import eData Errors</h5>
+                <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Import eData Errors</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2 text-muted small">Target Directory:</p>
-                <div class="alert alert-dark border-secondary text-monospace small mb-3" role="alert">
-                    <i class="bi bi-folder-fill me-2" style="color: #dc3545;"></i>
-                    <span id="importEdeDisplayPath" class="text-light">Loading...</span>
+                <p class="small text-muted">This tool scans the error folder and attempts to re-import failed records.</p>
+                <div class="alert alert-dark border-secondary text-monospace small mb-3">
+                    <i class="bi bi-folder-x me-2 text-danger"></i><span id="importEdeDisplayPath">Loading...</span>
                 </div>
                 <div class="text-center mb-3">
-                    <span class="badge bg-secondary" id="importEdeFileCount">Scanning...</span>
+                    <span class="badge bg-danger rounded-pill" id="importEdeFileCount">Checking...</span>
                 </div>
                 <div id="importEdeProgressContainer" class="d-none mb-3">
                     <div class="d-flex justify-content-between small mb-1">
-                        <span class="text-muted">Importing...</span>
+                        <span class="text-muted">Processing...</span>
                         <span id="importEdeProgressText" class="text-light">0%</span>
                     </div>
-                    <div class="progress bg-dark border border-secondary" style="height: 20px;">
-                        <div id="importEdeProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #dc3545;"></div>
+                    <div class="progress" style="height: 10px; background-color: #333;">
+                        <div id="importEdeProgressBar" class="progress-bar bg-danger progress-bar-striped progress-bar-animated" style="width: 0%;"></div>
                     </div>
                     <div id="importEdeCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
-                <div id="importEdePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (Snippet)</label>
-                        <button class="btn btn-sm btn-outline-light" onclick="downloadImportEdeSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
-                    </div>
-                    <pre id="importEdeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
-                </div>
+                
+                {{ preview_area('importEde') }}
+
                 <div id="importEdeResult" class="text-center small mt-3"></div>
             </div>
             <div class="modal-footer border-secondary justify-content-between">
-                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewImportEde()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning" onclick="importEdeMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
                 <div>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
-                    <i class="bi bi-box-arrow-in-down me-1"></i>Run Import
-                </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
+                        <i class="bi bi-box-arrow-in-down me-1"></i>Run Import
+                    </button>
                 </div>
             </div>
         </div>
