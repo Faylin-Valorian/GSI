@@ -4,7 +4,6 @@ import time
 import json
 import zipfile
 import threading
-import logging
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app, session
 from flask_login import login_required, current_user
@@ -85,7 +84,7 @@ def restart_server():
     # Restart the current process
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-# --- PATCHER ENGINE ---
+# --- ATOMIC PATCHER ENGINE ---
 
 class SimplePatcher:
     def parse(self, lines):
@@ -127,59 +126,60 @@ class SimplePatcher:
         return hunks
 
     def apply(self, patch_content, root_path):
-        """Applies the parsed patch to the filesystem."""
+        """ATOMIC APPLY: Verifies all hunks before writing any file."""
         lines = patch_content.splitlines()
         hunks = self.parse(lines)
-        results = []
+        if not hunks: raise Exception("No valid patch segments found.")
         
-        # Normalize newlines in patch content
-        patch_content = patch_content.replace('\r\n', '\n')
-        
-        if not hunks:
-            raise Exception("No valid patch segments found. Check format.")
-
-        for hunk in hunks:
-            full_path = os.path.join(root_path, hunk['file'])
+        # Group by file
+        file_map = {}
+        for h in hunks:
+            if h['file'] not in file_map: file_map[h['file']] = []
+            file_map[h['file']].append(h)
             
-            # --- SCENARIO 1: FILE DOES NOT EXIST (Create It) ---
-            if not os.path.exists(full_path):
-                # If the 'search' block is empty (or we assume creation for missing files)
-                # We interpret this as a File Creation request.
-                try:
-                    os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                    with open(full_path, 'w', encoding='utf-8') as f:
-                        f.write(hunk['replace'])
-                    results.append(f"Created: {hunk['file']}")
-                    continue
-                except Exception as e:
-                    raise Exception(f"Failed to create file {hunk['file']}: {str(e)}")
+        pending_writes = {} 
+        logs = []
 
-            # --- SCENARIO 2: FILE EXISTS (Modify It) ---
-            try:
+        for filename, fhunks in file_map.items():
+            full_path = os.path.join(root_path, filename)
+            
+            # Read original content
+            if os.path.exists(full_path):
                 with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
                     content = f.read()
-                
-                # Normalize line endings for comparison
-                content_norm = content.replace('\r\n', '\n')
-                search_norm = hunk['search'].replace('\r\n', '\n')
-                
-                if search_norm in content_norm:
-                    # Perform replacement on normalized content
-                    new_content = content_norm.replace(search_norm, hunk['replace'], 1)
-                    
-                    with open(full_path, 'w', encoding='utf-8') as f:
-                        f.write(new_content)
-                    results.append(f"Patched: {hunk['file']}")
+            else:
+                content = None # Signal that file doesn't exist
+
+            # Apply hunks in order
+            for hunk in fhunks:
+                if content is None:
+                    # Creating new file
+                    if not hunk['search'].strip():
+                        content = hunk['replace'] # New content
+                        logs.append(f"Create: {filename}")
+                    else:
+                        raise Exception(f"File missing: {filename} (Cannot modify non-existent file)")
                 else:
-                    # STRICT FAILURE: If we expected text but didn't find it, stop everything.
-                    print(f"FAILED CONTEXT IN {hunk['file']}:\nExpected:\n{search_norm}\n\nFound start of file:\n{content_norm[:100]}")
-                    raise Exception(f"Context mismatch in {hunk['file']}. The code to replace was not found.")
+                    # Modifying existing
+                    c_norm = content.replace('\r\n', '\n')
+                    s_norm = hunk['search'].replace('\r\n', '\n')
                     
-            except Exception as e:
-                # Re-raise to stop the entire process
-                raise Exception(f"Critical Error processing {hunk['file']}: {str(e)}")
+                    if s_norm in c_norm:
+                        content = c_norm.replace(s_norm, hunk['replace'], 1)
+                        logs.append(f"Patch: {filename}")
+                    else:
+                        start_snippet = c_norm[:50].replace('\n', '\\n')
+                        raise Exception(f"Context mismatch in {filename}. Search block not found.\nFile starts with: {start_snippet}...")
+            
+            pending_writes[full_path] = content
+
+        # Commit all changes
+        for path, data in pending_writes.items():
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(data)
         
-        return results
+        return logs
 
 # --- API ENDPOINTS ---
 

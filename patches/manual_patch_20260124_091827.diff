@@ -1,0 +1,322 @@
+--- a/blueprints/PatchManager.py
++++ b/blueprints/PatchManager.py
+@@ -1,133 +1,167 @@
+ import os
+ import sys
+ import time
+ import json
+ import zipfile
+ import threading
+ from datetime import datetime
+ from flask import Blueprint, request, jsonify, current_app, session
+ from flask_login import login_required, current_user
+ 
+ patch_bp = Blueprint('patch_manager', __name__)
+ 
+ VERSION_FILE = 'version.json'
+ BACKUP_DIR = 'versions'
++PATCH_STORAGE_DIR = 'patches'
+ 
+-# --- VERSIONING UTILS ---
++# --- UTILS ---
+ def load_version(root):
+     v_path = os.path.join(root, VERSION_FILE)
+-    if not os.path.exists(v_path):
+-        return {"major": 0, "minor": 0, "patch": 1, "string": "0.0.1"}
+-    with open(v_path, 'r') as f:
+-        return json.load(f)
++    if not os.path.exists(v_path): return {"major": 0, "minor": 0, "patch": 1, "string": "0.0.1"}
++    try:
++        with open(v_path, 'r') as f: return json.load(f)
++    except: return {"major": 0, "minor": 0, "patch": 1, "string": "0.0.1"}
+ 
+ def increment_version(root):
+     v = load_version(root)
+     v['patch'] += 1
+-    if v['patch'] >= 100:
+-        v['patch'] = 0
+-        v['minor'] += 1
+-    if v['minor'] >= 100:
+-        v['minor'] = 0
+-        v['major'] += 1
++    if v['patch'] >= 100: v['patch'] = 0; v['minor'] += 1
++    if v['minor'] >= 100: v['minor'] = 0; v['major'] += 1
+     v['string'] = f"{v['major']}.{v['minor']}.{v['patch']}"
+-    with open(os.path.join(root, VERSION_FILE), 'w') as f:
+-        json.dump(v, f, indent=4)
++    with open(os.path.join(root, VERSION_FILE), 'w') as f: json.dump(v, f, indent=4)
+     return v['string']
+ 
+-# --- BACKUP UTILS ---
+ def create_backup(root, current_ver):
+     backup_folder = os.path.join(root, BACKUP_DIR)
+     os.makedirs(backup_folder, exist_ok=True)
+-    
+-    date_str = datetime.now().strftime('%Y%m%d')
+-    zip_name = f"{date_str}_v{current_ver}.zip"
++    zip_name = f"{datetime.now().strftime('%Y%m%d')}_v{current_ver}.zip"
+     zip_path = os.path.join(backup_folder, zip_name)
+-    
+     print(f" >>> STARTING BACKUP: {zip_path}")
+-    
+     try:
+         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+             for foldername, subfolders, filenames in os.walk(root):
+-                subfolders[:] = [d for d in subfolders if d not in [BACKUP_DIR, 'data', '.git', '__pycache__', 'instance', 'venv', '.idea']]
+-
++                subfolders[:] = [d for d in subfolders if d not in [BACKUP_DIR, PATCH_STORAGE_DIR, 'data', '.git', '__pycache__', 'instance', 'venv', '.idea']]
+                 for filename in filenames:
+-                    if filename == zip_name: continue
+-                    if filename.endswith('.pyc') or filename.endswith('.log'): continue
+-                    
++                    if filename == zip_name or filename.endswith(('.pyc', '.log')): continue
+                     file_path = os.path.join(foldername, filename)
+-                    rel_path = os.path.relpath(file_path, root)
+-                    zipf.write(file_path, rel_path)
++                    zipf.write(file_path, os.path.relpath(file_path, root))
+         return zip_name
+-    except Exception as e:
+-        print(f" !!! BACKUP FAILED: {str(e)}")
+-        return None
++    except Exception as e: print(f" !!! BACKUP FAILED: {str(e)}"); return None
+ 
+-# --- RESTART UTILS ---
+ def restart_server():
+-    print(" >>> SYSTEM UPDATE COMPLETE.")
+-    
+-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+-        print(" >>> DETECTED FLASK RELOADER: Letting file change trigger auto-restart.")
+-        return
+-
+-    print(" >>> RESTARTING SERVICE IN 5 SECONDS...")
+-    time.sleep(5) 
+-    print(" >>> RESTARTING NOW...")
++    print(" >>> SYSTEM UPDATE COMPLETE. RESTARTING...")
++    time.sleep(2)
+     os.execv(sys.executable, [sys.executable] + sys.argv)
+ 
+-# --- PATCHER LOGIC ---
++# --- ATOMIC PATCHER ENGINE ---
+ class SimplePatcher:
+-    def apply(self, patch_content, root_path):
+-        lines = patch_content.splitlines()
+-        hunks = self.parse(lines)
+-        results = []
+-        
+-        for hunk in hunks:
+-            full_path = os.path.join(root_path, hunk['file'])
+-            
+-            # --- NEW FILE CREATION LOGIC ---
+-            if not os.path.exists(full_path):
+-                # If the 'search' block is empty, it means we are creating a new file
+-                if not hunk['search'].strip():
+-                    try:
+-                        # Ensure directory exists
+-                        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+-                        with open(full_path, 'w', encoding='utf-8') as f:
+-                            f.write(hunk['replace'])
+-                        results.append(f"Created {hunk['file']}")
+-                    except Exception as e:
+-                        results.append(f"Error creating {hunk['file']}: {str(e)}")
+-                else:
+-                    results.append(f"Skipped {hunk['file']} (File not found & not a creation patch)")
+-                continue
+-            # -------------------------------
+-            
+-            try:
+-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+-                    content = f.read()
+-                
+-                # Try Exact Match
+-                if hunk['search'] in content:
+-                    new_content = content.replace(hunk['search'], hunk['replace'], 1)
+-                    with open(full_path, 'w', encoding='utf-8') as f:
+-                        f.write(new_content)
+-                    results.append(f"Patched {hunk['file']}")
+-                else:
+-                    # Try Normalized Line Endings
+-                    norm_content = content.replace('\r\n', '\n')
+-                    if hunk['search'] in norm_content:
+-                        new_content = norm_content.replace(hunk['search'], hunk['replace'], 1)
+-                        with open(full_path, 'w', encoding='utf-8') as f:
+-                            f.write(new_content)
+-                        results.append(f"Patched {hunk['file']} (Normalized)")
+-                    else:
+-                        results.append(f"Failed to match context in {hunk['file']}")
+-            except Exception as e:
+-                results.append(f"Error {hunk['file']}: {str(e)}")
+-        return results
+-
+     def parse(self, lines):
+         hunks = []
+         current_file = None
+         i = 0
+         while i < len(lines):
+             line = lines[i]
+             if line.startswith('+++ b/'):
+                 current_file = line[6:].strip()
+                 i += 1; continue
+             elif line.startswith('--- a/') or line.startswith('index '):
+                 i += 1; continue
+             
+             if line.startswith('@@'):
+-                i += 1
++                if not current_file: i += 1; continue
++                i += 1
+                 search, replace = [], []
+                 while i < len(lines):
+                     hl = lines[i]
+                     if hl.startswith('diff ') or hl.startswith('--- ') or hl.startswith('+++ '): break
+-                    
+-                    if hl.startswith(' '):
+-                        search.append(hl[1:])
+-                        replace.append(hl[1:])
+-                    elif hl.startswith('-'):
+-                        search.append(hl[1:])
+-                    elif hl.startswith('+'):
+-                        replace.append(hl[1:])
++                    if hl.startswith(' '): search.append(hl[1:]); replace.append(hl[1:])
++                    elif hl.startswith('-'): search.append(hl[1:])
++                    elif hl.startswith('+'): replace.append(hl[1:])
+                     i += 1
+-                if current_file:
+-                    hunks.append({'file': current_file, 'search': "\n".join(search), 'replace': "\n".join(replace)})
++                hunks.append({'file': current_file, 'search': "\n".join(search), 'replace': "\n".join(replace)})
+                 continue
+             i += 1
+         return hunks
+ 
++    def apply(self, patch_content, root_path):
++        """ATOMIC APPLY: Verifies all hunks before writing any file."""
++        lines = patch_content.splitlines()
++        hunks = self.parse(lines)
++        if not hunks: raise Exception("No valid patch segments found.")
++        
++        # Group by file
++        file_map = {}
++        for h in hunks:
++            if h['file'] not in file_map: file_map[h['file']] = []
++            file_map[h['file']].append(h)
++            
++        pending_writes = {} 
++        logs = []
++
++        for filename, fhunks in file_map.items():
++            full_path = os.path.join(root_path, filename)
++            
++            # Read original content
++            if os.path.exists(full_path):
++                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
++                    content = f.read()
++            else:
++                content = None # Signal that file doesn't exist
++
++            # Apply hunks in order
++            for hunk in fhunks:
++                if content is None:
++                    # Creating new file
++                    if not hunk['search'].strip():
++                        content = hunk['replace'] # New content
++                        logs.append(f"Create: {filename}")
++                    else:
++                        raise Exception(f"File missing: {filename} (Cannot modify non-existent file)")
++                else:
++                    # Modifying existing
++                    c_norm = content.replace('\r\n', '\n')
++                    s_norm = hunk['search'].replace('\r\n', '\n')
++                    
++                    if s_norm in c_norm:
++                        content = c_norm.replace(s_norm, hunk['replace'], 1)
++                        logs.append(f"Patch: {filename}")
++                    else:
++                        start_snippet = c_norm[:50].replace('\n', '\\n')
++                        raise Exception(f"Context mismatch in {filename}. Search block not found.\nFile starts with: {start_snippet}...")
++            
++            pending_writes[full_path] = content
++
++        # Commit all changes
++        for path, data in pending_writes.items():
++            os.makedirs(os.path.dirname(path), exist_ok=True)
++            with open(path, 'w', encoding='utf-8') as f:
++                f.write(data)
++        
++        return logs
++
+ # --- API ROUTES ---
+-
+ @patch_bp.route('/api/admin/version', methods=['GET'])
+ @login_required
+ def get_version():
+     v = load_version(current_app.root_path)
+     return jsonify({'version': v['string']})
+ 
+ @patch_bp.route('/api/admin/patch/apply', methods=['POST'])
+ @login_required
+ def apply_patch():
+     try:
+-        if current_user.role != 'admin':
+-            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+-        
+-        if not session.get('debug_mode'):
+-            return jsonify({'success': False, 'message': 'Debug Mode must be enabled.'}), 403
+-
++        if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+         patch_content = ""
+-
+         if 'patch_content' in request.form and request.form['patch_content'].strip():
+             patch_content = request.form['patch_content']
+             try:
+-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+-                filename = f"manual_patch_{timestamp}.diff"
+-                patches_dir = os.path.join(current_app.root_path, 'patches')
++                filename = f"manual_patch_{datetime.now().strftime('%Y%m%d_%H%M%S')}.diff"
++                patches_dir = os.path.join(current_app.root_path, PATCH_STORAGE_DIR)
+                 os.makedirs(patches_dir, exist_ok=True)
+-                with open(os.path.join(patches_dir, filename), 'w', encoding='utf-8') as f:
+-                    f.write(patch_content)
++                with open(os.path.join(patches_dir, filename), 'w', encoding='utf-8') as f: f.write(patch_content)
+             except Exception as e: print(f"Warning: Could not save manual patch backup: {e}")
+-
+         elif 'file' in request.files:
+             file = request.files['file']
+-            if not file.filename.endswith('.diff'):
+-                return jsonify({'success': False, 'message': 'Invalid file format. .diff required.'}), 400
++            if not file.filename.endswith('.diff'): return jsonify({'success': False, 'message': 'Invalid file format. .diff required.'}), 400
+             patch_content = file.read().decode('utf-8')
+-        else:
+-            return jsonify({'success': False, 'message': 'No patch data provided'}), 400
++        else: return jsonify({'success': False, 'message': 'No patch data provided'}), 400
+ 
+         root = current_app.root_path
+         current_v = load_version(root)['string']
+         backup_name = create_backup(root, current_v)
+-        
+-        if not backup_name:
+-            return jsonify({'success': False, 'message': 'Backup failed. Update aborted.'}), 500
++        if not backup_name: return jsonify({'success': False, 'message': 'Backup failed. Update aborted.'}), 500
+ 
+-        patch_content = patch_content.replace('\r\n', '\n')
+         patcher = SimplePatcher()
+-        logs = patcher.apply(patch_content, root)
+-        
++        logs = patcher.apply(patch_content.replace('\r\n', '\n'), root)
+         new_v = increment_version(root)
+         
+         log_text = f"BACKUP: {backup_name}\nVERSION: {current_v} -> {new_v}\n--------------------------\n" + "\n".join(logs)
+         print(f"\n >>> PATCH REPORT:\n{log_text}\n")
+-
+         threading.Thread(target=restart_server).start()
+-
+-        return jsonify({
+-            'success': True, 
+-            'message': f"System patched to v{new_v}. Restarting...",
+-            'logs': log_text
+-        })
++        return jsonify({'success': True, 'message': f"System patched to v{new_v}. Restarting...", 'logs': log_text})
+ 
+     except Exception as e:
+-        import traceback
+-        traceback.print_exc()
+-        return jsonify({'success': False, 'message': f"Server Error: {str(e)}"}), 500
++        print(f"PATCH ERROR: {str(e)}")
++        return jsonify({'success': False, 'message': f"PATCH FAILED: {str(e)}"}), 500

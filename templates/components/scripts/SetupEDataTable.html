@@ -1,23 +1,29 @@
 <script>
-    let edeMgr = null;
+    let edeTestMgr = null;
+
     function openEDataModal(id, stateName, countyName) { 
         closeAllModals(); document.getElementById('eDataCountyId').value = id;
         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+        document.getElementById('edePreviewContainer').classList.add('d-none');
         
-        // Init Unified Manager
-        edeMgr = new PreviewManager({
-            prefix: 'ede', 
-            apiPreview: '/api/tools/setup-edata/preview', 
-            apiDownload: '/api/tools/setup-edata/download-sql',
-            filename: 'Setup_eData.sql', 
-            payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
-        });
-        edeMgr.reset();
-        
+        // Initialize the NEW Test Manager (Blue Button)
+        if (!edeTestMgr) {
+            edeTestMgr = new PreviewManager({
+                prefix: 'edeTest',
+                apiPreview: '/api/tools/setup-edata/preview',
+                apiDownload: '/api/tools/setup-edata/download-sql',
+                filename: 'Setup_eData_Test.sql',
+                payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
+            });
+        }
+        edeTestMgr.reset();
+
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
         if(eDataModal) eDataModal.show(); 
     }
+
     function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
+
     function previewEDataSetup() {
         const cont = document.getElementById('edePreviewContainer');
         if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
@@ -26,9 +32,11 @@
         fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
         .then(r => r.json()).then(d => { document.getElementById('edeSqlOutput').innerText = d.success ? d.sql : 'Error: ' + d.message; });
     }
+
     function downloadEDataSQL() {
         window.location.href = `/api/tools/setup-edata/download-sql?county_id=${document.getElementById('eDataCountyId').value}`;
     }
+
     async function submitEDataSetup() {
         const btn = document.querySelector('#eDataModal .btn-success');
         const resultDiv = document.getElementById('eDataResult');
@@ -36,6 +44,10 @@
         resultDiv.innerHTML = ''; 
         document.getElementById('eDataProgressContainer').classList.remove('d-none');
         document.getElementById('edePreviewContainer').classList.add('d-none');
+        
+        // Close new preview if open
+        if(edeTestMgr) edeTestMgr.reset();
+
         document.getElementById('eDataProgressBar').style.width = '0%';
         document.getElementById('eDataProgressText').innerText = '0%';
         try {

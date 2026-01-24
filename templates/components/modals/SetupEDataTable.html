@@ -1,3 +1,4 @@
+{% from 'components/parts/PreviewArea.html' import preview_area %}
 <div class="modal fade" id="eDataModal" tabindex="-1" style="z-index: 1080;">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content custom-panel border-success">
@@ -29,6 +30,7 @@
                     </div>
                     <div id="eDataCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
+                
                 <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (First 5 Rows)</label>
@@ -36,7 +38,9 @@
                     </div>
                     <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
                 </div>
+
                 {{ preview_area('edeTest') }}
+
                 <div id="eDataResult" class="text-center small"></div>
                 <input type="hidden" id="eDataCountyId">
             </div>
@@ -46,8 +50,8 @@
                     <button id="btnEdeTestBlue" class="btn btn-sm btn-info" onclick="edeTestMgr.toggle()"><i class="bi bi-lightning-charge me-1"></i>Test New Preview</button>
                 </div>
                 <div>
-                <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
-                <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                    <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
                 </div>
             </div>
         </div>
