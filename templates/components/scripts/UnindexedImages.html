@@ -2,9 +2,11 @@
 
 <script>
     var unindexedImgMgr = null;
+    var unindexedCountyId = null;
 
     function openUnindexedReview(countyId, stateName, countyName) {
         closeAllModals(); 
+        unindexedCountyId = countyId; // STORED GLOBALLY
         document.getElementById('currentReviewCountyId').value = countyId;
         document.getElementById('scanPathInput').value = `data/${stateName}/${countyName}/Images`;
         document.getElementById('unindexedTableBody').innerHTML = '';
@@ -20,6 +22,7 @@
         }
         unindexedImgMgr.resetUI();
         
+        // Attempt to load list if table exists
         loadUnindexedTable(countyId);
     }
 
@@ -30,32 +33,74 @@
         document.getElementById('globalLoader').style.display = 'flex';
         fetch('/api/edata/scan-unindexed', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ county_id: cid, scan_path: document.getElementById('scanPathInput').value, check_split: document.getElementById('scanSplitToggle').checked })
+            body: JSON.stringify({ 
+                county_id: cid, 
+                scan_path: document.getElementById('scanPathInput').value 
+            })
         }).then(r=>r.json()).then(d => {
             document.getElementById('globalLoader').style.display = 'none';
-            if(d.success) loadUnindexedTable(cid);
+            if(d.success) {
+                loadUnindexedTable(cid);
+            } else {
+                alert(d.message);
+            }
         });
     }
 
     function loadUnindexedTable(cid) {
         fetch(`/api/edata/unindexed-list/${cid}`).then(r=>r.json()).then(data => {
             const b = document.getElementById('unindexedTableBody'); b.innerHTML = '';
+            
+            if(data.length === 0) {
+                b.innerHTML = '<tr><td colspan="2" class="text-muted text-center p-3">No unindexed images found (or scan not run).</td></tr>';
+                return;
+            }
+
             data.forEach(img => {
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
                 
-                // CLICK HANDLER: Use Manager
-                tr.onclick = () => { 
-                    unindexedImgMgr.load({ record_id: img.id });
+                // CLICK ROW: Load Image
+                tr.onclick = (e) => { 
+                    // Prevent image load if clicking the checkbox
+                    if(e.target.tagName === 'INPUT') return;
+
+                    unindexedImgMgr.load({ 
+                        record_id: img.id,
+                        county_id: cid // Pass CID for the dynamic table lookup
+                    });
                     
-                    // Highlight Row
                     document.querySelectorAll('#unindexedTableBody tr').forEach(r => r.classList.remove('table-active'));
                     tr.classList.add('table-active');
                 };
                 
-                tr.innerHTML = `<td class="ps-3">${img.display_name}</td><td class="text-center">${img.require_indexing}</td>`;
+                // TOGGLE CHECKBOX
+                const checkState = img.require_indexing ? 'checked' : '';
+                
+                tr.innerHTML = `
+                    <td class="ps-3 text-truncate" style="max-width: 200px;">${img.display_name}</td>
+                    <td class="text-center">
+                        <div class="form-check d-flex justify-content-center">
+                            <input class="form-check-input" type="checkbox" ${checkState} 
+                                   onchange="toggleUnindexedStatus(${img.id}, this.checked)">
+                        </div>
+                    </td>`;
                 b.appendChild(tr);
             });
+        });
+    }
+
+    function toggleUnindexedStatus(id, isChecked) {
+        fetch('/api/edata/update-image-status', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: id,
+                require_indexing: isChecked,
+                county_id: unindexedCountyId // Uses global variable
+            })
+        }).then(r=>r.json()).then(d => {
+            if(!d.success) alert("Failed to update status");
         });
     }
 </script>

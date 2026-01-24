@@ -7,10 +7,6 @@
             <div class="modal-header border-secondary py-2 flex-shrink-0">
                 <div class="d-flex align-items-center w-100">
                     <h5 class="modal-title text-uppercase fw-bold text-warning me-4"><i class="bi bi-pencil-square me-2"></i>Instrument Type Corrections</h5>
-                    <div class="input-group input-group-sm w-50">
-                        <span class="input-group-text bg-dark border-secondary text-secondary">Images Path</span>
-                        <input type="text" id="itcPathInput" class="form-control bg-black text-light border-secondary font-monospace">
-                    </div>
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -32,16 +28,12 @@
                 <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000;">
                     
                     <div class="p-2 border-bottom border-secondary bg-dark flex-shrink-0">
-                        <div class="row g-2">
-                            <div class="col-12">
-                                <label class="x-small text-muted text-uppercase fw-bold">Header Text</label>
-                                <div id="itcHeaderDisplay" class="text-info small font-monospace text-truncate">---</div>
-                            </div>
-                            <div class="col-6">
+                        <div class="row g-0">
+                            <div class="col-6 border-end border-secondary pe-2">
                                 <label class="x-small text-muted text-uppercase fw-bold">Original Value</label>
                                 <div id="itcOriginalDisplay" class="text-white small fw-bold">---</div>
                             </div>
-                            <div class="col-6">
+                            <div class="col-6 ps-2">
                                 <label class="x-small text-muted text-uppercase fw-bold">Current Correction</label>
                                 <div id="itcCurrentDisplay" class="text-warning small fw-bold">---</div>
                             </div>

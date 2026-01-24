@@ -4,11 +4,12 @@
     var itcCountyId = null; 
     var itcCurrentRecord = null; 
     var itcImgMgr = null;
+    var itcBasePath = ""; // Stores the path internally
 
     function openInstCorrectionTool(id, s, c) {
         closeAllModals(); 
         itcCountyId = id;
-        document.getElementById('itcPathInput').value = `data/${s}/${c}/Images`;
+        itcBasePath = `data/${s}/${c}/Images`; // Set path internally
         
         // Init Image Manager
         if(!itcImgMgr) {
@@ -21,7 +22,6 @@
         
         // Reset Form
         document.getElementById('itcInput').value = '';
-        document.getElementById('itcHeaderDisplay').innerText = '---';
         document.getElementById('itcOriginalDisplay').innerText = '---';
         document.getElementById('itcCurrentDisplay').innerText = '---';
 
@@ -82,7 +82,7 @@
         itcImgMgr.load({
             county_id: itcCountyId,
             value: record.value,
-            base_path: document.getElementById('itcPathInput').value
+            base_path: itcBasePath // Use internal variable
         });
     }
 
@@ -109,7 +109,7 @@
                         a.className = 'list-group-item list-group-item-action bg-dark text-white border-secondary small';
                         a.style.cursor = 'pointer';
                         
-                        // UPDATED LAYOUT: Name -> Tag -> Description
+                        // LAYOUT: Name -> Tag -> Description
                         a.innerHTML = `
                             <div class="d-flex align-items-center w-100">
                                 <strong class="flex-shrink-0">${item.name}</strong>
