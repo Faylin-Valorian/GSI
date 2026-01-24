@@ -23,20 +23,12 @@
         }).then(r => r.json()).then(d => {
             list.innerHTML = '';
             
-            // ERROR HANDLING WITH DEBUG CHECK
             if(!d.success) {
                 const debugEl = document.getElementById('debugModeToggle');
-                const isDebug = debugEl && debugEl.checked;
-                
-                if (isDebug) {
-                    list.innerHTML = `<div class="p-3 text-danger small border-bottom border-danger bg-danger bg-opacity-10">
-                        <i class="bi bi-exclamation-octagon me-2"></i><strong>System Error:</strong><br>${d.message}
-                    </div>`;
+                if (debugEl && debugEl.checked) {
+                    list.innerHTML = `<div class="p-3 text-danger small border-bottom border-danger bg-danger bg-opacity-10">Error: ${d.message}</div>`;
                 } else {
-                    list.innerHTML = `<div class="p-3 text-muted small border-bottom border-secondary text-center">
-                        <i class="bi bi-exclamation-circle me-1"></i>Unable to load records.<br>
-                        <span class="x-small text-secondary">Check debug mode for details.</span>
-                    </div>`;
+                    list.innerHTML = `<div class="p-3 text-muted small border-bottom text-center">Unable to load. Check debug mode.</div>`;
                 }
                 return;
             }
@@ -48,10 +40,18 @@
             
             d.records.forEach(r => {
                 const item = document.createElement('div');
-                item.className = 'p-2 border-bottom border-secondary text-white small rlo-item';
+                item.className = 'p-2 border-bottom border-secondary text-white small rlo-item text-truncate';
                 item.style.cursor = 'pointer';
-                item.innerHTML = `<i class="bi bi-file-text me-2 text-secondary"></i>${r.id}`;
-                item.onclick = () => rloLoadRecord(r);
+                // Display Original Value (Key)
+                item.innerText = r.desc || `Record ${r.id}`;
+                item.title = "Click to Copy & Load";
+                
+                item.onclick = () => {
+                    // Clipboard Copy
+                    if(r.desc) navigator.clipboard.writeText(r.desc);
+                    // Load
+                    rloLoadRecord(r);
+                };
                 list.appendChild(item);
             });
         }).catch(err => {
@@ -61,7 +61,8 @@
 
     function rloLoadRecord(record) {
         rloCurrentRecord = record;
-        document.getElementById('rloCurrentRecordLabel').innerText = `Record #${record.id}`;
+        // Header Text matches Record Key
+        document.getElementById('rloCurrentRecordLabel').innerText = record.desc || `Record #${record.id}`;
         
         // Load Fields
         document.getElementById('rloCol02').value = record.fields.col02 || '';
@@ -76,25 +77,42 @@
         if(record.fields.col08) {
             record.fields.col08.split(',').forEach(d => { if(d.trim()) rloAddDir(d.trim()); });
         }
-        rloUpdateDirInput(false); // false = do not trigger save on load
+        rloUpdateDirInput(false);
 
-        // Load Images
-        const img = document.getElementById('rloMainImage');
-        img.style.display = 'none';
+        // Reset Image Area
+        const mainImg = document.getElementById('rloMainImage');
+        const strip = document.getElementById('rloThumbnailStrip');
+        mainImg.style.display = 'none';
+        strip.innerHTML = '';
         document.getElementById('rloNoImage').style.display = 'block';
         
+        // Fetch Images
         fetch('/api/tools/legal-others/images', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({county_id: rloCountyId, record_id: record.id})
         }).then(r => r.json()).then(d => {
             if(d.success && d.images.length > 0) {
-                img.src = d.images[0].src;
-                img.style.display = 'block';
+                // Show Main Image (First one)
+                mainImg.src = d.images[0].src;
+                mainImg.style.display = 'block';
                 document.getElementById('rloNoImage').style.display = 'none';
+
+                // Populate Thumbnails
+                d.images.forEach(img => {
+                    const thumb = document.createElement('img');
+                    thumb.src = img.src;
+                    thumb.className = 'h-100 border border-secondary';
+                    thumb.style.cursor = 'pointer';
+                    thumb.style.opacity = '0.7';
+                    thumb.onmouseover = () => thumb.style.opacity = '1';
+                    thumb.onmouseout = () => thumb.style.opacity = '0.7';
+                    thumb.onclick = () => { mainImg.src = img.src; };
+                    strip.appendChild(thumb);
+                });
             }
         });
         
-        // Highlight active in list
+        // Highlight active list item
         document.querySelectorAll('.rlo-item').forEach(el => el.classList.remove('bg-primary'));
         event.target.classList.add('bg-primary');
     }
@@ -130,7 +148,6 @@
     // --- DIRECTION TAGS ---
     function rloAddDir(val) {
         const container = document.getElementById('rloDirTags');
-        // Avoid dupes
         if([...container.children].some(c => c.dataset.val === val)) return;
         
         const tag = document.createElement('span');

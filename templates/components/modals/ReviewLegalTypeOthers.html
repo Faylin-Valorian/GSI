@@ -16,14 +16,17 @@
 
                 <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000;">
                     
-                    <div class="flex-grow-1 position-relative bg-black border-bottom border-secondary" style="height: 50%;">
+                    <div class="flex-grow-1 position-relative bg-black border-bottom border-secondary" style="overflow: hidden;">
                         <div id="rloNoImage" class="text-muted fst-italic position-absolute top-50 start-50 translate-middle">Select a record</div>
-                        <div class="w-100 h-100 d-flex align-items-center justify-content-center">
+                        <div class="w-100 h-100 d-flex align-items-start justify-content-center" style="overflow: auto;">
                             <img id="rloMainImage" src="" style="max-width: 100%; max-height: 100%; display: none;">
                         </div>
                     </div>
 
-                    <div class="p-3 bg-dark" style="height: auto; min-height: 300px;">
+                    <div class="border-bottom border-secondary p-2 d-flex justify-content-center gap-2 bg-dark flex-shrink-0" style="height: 80px; overflow-x: auto;" id="rloThumbnailStrip">
+                        </div>
+
+                    <div class="p-3 bg-dark" style="height: auto; min-height: 250px;">
                         <div class="d-flex justify-content-between mb-3">
                             <span class="text-white fw-bold" id="rloCurrentRecordLabel">Record #</span>
                             <span class="text-muted small fst-italic" id="rloSaveStatus"></span>
@@ -34,7 +37,6 @@
                                 <label class="form-label x-small text-muted text-uppercase">Section (1-32)</label>
                                 <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)" onchange="rloAutoSave()">
                             </div>
-                            
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Township</label>
                                 <div class="input-group input-group-sm">
@@ -42,7 +44,6 @@
                                     <datalist id="rloTownshipList"></datalist>
                                 </div>
                             </div>
-                            
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Range</label>
                                 <div class="input-group input-group-sm">
@@ -50,7 +51,6 @@
                                     <datalist id="rloRangeList"></datalist>
                                 </div>
                             </div>
-
                             <div class="col-md-4">
                                 <label class="form-label x-small text-muted text-uppercase">Addition</label>
                                 <div class="input-group input-group-sm">
@@ -58,17 +58,14 @@
                                     <datalist id="rloAddList"></datalist>
                                 </div>
                             </div>
-                            
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Lot / Col 6</label>
                                 <input type="text" id="rloCol06" class="form-control form-control-sm bg-black text-white border-secondary" onchange="rloAutoSave()">
                             </div>
-
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Block / Col 7</label>
                                 <input type="text" id="rloCol07" class="form-control form-control-sm bg-black text-white border-secondary" onchange="rloAutoSave()">
                             </div>
-
                             <div class="col-md-6">
                                 <label class="form-label x-small text-muted text-uppercase">Direction / Col 8</label>
                                 <div class="d-flex gap-2 align-items-center">
@@ -86,7 +83,8 @@
                                             <li><a class="dropdown-item" onclick="rloAddDir('SE')">SE</a></li>
                                         </ul>
                                     </div>
-                                    <input type="hidden" id="rloCol08"> </div>
+                                    <input type="hidden" id="rloCol08">
+                                </div>
                             </div>
                         </div>
                     </div>

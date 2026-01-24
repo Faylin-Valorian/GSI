@@ -19,11 +19,7 @@ def get_tables(county_name):
 @review_legal_bp.route('/api/tools/legal-others/init', methods=['POST'])
 @login_required
 def init_tool():
-    """
-    Fetches records where:
-    1. fn LIKE '%legal%' 
-    2. legal_type is 'Other' or 'O'
-    """
+    """Fetches records where fn LIKE '%legal%' AND legal_type is 'Other' or 'O'."""
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     county_id = request.json.get('county_id')
@@ -31,17 +27,15 @@ def init_tool():
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     
     try:
-        # 1. PREVENT USE IF TABLE NOT ALTERED (Safety Check)
         inspector = inspect(db.engine)
         columns = [col['name'] for col in inspector.get_columns('GenericDataImport')]
         
         if 'legal_type' not in columns:
             return jsonify({
                 'success': False, 
-                'message': "Configuration Error: The 'legal_type' column is missing. You must run the 'Setup eData Table' (Alter Table) tool before using this review tool."
+                'message': "Configuration Error: 'legal_type' column missing. Run 'Setup eData Table' first."
             })
 
-        # 2. RUN QUERY (ValidationStatus REMOVED)
         sql = """
         SELECT id, OriginalValue, col02varchar, col03varchar, col04varchar, 
                col05varchar, col06varchar, col07varchar, col08varchar
@@ -56,7 +50,7 @@ def init_tool():
         for r in results:
             records.append({
                 'id': r.id,
-                'desc': r.OriginalValue or f"Record {r.id}",
+                'desc': r.OriginalValue, # This is the Key Value
                 'fields': {
                     'col02': r.col02varchar,
                     'col03': r.col03varchar,
@@ -69,10 +63,7 @@ def init_tool():
             })
             
         if not records:
-            return jsonify({
-                'success': False, 
-                'message': "No records found. Verified criteria: Filename contains 'legal' AND legal_type is 'Other'/'O'."
-            })
+            return jsonify({'success': False, 'message': "No records found matching criteria."})
 
         return jsonify({'success': True, 'records': records})
 
@@ -88,15 +79,18 @@ def get_images():
         
         c = db.session.get(IndexingCounties, county_id)
         
+        # 1. Get Key
         sql_key = "SELECT OriginalValue FROM GenericDataImport WHERE id = :id"
         key_res = db.session.execute(text(sql_key), {'id': record_id}).fetchone()
         if not key_res: return jsonify({'success': False, 'images': []})
         
         key_val = key_res[0]
         
+        # 2. Get Images
         sql_imgs = "SELECT col03varchar FROM GenericDataImport WHERE fn LIKE '%image%' AND keyOriginalValue = :key ORDER BY fn"
         imgs = db.session.execute(text(sql_imgs), {'key': key_val}).fetchall()
         
+        # 3. Build Paths
         s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
         base_path = os.path.join(current_app.root_path, 'data', s.state_name, c.county_name, 'Images')
         
@@ -105,7 +99,11 @@ def get_images():
             if i.col03varchar:
                 full_path = os.path.join(base_path, i.col03varchar)
                 safe_path = urllib.parse.quote(full_path)
-                images.append({'src': f"/api/tools/inst-corrections/view-image?path={safe_path}"})
+                # Re-uses the viewer from Instrument Corrections as requested
+                images.append({
+                    'src': f"/api/tools/inst-corrections/view-image?path={safe_path}",
+                    'name': i.col03varchar
+                })
 
         return jsonify({'success': True, 'images': images})
     except Exception as e:
@@ -144,7 +142,6 @@ def save_record():
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     try:
-        # ValidationStatus REMOVED from update
         sql = """
         UPDATE GenericDataImport
         SET col02varchar = :c2, col03varchar = :c3, col04varchar = :c4,
