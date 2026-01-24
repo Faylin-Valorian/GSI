@@ -1,0 +1,165 @@
+<script>
+    var rloCountyId = null;
+    var rloCurrentRecord = null;
+
+    function openReviewLegalOthersModal(id) {
+        closeAllModals(); 
+        rloCountyId = id;
+        if(document.getElementById('reviewLegalOthersModal')) {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewLegalOthersModal'));
+            modal.show();
+        }
+        rloFetchList();
+    }
+
+    // --- LIST & LOAD ---
+    function rloFetchList() {
+        document.getElementById('rloList').innerHTML = '<div class="text-muted p-2 small">Loading...</div>';
+        fetch('/api/tools/legal-others/init', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({county_id: rloCountyId})
+        }).then(r => r.json()).then(d => {
+            const list = document.getElementById('rloList');
+            list.innerHTML = '';
+            if(!d.success || d.records.length === 0) {
+                list.innerHTML = '<div class="text-muted p-2 small">No records found.</div>';
+                return;
+            }
+            d.records.forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'p-2 border-bottom border-secondary text-white small rlo-item';
+                item.style.cursor = 'pointer';
+                item.innerHTML = `<i class="bi bi-file-text me-2 text-secondary"></i>${r.id}`;
+                item.onclick = () => rloLoadRecord(r);
+                list.appendChild(item);
+            });
+        });
+    }
+
+    function rloLoadRecord(record) {
+        rloCurrentRecord = record;
+        document.getElementById('rloCurrentRecordLabel').innerText = `Record #${record.id}`;
+        document.getElementById('rloSaveBtn').disabled = false;
+        
+        // Load Fields
+        document.getElementById('rloCol02').value = record.fields.col02 || '';
+        document.getElementById('rloCol03').value = record.fields.col03 || '';
+        document.getElementById('rloCol04').value = record.fields.col04 || '';
+        document.getElementById('rloCol05').value = record.fields.col05 || '';
+        document.getElementById('rloCol06').value = record.fields.col06 || '';
+        document.getElementById('rloCol07').value = record.fields.col07 || '';
+        
+        // Load Directions (Col 8)
+        document.getElementById('rloDirTags').innerHTML = '';
+        if(record.fields.col08) {
+            record.fields.col08.split(',').forEach(d => { if(d.trim()) rloAddDir(d.trim()); });
+        }
+        rloUpdateDirInput();
+
+        // Load Images
+        const img = document.getElementById('rloMainImage');
+        img.style.display = 'none';
+        document.getElementById('rloNoImage').style.display = 'block';
+        
+        fetch('/api/tools/legal-others/images', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({county_id: rloCountyId, record_id: record.id})
+        }).then(r => r.json()).then(d => {
+            if(d.success && d.images.length > 0) {
+                img.src = d.images[0].src;
+                img.style.display = 'block';
+                document.getElementById('rloNoImage').style.display = 'none';
+            }
+        });
+        
+        // Highlight active in list
+        document.querySelectorAll('.rlo-item').forEach(el => el.classList.remove('bg-primary'));
+        event.target.classList.add('bg-primary');
+    }
+
+    // --- VALIDATION & LOOKUPS ---
+    function rloValidateSection(input) {
+        let val = parseInt(input.value);
+        if(val < 1) input.value = 1;
+        if(val > 32) input.value = 32;
+    }
+
+    function rloSearchTR(input, mode) {
+        const listId = mode === 'township' ? 'rloTownshipList' : 'rloRangeList';
+        fetch('/api/tools/legal-others/search-tr', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({county_id: rloCountyId, term: input.value, mode: mode})
+        }).then(r => r.json()).then(data => {
+            const dl = document.getElementById(listId); dl.innerHTML = '';
+            data.forEach(val => { const opt = document.createElement('option'); opt.value = val; dl.appendChild(opt); });
+        });
+    }
+
+    function rloSearchAdd(input) {
+        fetch('/api/tools/legal-others/search-adds', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({county_id: rloCountyId, term: input.value})
+        }).then(r => r.json()).then(data => {
+            const dl = document.getElementById('rloAddList'); dl.innerHTML = '';
+            data.forEach(val => { const opt = document.createElement('option'); opt.value = val; dl.appendChild(opt); });
+        });
+    }
+
+    // --- DIRECTION TAGS ---
+    function rloAddDir(val) {
+        const container = document.getElementById('rloDirTags');
+        // Avoid dupes
+        if([...container.children].some(c => c.dataset.val === val)) return;
+        
+        const tag = document.createElement('span');
+        tag.className = 'badge bg-secondary d-flex align-items-center';
+        tag.dataset.val = val;
+        tag.innerHTML = `${val} <i class="bi bi-x ms-1" style="cursor:pointer" onclick="this.parentElement.remove(); rloUpdateDirInput();"></i>`;
+        container.appendChild(tag);
+        rloUpdateDirInput();
+    }
+
+    function rloUpdateDirInput() {
+        const vals = [...document.getElementById('rloDirTags').children].map(c => c.dataset.val);
+        document.getElementById('rloCol08').value = vals.join(', ');
+    }
+
+    // --- SAVE ---
+    function rloSave() {
+        if(!rloCurrentRecord) return;
+        
+        const payload = {
+            id: rloCurrentRecord.id,
+            county_id: rloCountyId,
+            col02: document.getElementById('rloCol02').value,
+            col03: document.getElementById('rloCol03').value,
+            col04: document.getElementById('rloCol04').value,
+            col05: document.getElementById('rloCol05').value,
+            col06: document.getElementById('rloCol06').value,
+            col07: document.getElementById('rloCol07').value,
+            col08: document.getElementById('rloCol08').value
+        };
+        
+        const btn = document.getElementById('rloSaveBtn');
+        btn.disabled = true;
+        btn.innerText = 'Saving...';
+        
+        fetch('/api/tools/legal-others/save', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(d => {
+            btn.innerText = 'SAVE & NEXT';
+            if(d.success) {
+                // Remove from list or visual check
+                rloFetchList(); // Refresh list to move to next
+                // Reset form
+                rloCurrentRecord = null;
+                document.getElementById('rloMainImage').style.display = 'none';
+                document.getElementById('rloNoImage').style.display = 'block';
+            } else {
+                alert('Save failed: ' + d.message);
+                btn.disabled = false;
+            }
+        });
+    }
+</script>

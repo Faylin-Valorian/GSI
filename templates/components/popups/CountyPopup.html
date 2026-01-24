@@ -1,4 +1,24 @@
 <div class="popup-container">
+    <style>
+        /* ADAPTIVE BUTTONS: High Contrast for Light/Dark Modes */
+        /* Dark Mode: White Text/Borders */
+        [data-bs-theme="dark"] .btn-outline-secondary,
+        .dark-mode .btn-outline-secondary {
+            --bs-btn-color: #f8f9fa;
+            --bs-btn-border-color: #6c757d;
+            --bs-btn-hover-bg: #f8f9fa;
+            --bs-btn-hover-color: #000;
+        }
+        /* Light Mode: Black Text/Borders */
+        [data-bs-theme="light"] .btn-outline-secondary,
+        .light-mode .btn-outline-secondary {
+            --bs-btn-color: #000;
+            --bs-btn-border-color: #000;
+            --bs-btn-hover-bg: #000;
+            --bs-btn-hover-color: #fff;
+        }
+    </style>
+
     <div class="popup-header">
         <div>
             <h6 class="mb-0 fw-bold text-uppercase">{{ name }}</h6>

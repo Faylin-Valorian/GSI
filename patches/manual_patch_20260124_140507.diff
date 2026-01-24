@@ -1,0 +1,53 @@
+--- a/app.py
++++ b/app.py
+@@ -32,6 +32,7 @@
+ from blueprints.InitialKeliLinkup import initial_linkup_bp
+ from blueprints.EDataErrors import edata_errors_bp
+ from blueprints.ImportEDataErrors import import_edata_errors_bp
++from blueprints.ReviewLegalTypeOthers import review_legal_bp
+ 
+ app = Flask(__name__)
+ app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
+@@ -107,6 +108,7 @@
+ app.register_blueprint(edata_errors_bp)
+ app.register_blueprint(initial_linkup_bp) 
+ app.register_blueprint(import_edata_errors_bp)
++app.register_blueprint(review_legal_bp)
+ 
+ # --- MIDDLEWARE: FORCE SETUP ---
+ @app.before_request
+
+--- a/templates/components/modals.html
++++ b/templates/components/modals.html
+@@ -16,6 +16,7 @@
+ {% include 'components/modals/ImportEDataErrors.html' %}
+ {% include 'components/modals/UnindexedImages.html' %}
+ {% include 'components/modals/InstrumentTypeCorrections.html' %}
++{% include 'components/modals/ReviewLegalTypeOthers.html' %}
+ 
+ {% include 'components/modals/AlterDatabaseFields.html' %}
+ {% include 'components/modals/OpenDriveConnection.html' %}
+
+--- a/templates/components/scripts.html
++++ b/templates/components/scripts.html
+@@ -18,6 +18,7 @@
+ {% include 'components/scripts/ImportEDataErrors.html' %}
+ {% include 'components/scripts/UnindexedImages.html' %}
+ {% include 'components/scripts/InstrumentTypeCorrections.html' %}
++{% include 'components/scripts/ReviewLegalTypeOthers.html' %}
+ 
+ {% include 'components/scripts/AlterDatabaseFields.html' %}
+ {% include 'components/scripts/OpenDriveConnection.html' %}
+
+--- a/templates/components/popups/CountyPopup.html
++++ b/templates/components/popups/CountyPopup.html
+@@ -129,6 +129,9 @@
+                 <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openInstCorrectionTool({{ id }}, '{{ state_name }}', '{{ name }}')">
+                     <i class="bi bi-pencil-square me-1"></i>Instrument Corrections
+                 </button>
++                <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openReviewLegalOthersModal({{ id }})">
++                    <i class="bi bi-ui-checks-grid me-1"></i>Review Legal Type Others
++                </button>
+             </div>
+         </div>
+     </div>

@@ -1,3 +1,18 @@
+<style>
+    /* ADAPTIVE BUTTONS: High Contrast for Sidebar */
+    [data-bs-theme="dark"] .btn-outline-secondary,
+    .dark-mode .btn-outline-secondary {
+        --bs-btn-color: #f8f9fa;
+        --bs-btn-border-color: #6c757d;
+        --bs-btn-hover-bg: #f8f9fa;
+        --bs-btn-hover-color: #000;
+    }
+    [data-bs-theme="light"] .btn-outline-secondary,
+    .light-mode .btn-outline-secondary {
+        --bs-btn-color: #000;
+        --bs-btn-border-color: #000;
+    }
+</style>
 <div id="globalLoader">
     <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
     <h5 class="text-light">Processing Data...</h5>
@@ -47,18 +62,18 @@
         
         {% if current_user.role == 'admin' %}
             <div class="d-grid gap-2 mb-4">
-                <button class="btn btn-outline-primary text-start" onclick="openAccountsModal()">
+                <button class="btn btn-outline-secondary text-start" onclick="openAccountsModal()">
                     <i class="bi bi-people-fill me-2"></i> Accounts
                 </button>
                 <hr class="text-secondary my-1">
-                <button class="btn btn-outline-success text-start" onclick="openStatesModal()">
+                <button class="btn btn-outline-secondary text-start" onclick="openStatesModal()">
                     <i class="bi bi-globe-americas me-2"></i> Enable States
                 </button>
-                <button class="btn btn-outline-info text-start" onclick="openCountiesModal()">
+                <button class="btn btn-outline-secondary text-start" onclick="openCountiesModal()">
                     <i class="bi bi-geo-alt-fill me-2"></i> Enable Counties
                 </button>
                 
-                <button class="btn btn-outline-danger text-start mt-2" onclick="openPatchModal()">
+                <button class="btn btn-outline-secondary text-start mt-2" onclick="openPatchModal()">
                     <i class="bi bi-tools me-2"></i> System Patcher
                 </button>
             </div>

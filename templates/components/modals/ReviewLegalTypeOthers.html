@@ -1,0 +1,97 @@
+<div class="modal fade" id="reviewLegalOthersModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog" style="margin: 0; position: absolute; right: 0; top: 0; bottom: 0; width: auto; left: 60px; max-width: none !important;">
+        <div class="modal-content border-0 rounded-0 h-100" style="background-color: #1a1a1a; color: #fff; border-left: 1px solid #333 !important;">
+            <div class="modal-header border-secondary py-2 flex-shrink-0">
+                <h5 class="modal-title text-uppercase fw-bold text-info"><i class="bi bi-ui-checks-grid me-2"></i>Review Legal Type 'Others'</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            
+            <div class="modal-body p-0 d-flex h-100" style="overflow: hidden;">
+                <div class="d-flex flex-column border-end border-secondary h-100" style="width: 300px; background: #222;">
+                    <div class="p-2 border-bottom border-secondary bg-dark">
+                        <span class="text-muted small text-uppercase fw-bold">Queue</span>
+                    </div>
+                    <div id="rloList" class="flex-grow-1 overflow-auto p-0"></div>
+                </div>
+
+                <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000;">
+                    
+                    <div class="flex-grow-1 position-relative bg-black border-bottom border-secondary" style="height: 50%;">
+                        <div id="rloNoImage" class="text-muted fst-italic position-absolute top-50 start-50 translate-middle">Select a record</div>
+                        <div class="w-100 h-100 d-flex align-items-center justify-content-center">
+                            <img id="rloMainImage" src="" style="max-width: 100%; max-height: 100%; display: none;">
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-dark" style="height: auto; min-height: 300px;">
+                        <div class="d-flex justify-content-between mb-3">
+                            <span class="text-white fw-bold" id="rloCurrentRecordLabel">Record #</span>
+                            <button class="btn btn-sm btn-success px-4" onclick="rloSave()" id="rloSaveBtn" disabled>SAVE & NEXT</button>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-2">
+                                <label class="form-label x-small text-muted text-uppercase">Section (1-32)</label>
+                                <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)">
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <label class="form-label x-small text-muted text-uppercase">Township</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="rloCol03" class="form-control bg-black text-white border-secondary" list="rloTownshipList" oninput="rloSearchTR(this, 'township')">
+                                    <datalist id="rloTownshipList"></datalist>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <label class="form-label x-small text-muted text-uppercase">Range</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="rloCol04" class="form-control bg-black text-white border-secondary" list="rloRangeList" oninput="rloSearchTR(this, 'range')">
+                                    <datalist id="rloRangeList"></datalist>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label x-small text-muted text-uppercase">Addition</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" id="rloCol05" class="form-control bg-black text-white border-secondary" list="rloAddList" oninput="rloSearchAdd(this)">
+                                    <datalist id="rloAddList"></datalist>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3">
+                                <label class="form-label x-small text-muted text-uppercase">Lot / Col 6</label>
+                                <input type="text" id="rloCol06" class="form-control form-control-sm bg-black text-white border-secondary">
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label x-small text-muted text-uppercase">Block / Col 7</label>
+                                <input type="text" id="rloCol07" class="form-control form-control-sm bg-black text-white border-secondary">
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label x-small text-muted text-uppercase">Direction / Col 8</label>
+                                <div class="d-flex gap-2 align-items-center">
+                                    <div id="rloDirTags" class="d-flex gap-1 flex-wrap"></div>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">+</button>
+                                        <ul class="dropdown-menu dropdown-menu-dark">
+                                            <li><a class="dropdown-item" onclick="rloAddDir('N')">N</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('S')">S</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('E')">E</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('W')">W</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('NW')">NW</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('NE')">NE</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('SW')">SW</a></li>
+                                            <li><a class="dropdown-item" onclick="rloAddDir('SE')">SE</a></li>
+                                        </ul>
+                                    </div>
+                                    <input type="hidden" id="rloCol08"> </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
