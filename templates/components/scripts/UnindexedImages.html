@@ -1,12 +1,30 @@
+{% include "components/scripts/ImageManager.html" %}
+
 <script>
+    var unindexedImgMgr = null;
+
     function openUnindexedReview(countyId, stateName, countyName) {
-        closeAllModals(); document.getElementById('currentReviewCountyId').value = countyId;
+        closeAllModals(); 
+        document.getElementById('currentReviewCountyId').value = countyId;
         document.getElementById('scanPathInput').value = `data/${stateName}/${countyName}/Images`;
         document.getElementById('unindexedTableBody').innerHTML = '';
+        
         if(unindexedReviewModal) unindexedReviewModal.show();
+        
+        // Init Manager
+        if(!unindexedImgMgr) {
+            unindexedImgMgr = new ImageManager({
+                prefix: 'unindexed',
+                apiEndpoint: '/api/edata/unindexed-image-data'
+            });
+        }
+        unindexedImgMgr.resetUI();
+        
         loadUnindexedTable(countyId);
     }
+
     function closeUnindexedModal() { if(unindexedReviewModal) unindexedReviewModal.hide(); }
+
     function scanForUnindexed() {
         const cid = document.getElementById('currentReviewCountyId').value;
         document.getElementById('globalLoader').style.display = 'flex';
@@ -18,12 +36,23 @@
             if(d.success) loadUnindexedTable(cid);
         });
     }
+
     function loadUnindexedTable(cid) {
         fetch(`/api/edata/unindexed-list/${cid}`).then(r=>r.json()).then(data => {
             const b = document.getElementById('unindexedTableBody'); b.innerHTML = '';
             data.forEach(img => {
                 const tr = document.createElement('tr');
-                tr.onclick = () => { document.getElementById('unindexedImagePreview').src = `/api/edata/view-image/${img.id}?t=${Date.now()}`; document.getElementById('unindexedImagePreview').style.display='block'; document.getElementById('noImageMsg').style.display='none'; };
+                tr.style.cursor = 'pointer';
+                
+                // CLICK HANDLER: Use Manager
+                tr.onclick = () => { 
+                    unindexedImgMgr.load({ record_id: img.id });
+                    
+                    // Highlight Row
+                    document.querySelectorAll('#unindexedTableBody tr').forEach(r => r.classList.remove('table-active'));
+                    tr.classList.add('table-active');
+                };
+                
                 tr.innerHTML = `<td class="ps-3">${img.display_name}</td><td class="text-center">${img.require_indexing}</td>`;
                 b.appendChild(tr);
             });

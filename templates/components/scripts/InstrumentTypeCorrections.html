@@ -1,18 +1,156 @@
+{% include "components/scripts/ImageManager.html" %}
+
 <script>
     var itcCountyId = null; 
+    var itcCurrentRecord = null; 
+    var itcImgMgr = null;
+
     function openInstCorrectionTool(id, s, c) {
-        closeAllModals(); itcCountyId = id;
+        closeAllModals(); 
+        itcCountyId = id;
         document.getElementById('itcPathInput').value = `data/${s}/${c}/Images`;
-        if(instCorrectionModal) instCorrectionModal.show();
-        fetch('/api/tools/inst-corrections/init', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:id})}).then(r=>r.json()).then(d => { if(d.success) itcFetchList(); });
-    }
-    function itcFetchList() {
-        fetch('/api/tools/inst-corrections/list', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:itcCountyId, hide_completed:document.getElementById('itcHideCompleted').checked})}).then(r=>r.json()).then(d => {
-            const l = document.getElementById('itcRecordList'); l.innerHTML = '';
-            d.records.forEach(r => {
-                const d = document.createElement('div'); d.className='p-2 border-bottom text-white'; d.innerText=r.value; 
-                d.onclick=()=>{console.log("Load: "+r.value)}; l.appendChild(d);
+        
+        // Init Image Manager
+        if(!itcImgMgr) {
+            itcImgMgr = new ImageManager({
+                prefix: 'itc',
+                apiEndpoint: '/api/tools/inst-corrections/images'
             });
+        }
+        itcImgMgr.resetUI();
+        
+        // Reset Form
+        document.getElementById('itcInput').value = '';
+        document.getElementById('itcHeaderDisplay').innerText = '---';
+        document.getElementById('itcOriginalDisplay').innerText = '---';
+        document.getElementById('itcCurrentDisplay').innerText = '---';
+
+        if(instCorrectionModal) instCorrectionModal.show();
+        
+        fetch('/api/tools/inst-corrections/init', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:id})})
+            .then(r=>r.json())
+            .then(d => { if(d.success) itcFetchList(); });
+    }
+
+    function itcFetchList() {
+        document.getElementById('itcListStatus').innerText = 'Loading...';
+        fetch('/api/tools/inst-corrections/list', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({county_id:itcCountyId, hide_completed:document.getElementById('itcHideCompleted').checked})
+        }).then(r=>r.json()).then(d => {
+            const l = document.getElementById('itcRecordList'); l.innerHTML = '';
+            document.getElementById('itcListStatus').innerText = `${d.records.length} Records Found`;
+            
+            d.records.forEach(r => {
+                const item = document.createElement('div'); 
+                item.className='p-2 border-bottom text-white itc-item small d-flex justify-content-between align-items-center'; 
+                item.style.cursor = 'pointer';
+                
+                // Text Span (Left)
+                const txt = document.createElement('span');
+                txt.className = 'text-truncate pe-2';
+                txt.innerText = r.value;
+                item.appendChild(txt);
+
+                // Green Check Mark Logic (Right)
+                if(r.corrected) {
+                    const icon = document.createElement('i');
+                    icon.className = 'bi bi-check-circle-fill text-success flex-shrink-0';
+                    item.appendChild(icon);
+                }
+                
+                item.onclick = () => itcLoadRecord(r, item);
+                l.appendChild(item);
+            });
+        });
+    }
+
+    function itcLoadRecord(record, element) {
+        itcCurrentRecord = record;
+
+        // Highlight
+        document.querySelectorAll('.itc-item').forEach(el => el.classList.remove('bg-primary'));
+        element.classList.add('bg-primary');
+        
+        // Update Text Displays
+        document.getElementById('itcOriginalDisplay').innerText = record.value;
+        document.getElementById('itcCurrentDisplay').innerText = record.corrected || '(Pending)';
+        document.getElementById('itcInput').value = record.corrected || ''; 
+
+        // Load Images
+        itcImgMgr.load({
+            county_id: itcCountyId,
+            value: record.value,
+            base_path: document.getElementById('itcPathInput').value
+        });
+    }
+
+    // --- SEARCH LOGIC ---
+    let itcSearchTimeout = null;
+    function itcSearch(input) {
+        clearTimeout(itcSearchTimeout);
+        const resultsDiv = document.getElementById('itcSearchResults');
+        
+        if(input.value.length < 2) {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        itcSearchTimeout = setTimeout(() => {
+            fetch('/api/tools/inst-corrections/search', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ county_id: itcCountyId, term: input.value })
+            }).then(r => r.json()).then(data => {
+                resultsDiv.innerHTML = '';
+                if(data.length > 0) {
+                    data.forEach(item => {
+                        const a = document.createElement('a');
+                        a.className = 'list-group-item list-group-item-action bg-dark text-white border-secondary small';
+                        a.style.cursor = 'pointer';
+                        
+                        // UPDATED LAYOUT: Name -> Tag -> Description
+                        a.innerHTML = `
+                            <div class="d-flex align-items-center w-100">
+                                <strong class="flex-shrink-0">${item.name}</strong>
+                                ${item.type ? `<span class="badge bg-secondary ms-2 me-2 flex-shrink-0">${item.type}</span>` : '<span class="ms-2"></span>'}
+                                <span class="text-muted small fst-italic text-truncate">${item.desc || ''}</span>
+                            </div>`;
+                            
+                        a.onclick = () => {
+                            document.getElementById('itcInput').value = item.name;
+                            resultsDiv.style.display = 'none';
+                        };
+                        resultsDiv.appendChild(a);
+                    });
+                    resultsDiv.style.display = 'block';
+                } else {
+                    resultsDiv.style.display = 'none';
+                }
+            });
+        }, 300);
+    }
+
+    function itcSave() {
+        if(!itcCurrentRecord) return;
+        const newVal = document.getElementById('itcInput').value;
+        if(!newVal) return;
+
+        fetch('/api/tools/inst-corrections/save', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                county_id: itcCountyId, 
+                original: itcCurrentRecord.value, 
+                corrected: newVal 
+            })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                itcCurrentRecord.corrected = newVal;
+                document.getElementById('itcCurrentDisplay').innerText = newVal;
+                itcFetchList();
+            } else {
+                alert("Error saving: " + d.message);
+            }
         });
     }
 </script>

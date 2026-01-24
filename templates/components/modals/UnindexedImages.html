@@ -1,3 +1,5 @@
+{% from "components/parts/ImageViewer.html" import image_viewer %}
+
 <div class="modal fade" id="unindexedReviewModal" tabindex="-1" style="z-index: 1040;" data-bs-backdrop="false">
     <div class="modal-dialog" style="margin: 0; position: absolute; right: 0; top: 0; bottom: 0; width: auto; left: 60px; max-width: none !important;" id="unindexedModalDialog">
         <div class="modal-content custom-panel h-100 border-0 rounded-0 d-flex flex-column" style="border-left: 1px solid var(--border-color) !important;">
@@ -20,10 +22,8 @@
                             </table>
                         </div>
                     </div>
-                    <div id="imagePanContainer" class="col-8 h-100 bg-black position-relative" style="overflow: hidden;">
-                        <div id="imageLoader" class="spinner-border text-light position-absolute top-50 start-50 translate-middle d-none"></div>
-                        <div id="noImageMsg" class="text-muted text-center position-absolute top-50 start-50 translate-middle"><i class="bi bi-image fs-1 d-block mx-auto mb-2"></i>Select an image</div>
-                        <div class="w-100 h-100 d-flex align-items-start justify-content-start"><img id="unindexedImagePreview" src="" style="width: 100%; display: none;"></div>
+                    <div class="col-8 h-100 bg-black position-relative" style="overflow: hidden;">
+                         {{ image_viewer('unindexed') }}
                     </div>
                 </div>
             </div>
