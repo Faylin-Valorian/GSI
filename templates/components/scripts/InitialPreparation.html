@@ -1,12 +1,12 @@
 <script>
-    let currentPrepCountyId = null;
+    var currentPrepCountyId = null; 
     let prepMgr = null;
 
-    function openPrepModal(id, name) {
+    function openInitialPrepTool(id) {
         closeAllModals(); currentPrepCountyId = id;
-        document.getElementById('prepCountyName').innerText = name;
+        document.getElementById('prepResult').innerHTML='';
+        document.getElementById('prepProgressContainer').classList.add('d-none');
         
-        // Init Preview Manager
         if(!prepMgr) {
             prepMgr = new PreviewManager({
                 prefix: 'prep',
@@ -21,77 +21,44 @@
             });
         }
         prepMgr.reset();
-        
+
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
-        if(prepModal) prepModal.show();
+        // Uses the existing ID variable
+        if(initialPrepModal) initialPrepModal.show();
     }
 
-    function closePrepModal() { if(prepModal) prepModal.hide(); }
+    function closeInitialPrepModal() { if(initialPrepModal) initialPrepModal.hide(); }
 
     function togglePrepBookInputs() {
         if(document.getElementById('prepToggleBook').checked) {
             document.getElementById('prepBookInputsContainer').classList.remove('d-none');
-            fetch('/api/tools/initial-prep/get-book-range/'+currentPrepCountyId).then(r=>r.json()).then(d=>{ 
-                if(d.found){ 
-                    document.getElementById('prepBookStart').value=d.start; 
-                    document.getElementById('prepBookEnd').value=d.end; 
-                }
-            });
-        } else { 
-            document.getElementById('prepBookInputsContainer').classList.add('d-none'); 
-        }
+            fetch('/api/tools/initial-prep/get-book-range/'+currentPrepCountyId).then(r=>r.json()).then(d=>{ if(d.found){ document.getElementById('prepBookStart').value=d.start; document.getElementById('prepBookEnd').value=d.end; }});
+        } else { document.getElementById('prepBookInputsContainer').classList.add('d-none'); }
     }
 
     function runPrepTool() {
-        const btn = document.querySelector('#prepModal .btn-primary');
-        const res = document.getElementById('prepResult');
-        btn.disabled = true; 
+        const btn = document.getElementById('btnRunPrep'); btn.disabled = true;
         document.getElementById('prepProgressContainer').classList.remove('d-none');
-        const pBar = document.getElementById('prepProgressBar');
-        pBar.style.width = '0%';
+        const pBar=document.getElementById('prepProgressBar'), pText=document.getElementById('prepProgressPercent');
+        pBar.style.width='0%'; pText.innerText='0%';
         
         if(prepMgr) prepMgr.reset();
-        
+
         fetch('/api/tools/initial-prep/execute', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                county_id: currentPrepCountyId, 
-                book_start: document.getElementById('prepBookStart').value, 
-                book_end: document.getElementById('prepBookEnd').value 
-            })
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
         }).then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
-            function read() { 
-                reader.read().then(({ done, value }) => {
-                    if (done) { btn.disabled = false; return; }
-                    const lines = decoder.decode(value).split('\n');
-                    lines.forEach(l => { 
-                        if(l) try { 
-                            const d = JSON.parse(l);
-                            if(d.type === 'progress') { 
-                                pBar.style.width = d.percent + '%'; 
-                                document.getElementById('prepProgressPercent').innerText = d.percent + '%'; 
-                                document.getElementById('prepProgressLabel').innerText = d.message; 
-                            }
-                            if(d.type === 'complete') { 
-                                pBar.style.width = '100%'; 
-                                res.innerHTML = `<div class="alert alert-success">${d.message}</div>`; 
-                            }
-                            if(d.type === 'error') {
-                                res.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
-                            }
-                        } catch(e){} 
-                    });
-                    read();
-                }); 
-            } 
-            read();
-        }).catch(e => { 
-            btn.disabled = false; 
-            res.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; 
-        });
+            function read() { reader.read().then(({ done, value }) => {
+                if (done) { btn.disabled = false; return; }
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { try { const d = JSON.parse(l); 
+                    if(d.type === 'progress') { pBar.style.width = d.percent + '%'; pText.innerText = d.percent + '%'; document.getElementById('prepProgressLabel').innerText = d.message; }
+                    if(d.type === 'complete') { pBar.style.width = '100%'; document.getElementById('prepResult').innerHTML = `<div class="alert alert-success">${d.message}</div>`; }
+                    if(d.type === 'error') document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                } catch(e){} });
+                read();
+            }); } read();
+        }).catch(err => { btn.disabled = false; document.getElementById('prepResult').innerHTML = '<div class="alert alert-danger">Failed: ' + err + '</div>'; });
     }
-
-    // Backward Compatibility
-    window.openInitialPrepTool = openPrepModal;
 </script>

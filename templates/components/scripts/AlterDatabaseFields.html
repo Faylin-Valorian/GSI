@@ -51,7 +51,7 @@
 
     function renderAlterDbAdds(newFields) {
         const tbody = document.getElementById('alterDbAddBody'); tbody.innerHTML = '';
-        newFields.forEach(f => alterDbAddNewRow(f.name, f.type, f.default));
+        if(newFields) newFields.forEach(f => alterDbAddNewRow(f.name, f.type, f.default));
     }
 
     function alterDbAddNewRow(name='', type='VARCHAR(255)', def='') {
@@ -69,7 +69,7 @@
             const name = tr.querySelector('.input-name').value.trim();
             if(name) newFields.push({ name: name, type: tr.querySelector('.input-type').value.trim(), default: tr.querySelector('.input-default').value.trim() });
         });
-        return { renames, new_fields: newFields };
+        return { renames: renames, new_fields: newFields };
     }
 
     function alterDbRun() {
@@ -89,6 +89,5 @@
         }).catch(e => { btn.disabled = false; document.getElementById('alterDbStatus').innerText = 'Connection Failed'; });
     }
 
-    // --- Aliases for Sidebar Compatibility ---
     window.openAlterDbTool = openAlterDbModal;
 </script>

@@ -1,7 +1,7 @@
 import os
 import json
 import sqlalchemy
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from flask_login import login_required, current_user
 from sqlalchemy import text, inspect
 from extensions import db
@@ -10,28 +10,15 @@ alter_db_bp = Blueprint('alter_db', __name__)
 
 CONFIG_FILE = 'alter_db_config.json'
 
-# --- FACTORY DEFAULTS ---
 DEFAULT_RENAMES = {
-    'col01other': 'key_id',
-    'col02other': 'book',
-    'col03other': 'page_number',
-    'col04other': 'stech_image_path',
-    'col05other': 'keli_image_path',
-    'col06other': 'beginning_page',
-    'col07other': 'ending_page',
-    'col08other': 'record_series_internal_id',
-    'col09other': 'record_series_external_id',
-    'col10other': 'instrument_type_internal_id',
-    'col11other': 'instrument_type_external_id',
-    'col12other': 'grantor_suffix_internal_id',
-    'col13other': 'grantee_suffix_internal_id',
-    'col14other': 'manual_page_count',
-    'col15other': 'legal_type',
-    'col16other': 'addition_internal_id',
-    'col17other': 'addition_external_id',
-    'col18other': 'township_range_internal_id',
-    'col19other': 'township_range_external_id',
-    'col20other': 'col20other'
+    'col01other': 'key_id', 'col02other': 'book', 'col03other': 'page_number', 'col04other': 'stech_image_path',
+    'col05other': 'keli_image_path', 'col06other': 'beginning_page', 'col07other': 'ending_page',
+    'col08other': 'record_series_internal_id', 'col09other': 'record_series_external_id',
+    'col10other': 'instrument_type_internal_id', 'col11other': 'instrument_type_external_id',
+    'col12other': 'grantor_suffix_internal_id', 'col13other': 'grantee_suffix_internal_id',
+    'col14other': 'manual_page_count', 'col15other': 'legal_type', 'col16other': 'addition_internal_id',
+    'col17other': 'addition_external_id', 'col18other': 'township_range_internal_id',
+    'col19other': 'township_range_external_id', 'col20other': 'col20other'
 }
 
 DEFAULT_NEW_FIELDS = [
@@ -69,8 +56,6 @@ def init_tool():
         saved_adds = saved_config.get('adds', [])
 
         field_list = []
-        existing_col_names = [c['name'].lower() for c in columns]
-        
         for col in columns:
             orig = col['name']
             if orig in saved_renames: current = saved_renames[orig]
@@ -78,10 +63,8 @@ def init_tool():
             else: current = orig
             field_list.append({'original': orig, 'current': current, 'type': str(col['type'])})
 
-        if not saved_config:
-            adds_list = [f for f in DEFAULT_NEW_FIELDS if f['name'].lower() not in existing_col_names]
-        else:
-            adds_list = saved_adds
+        existing_col_names = [c['name'].lower() for c in columns]
+        adds_list = saved_adds if saved_config else [f for f in DEFAULT_NEW_FIELDS if f['name'].lower() not in existing_col_names]
 
         return jsonify({'success': True, 'fields': field_list, 'new_fields': adds_list})
     except Exception as e:
@@ -117,7 +100,6 @@ def preview_sql():
 @login_required
 def download_sql():
     if current_user.role != 'admin': return Response("Unauthorized", 403)
-    
     data = request.json
     renames = data.get('renames', {})
     new_fields = data.get('new_fields', [])
@@ -145,7 +127,6 @@ def download_sql():
 @alter_db_bp.route('/api/tools/alter-db/execute', methods=['POST'])
 @login_required
 def execute_sql():
-    # Use same logic as preview to ensure consistency
     return jsonify({'success': False, 'message': "Use /run endpoint for execution"}) 
 
 @alter_db_bp.route('/api/tools/alter-db/run', methods=['POST'])

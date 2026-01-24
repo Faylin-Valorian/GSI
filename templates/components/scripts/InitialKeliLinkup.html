@@ -1,20 +1,26 @@
 <script>
-    let currentLinkupCountyId = null;
+    var currentLinkupCountyId = null; 
     let linkupMgr = null;
 
     function openLinkupModal(passedId) {
         closeAllModals(); 
         let countyId = passedId || (document.getElementById('eDataCountyId') ? document.getElementById('eDataCountyId').value : null);
         if (!countyId) return showNotification("No County Selected");
-        
         currentLinkupCountyId = countyId; 
         
-        // Set Header
-        const countyName = document.getElementById('prepCountyName') ? document.getElementById('prepCountyName').innerText : 'Unknown'; 
-        // Better logic to find name if opened directly? For now rely on sidebar context or passed arg if possible
-        // Actually, just set ID, the name loads via the sidebar usually.
-        if(document.getElementById('linkupCountyName')) document.getElementById('linkupCountyName').innerText = "County ID: " + countyId;
-
+        // --- FIX: Proper Bootstrap Modal Initialization ---
+        const el = document.getElementById('keliLinkupModal');
+        if(el) {
+            const modal = bootstrap.Modal.getOrCreateInstance(el);
+            modal.show();
+        } else {
+            console.error("Linkup Modal Element not found!");
+            return;
+        }
+        // --------------------------------------------------
+        
+        document.getElementById('linkupResult').innerHTML = '';
+        document.getElementById('linkupProgressContainer').classList.add('d-none');
         
         if(!linkupMgr) {
             linkupMgr = new PreviewManager({
@@ -35,76 +41,65 @@
             });
         }
         linkupMgr.reset();
-        
-        // Auto-fetch defaults
+
+        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+
         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`).then(r=>r.json()).then(d=>{
             if(d.success && d.found) {
+                document.getElementById('linkupAutoStatus').innerText = "Defaults Detected";
                 document.getElementById('linkupBookStart').value = d.book_start;
                 document.getElementById('linkupBookEnd').value = d.book_end;
                 document.getElementById('linkupImgPath').value = d.path_prefix;
-            }
+            } else { document.getElementById('linkupAutoStatus').innerText = "No defaults found"; }
         });
-
-        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
-        if(linkupModal) linkupModal.show();
     }
-
-    function closeLinkupModal() { if(linkupModal) linkupModal.hide(); }
+    
+    function closeLinkupModal() { 
+        const el = document.getElementById('keliLinkupModal');
+        if(el) bootstrap.Modal.getOrCreateInstance(el).hide();
+    }
 
     function toggleLinkupBookInputs() {
         const el = document.getElementById('linkupBookContainer');
         if(document.getElementById('linkupToggleBook').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
     }
-    
     function toggleLinkupPathInput() {
         const el = document.getElementById('linkupPathContainer');
         if(document.getElementById('linkupTogglePath').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
     }
 
     function runLinkupTool() {
-        const btn = document.querySelector('#linkupModal .btn-warning');
-        const res = document.getElementById('linkupResult');
-        btn.disabled = true; 
+        const btn = document.getElementById('btnRunLinkup'); btn.disabled=true;
         document.getElementById('linkupProgressContainer').classList.remove('d-none');
-        const pBar = document.getElementById('linkupProgressBar');
-        pBar.style.width = '0%';
+        const pBar = document.getElementById('linkupProgressBar'), pText = document.getElementById('linkupProgressPercent');
+        pBar.style.width = '0%'; pText.innerText = '0%';
         
         if(linkupMgr) linkupMgr.reset();
-        
-        const payload = linkupMgr.payloadProvider();
-        
-        fetch('/api/tools/initial-keli-linkup/execute', {
-            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
-        }).then(response => {
+
+        const payload = {
+            county_id: currentLinkupCountyId,
+            use_book_range: document.getElementById('linkupToggleBook').checked,
+            book_start: document.getElementById('linkupBookStart').value,
+            book_end: document.getElementById('linkupBookEnd').value,
+            use_path: document.getElementById('linkupTogglePath').checked,
+            image_path_prefix: document.getElementById('linkupImgPath').value,
+            split_images: document.getElementById('linkupSplitImages').checked,
+            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+        };
+
+        fetch('/api/tools/initial-keli-linkup/execute', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
+        .then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
-            function read() { 
-                reader.read().then(({ done, value }) => {
-                    if (done) { btn.disabled = false; return; }
-                    const lines = decoder.decode(value).split('\n');
-                    lines.forEach(l => { 
-                        if(l) try { 
-                            const d = JSON.parse(l);
-                            if(d.type === 'progress') { 
-                                pBar.style.width = d.percent + '%'; 
-                                document.getElementById('linkupProgressPercent').innerText = d.percent + '%'; 
-                                document.getElementById('linkupProgressLabel').innerText = d.message;
-                            }
-                            if(d.type === 'complete') { 
-                                pBar.style.width = '100%'; 
-                                res.innerHTML = `<div class="alert alert-success">${d.message}</div>`; 
-                            }
-                            if(d.type === 'error') {
-                                res.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
-                            }
-                        } catch(e){} 
-                    });
-                    read();
-                }); 
-            } 
-            read();
-        }).catch(e => { 
-            btn.disabled = false; 
-            res.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; 
-        });
+            function read() { reader.read().then(({ done, value }) => {
+                if (done) { btn.disabled = false; return; }
+                const lines = decoder.decode(value).split('\n');
+                lines.forEach(l => { try { const d = JSON.parse(l);
+                    if(d.type === 'progress') { pBar.style.width = d.percent + '%'; pText.innerText = d.percent + '%'; document.getElementById('linkupProgressLabel').innerText = d.message; }
+                    if(d.type === 'complete') { pBar.style.width = '100%'; document.getElementById('linkupResult').innerHTML = `<div class="alert alert-success">${d.message}</div>`; }
+                    if(d.type === 'error') document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                } catch(e){} });
+                read();
+            }); } read();
+        }).catch(err => { btn.disabled = false; document.getElementById('linkupResult').innerText = "Error: " + err; });
     }
 </script>

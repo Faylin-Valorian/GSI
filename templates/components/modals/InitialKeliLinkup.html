@@ -1,61 +1,57 @@
 {% from 'components/parts/PreviewArea.html' import preview_area %}
-<div class="modal fade" id="linkupModal" tabindex="-1" style="z-index: 1080;">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content custom-panel border-warning">
+<div class="modal fade" id="keliLinkupModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content custom-panel" style="border-color: #d63384;">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title text-warning"><i class="bi bi-link-45deg me-2"></i>Initial Keli Linkup</h5>
+                <h5 class="modal-title" style="color: #d63384;"><i class="bi bi-link-45deg me-2"></i>Initial Keli Linkup</h5>
                 <button type="button" class="btn-close btn-close-white" onclick="closeLinkupModal()"></button>
             </div>
-            <div class="modal-body">
-                <div class="alert alert-dark border-secondary d-flex align-items-center mb-3">
-                    <i class="bi bi-geo-alt-fill text-warning me-3 fs-4"></i>
-                    <div><div class="small text-muted text-uppercase">Selected County</div><div class="fw-bold text-white fs-5" id="linkupCountyName">Loading...</div></div>
+            <div class="modal-body p-4">
+                <div class="alert alert-dark border-secondary d-flex align-items-center mb-4">
+                    <i class="bi bi-info-circle-fill fs-3 me-3" style="color: #d63384;"></i>
+                    <div><strong>Data Linkup Routine</strong><br><small class="text-muted">Links Generic Data with Keli tables.</small></div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label small text-muted">Linkup Mode</label>
-                    <div class="d-flex gap-3">
-                        <div class="form-check"><input class="form-check-input" type="radio" name="linkupMode" id="modeStandard" value="standard" checked><label class="form-check-label small" for="modeStandard">Standard (Instrument)</label></div>
-                        <div class="form-check"><input class="form-check-input" type="radio" name="linkupMode" id="modeGrantor" value="grantor"><label class="form-check-label small" for="modeGrantor">Grantor/Grantee</label></div>
-                    </div>
+                <div class="d-flex justify-content-end mb-3">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="linkupSplitImages"><label class="form-check-label text-warning small fw-bold">Split Images</label></div>
                 </div>
-                <div class="mb-3 border-top border-secondary pt-3">
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" id="linkupToggleBook" onchange="toggleLinkupBookInputs()">
-                        <label class="form-check-label small text-muted" for="linkupToggleBook">Filter by Book Range</label>
-                    </div>
-                    <div id="linkupBookContainer" class="d-none input-group input-group-sm mb-2">
-                        <span class="input-group-text bg-dark border-secondary">Range</span>
-                        <input type="text" id="linkupBookStart" class="form-control bg-dark border-secondary text-light" placeholder="Start">
-                        <input type="text" id="linkupBookEnd" class="form-control bg-dark border-secondary text-light" placeholder="End">
-                    </div>
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" id="linkupTogglePath" onchange="toggleLinkupPathInput()">
-                        <label class="form-check-label small text-muted" for="linkupTogglePath">Custom Image Path</label>
-                    </div>
-                    <div id="linkupPathContainer" class="d-none">
-                        <input type="text" id="linkupImgPath" class="form-control form-control-sm bg-dark border-secondary text-light mb-2" placeholder="e.g. /images/county/">
-                    </div>
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="linkupSplitImages">
-                        <label class="form-check-label small text-muted" for="linkupSplitImages">Split Images (Multi-page)</label>
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-2 d-flex justify-content-between align-items-center"><span class="small text-muted text-uppercase fw-bold">Stech Image Path</span><div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="linkupTogglePath" onchange="toggleLinkupPathInput()"></div></div>
+                    <div class="card-body py-3 d-none" id="linkupPathContainer">
+                        <label class="form-label small text-light">Full Path Prefix</label>
+                        <input type="text" id="linkupImgPath" class="form-control form-control-sm bg-black text-light border-secondary" placeholder="e.g. D:\data\OK\County\Images\">
                     </div>
                 </div>
-
-                {{ preview_area('linkup') }}
-
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-header border-secondary py-2 d-flex justify-content-between align-items-center"><span class="small text-muted text-uppercase fw-bold">Book Range</span><div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="linkupToggleBook" onchange="toggleLinkupBookInputs()"></div></div>
+                    <div class="card-body py-3 d-none" id="linkupBookContainer">
+                        <div class="row g-3">
+                            <div class="col-md-6"><label class="form-label small text-light">Start</label><input type="text" id="linkupBookStart" class="form-control form-control-sm bg-black text-light border-secondary"></div>
+                            <div class="col-md-6"><label class="form-label small text-light">End</label><input type="text" id="linkupBookEnd" class="form-control form-control-sm bg-black text-light border-secondary"></div>
+                            <div class="col-12"><label class="form-label small text-light">Key ID Source</label>
+                                <div class="btn-group w-100" role="group">
+                                    <input type="radio" class="btn-check" name="linkupMode" id="linkupModeLegacy" value="legacy"><label class="btn btn-sm btn-outline-secondary" for="linkupModeLegacy">Legacy</label>
+                                    <input type="radio" class="btn-check" name="linkupMode" id="linkupModeManifest" value="manifest"><label class="btn btn-sm btn-outline-secondary" for="linkupModeManifest">Manifest</label>
+                                    <input type="radio" class="btn-check" name="linkupMode" id="linkupModeNeither" value="neither" checked><label class="btn btn-sm btn-outline-secondary" for="linkupModeNeither">Neither</label>
+                                </div>
+                            </div>
+                            <div class="col-12 text-end"><small class="text-muted fst-italic" id="linkupAutoStatus"></small></div>
+                        </div>
+                    </div>
+                </div>
                 <div id="linkupProgressContainer" class="d-none mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-1"><label class="small" style="color: #d63384;" id="linkupProgressLabel">Processing...</label><span class="small text-muted" id="linkupProgressPercent">0%</span></div>
-                    <div class="progress bg-dark border border-secondary" style="height: 5px;">
-                        <div id="linkupProgressBar" class="progress-bar bg-warning" style="width: 0%"></div>
-                    </div>
+                    <div class="progress bg-dark border border-secondary" style="height: 20px;"><div id="linkupProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #d63384;"></div></div>
                 </div>
+                
+                {{ preview_area('linkup') }}
+
                 <div id="linkupResult" class="text-center small mt-3"></div>
             </div>
             <div class="modal-footer border-secondary justify-content-between">
                 <button id="btnLinkupPreview" class="btn btn-sm btn-outline-warning" onclick="linkupMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
                 <div>
                     <button type="button" class="btn btn-secondary" onclick="closeLinkupModal()">Close</button>
-                    <button type="button" class="btn btn-warning text-dark fw-bold" onclick="runLinkupTool()">Run Linkup</button>
+                    <button type="button" class="btn fw-bold text-white" style="background-color: #d63384;" onclick="runLinkupTool()" id="btnRunLinkup"><i class="bi bi-play-fill me-1"></i>Run Linkup</button>
                 </div>
             </div>
         </div>
