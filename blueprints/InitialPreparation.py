@@ -21,7 +21,6 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     
     # --- HELPER: Dynamic Table Renaming ---
     def rename_table(sql_content, old_table, new_suffix):
-        # Format: {CountyName}_keli_{NewSuffix}
         new_table = f"{county_name}_keli_{new_suffix}"
         return sql_content.replace(old_table, new_table)
 
@@ -63,9 +62,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     """
     steps.append(('Cleaning Original Values', sql_orig))
 
-    # 5. POPULATE ORIGINAL INSTRUMENT TYPE (Requested Step)
-    # The column was added in SetupEData but populated with NULL.
-    # We populate it now with the current col03varchar before IDs are generated.
+    # 5. POPULATE ORIGINAL INSTRUMENT TYPE
     sql_inst_orig = """
     UPDATE GenericDataImport 
     SET instTypeOriginal = col03varchar 
@@ -80,6 +77,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     SELECT DISTINCT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(fn,'Header',''),'Legal',''),'Name',''),'Image',''), 'Reference',''), CAST(col01varchar AS INT) 
     FROM GenericDataImport 
     ORDER BY REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(fn,'Header',''),'Legal',''),'Name',''),'Image',''), 'Reference',''), CAST(col01varchar AS INT);
+    
     UPDATE GenericDataImport SET instrumentid = numb.id 
     FROM GenericDataImport, @numbering numb 
     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(GenericDataImport.fn,'Header',''),'Legal',''),'Name',''),'Image',''), 'Reference','') = numb.fn 
@@ -87,16 +85,26 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     """
     steps.append(('Generating Instrument IDs', sql_inst))
 
-    # --- NEW STEPS FOR KEYORIGINALVALUE ---
+    # 7. INSERT 'OTHER' LEGALS (MOVED UP)
+    # CRITICAL: This must happen AFTER ID Generation but BEFORE Key Assignment
+    # This ensures the new 'Other' legal rows exist so they can get the Key in the next step.
+    sql_legal = """
+    INSERT INTO GenericDataImport (fn, col01varchar, stech_image_path, legal_type, col20other, deleteFlag, instrumentid) 
+    SELECT REPLACE(fn, 'HEADER', 'Legal'), col01varchar, stech_image_path, 'Other', 'NO LEGAL', 'FALSE', instrumentid 
+    FROM GenericDataImport 
+    WHERE fn LIKE '%HEADER%' AND deleteFlag = 'FALSE' 
+      AND instrumentid NOT IN (SELECT instrumentid FROM GenericDataImport WHERE fn LIKE '%legal%' AND deleteFlag = 'FALSE');
+    """
+    steps.append(('Inserting Placeholder Legals', sql_legal))
 
-    # 7. KEY ORIGINAL VALUE - HEADER CLEANUP
+    # 8. KEY ORIGINAL VALUE - HEADER CLEANUP
     sql_kov_header = """
     UPDATE GenericDataImport SET keyOriginalValue = '' WHERE fn LIKE '%header%';
     """
     steps.append(('Initializing Header KeyOriginalValue', sql_kov_header))
 
-    # 8. KEY ORIGINAL VALUE - ASSIGNMENT
-    # Depends on InstrumentID (Step 6)
+    # 9. KEY ORIGINAL VALUE - ASSIGNMENT
+    # Now that 'Other' legals exist, they will be caught by this UPDATE
     sql_kov_assign = """
     UPDATE a 
     SET keyOriginalValue = b.OriginalValue 
@@ -106,18 +114,6 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
       AND a.instrumentID = b.instrumentID;
     """
     steps.append(('Populating KeyOriginalValue', sql_kov_assign))
-
-    # --------------------------------------
-
-    # 9. INSERT 'OTHER' LEGALS
-    sql_legal = """
-    INSERT INTO GenericDataImport (fn, col01varchar, stech_image_path, legal_type, col20other, deleteFlag, instrumentid) 
-    SELECT REPLACE(fn, 'HEADER', 'Legal'), col01varchar, stech_image_path, 'Other', 'NO LEGAL', 'FALSE', instrumentid 
-    FROM GenericDataImport 
-    WHERE fn LIKE '%HEADER%' AND deleteFlag = 'FALSE' 
-      AND instrumentid NOT IN (SELECT instrumentid FROM GenericDataImport WHERE fn LIKE '%legal%' AND deleteFlag = 'FALSE');
-    """
-    steps.append(('Inserting Placeholder Legals', sql_legal))
 
     # 10. IMAGE PATH UPDATE (Optional)
     if book_start and book_end:
@@ -131,7 +127,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
 
     # --- EXTERNAL TABLES ---
 
-    # 11. Manifest (Renamed)
+    # 11. Manifest
     raw_manifest = """
     IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'fromkellprocombined_manifest')
     CREATE TABLE fromkellprocombined_manifest (
@@ -147,28 +143,28 @@ def generate_prep_sql(county_name, book_start=None, book_end=None):
     """
     steps.append(('Creating InstTypesMerge', raw_merge))
 
-    # 13. KeliAdditionsExternals (Renamed)
+    # 13. Additions Externals
     raw_additions = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliAdditionsExternals') DROP TABLE KeliAdditionsExternals
     CREATE TABLE KeliAdditionsExternals (AddID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, AdditionName VARCHAR(500))
     """
     steps.append(('Creating Additions Externals', rename_table(raw_additions, 'KeliAdditionsExternals', 'Additions_Externals')))
 
-    # 14. KeliInstTypesExternals (Renamed)
+    # 14. InstTypes Externals
     raw_inst_types = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliInstTypesExternals') DROP TABLE KeliInstTypesExternals
     CREATE TABLE KeliInstTypesExternals (InstID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, InstTypeName VARCHAR(500))
     """
     steps.append(('Creating InstTypes Externals', rename_table(raw_inst_types, 'KeliInstTypesExternals', 'InstTypes_Externals')))
 
-    # 15. KeliSeriesExternals (Renamed)
+    # 15. Series Externals
     raw_series = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliSeriesExternals') DROP TABLE KeliSeriesExternals
     CREATE TABLE KeliSeriesExternals (SeriesID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, SeriesDate VARCHAR(100))
     """
     steps.append(('Creating Series Externals', rename_table(raw_series, 'KeliSeriesExternals', 'Series_Externals')))
 
-    # 16. KeliTownshipRangeExternals (Renamed)
+    # 16. TownshipRange Externals
     raw_tr = """
     IF EXISTS (SELECT * FROM sysobjects WHERE name = 'KeliTownshipRangeExternals') DROP TABLE KeliTownshipRangeExternals
     CREATE TABLE KeliTownshipRangeExternals (TownshipRangeID INT NOT NULL IDENTITY(1,1) PRIMARY KEY, Township VARCHAR(100), Range VARCHAR(100), Active INT)

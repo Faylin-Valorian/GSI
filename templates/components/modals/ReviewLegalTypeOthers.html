@@ -1,3 +1,5 @@
+{% from "components/parts/ImageViewer.html" import image_viewer %}
+
 <div class="modal fade" id="reviewLegalOthersModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog" style="margin: 0; position: absolute; right: 0; top: 0; bottom: 0; width: auto; left: 60px; max-width: none !important;">
         <div class="modal-content border-0 rounded-0 h-100" style="background-color: #1a1a1a; color: #fff; border-left: 1px solid #333 !important;">
@@ -16,16 +18,11 @@
 
                 <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000;">
                     
-                    <div class="flex-grow-1 position-relative bg-black border-bottom border-secondary" style="overflow: hidden;">
-                        <div id="rloNoImage" class="text-muted fst-italic position-absolute top-50 start-50 translate-middle">Select a record</div>
-                        <div class="w-100 h-100 d-flex align-items-start justify-content-center" style="overflow: auto;">
-                            <img id="rloMainImage" src="" style="max-width: 100%; max-height: 100%; display: none;">
-                        </div>
+                    <div class="flex-grow-1" style="min-height: 0; overflow: hidden;">
+                        {{ image_viewer('rlo') }}
                     </div>
 
-                    <div class="border-bottom border-secondary p-2 d-flex justify-content-center gap-2 bg-dark flex-shrink-0" style="height: 80px; overflow-x: auto;" id="rloThumbnailStrip"></div>
-
-                    <div class="p-3 bg-dark" style="height: auto; min-height: 250px;">
+                    <div class="p-3 bg-dark border-top border-secondary flex-shrink-0" style="height: auto; min-height: 250px;">
                         <div class="d-flex justify-content-between mb-3">
                             <span class="text-white fw-bold font-monospace" id="rloCurrentRecordLabel">Record #</span>
                             <span class="text-muted small fst-italic" id="rloSaveStatus"></span>
@@ -33,7 +30,7 @@
 
                         <div class="row g-3">
                             <div class="col-md-2">
-                                <label class="form-label x-small text-muted text-uppercase">Section</label>
+                                <label class="form-label x-small text-muted text-uppercase">Section (1-32)</label>
                                 <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)" onchange="rloAutoSave()">
                             </div>
                             <div class="col-md-3">

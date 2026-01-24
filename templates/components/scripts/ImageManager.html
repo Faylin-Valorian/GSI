@@ -1,0 +1,145 @@
+<script>
+/**
+ * Universal Image Manager
+ * Handles fetching image lists, thumbnail generation, navigation, and basic zoom/pan.
+ */
+if (typeof window.ImageManager === 'undefined') {
+    window.ImageManager = class {
+        constructor(config) {
+            this.prefix = config.prefix;
+            this.apiEndpoint = config.apiEndpoint; // URL to fetch image list
+            
+            // State
+            this.images = [];
+            this.currentIndex = -1;
+            this.scale = 1;
+
+            // Bind Elements
+            this.viewport = document.getElementById(`${this.prefix}ImageViewport`);
+            this.mainImg = document.getElementById(`${this.prefix}MainImage`);
+            this.transformLayer = document.getElementById(`${this.prefix}TransformLayer`);
+            this.strip = document.getElementById(`${this.prefix}ThumbnailStrip`);
+            this.lblCount = document.getElementById(`${this.prefix}ImageCount`);
+            this.lblName = document.getElementById(`${this.prefix}ImageName`);
+            this.loader = document.getElementById(`${this.prefix}Loading`);
+            this.noImage = document.getElementById(`${this.prefix}NoImage`);
+
+            // Controls
+            document.getElementById(`${this.prefix}BtnPrev`).onclick = () => this.prev();
+            document.getElementById(`${this.prefix}BtnNext`).onclick = () => this.next();
+            document.getElementById(`${this.prefix}BtnZoomIn`).onclick = () => this.zoom(0.2);
+            document.getElementById(`${this.prefix}BtnZoomOut`).onclick = () => this.zoom(-0.2);
+            document.getElementById(`${this.prefix}BtnReset`).onclick = () => this.resetZoom();
+
+            // Keyboard Nav Support (Optional)
+            this.viewport.tabIndex = 0; // Make focusable
+            this.viewport.onkeydown = (e) => {
+                if(e.key === 'ArrowRight') this.next();
+                if(e.key === 'ArrowLeft') this.prev();
+            };
+        }
+
+        /**
+         * Loads images for a specific record.
+         * @param {Object} payload - JSON body to send to apiEndpoint (e.g. {record_id: 1, county_id: 5})
+         */
+        load(payload) {
+            this.resetUI();
+            this.loader.classList.remove('d-none');
+            this.noImage.classList.add('d-none');
+
+            fetch(this.apiEndpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(d => {
+                this.loader.classList.add('d-none');
+                if (d.success && d.images && d.images.length > 0) {
+                    this.images = d.images;
+                    this.renderThumbnails();
+                    this.select(0);
+                } else {
+                    this.noImage.innerText = d.message || "No images found.";
+                    this.noImage.classList.remove('d-none');
+                }
+            })
+            .catch(e => {
+                this.loader.classList.add('d-none');
+                this.noImage.innerText = "Error loading images.";
+                this.noImage.classList.remove('d-none');
+                console.error(e);
+            });
+        }
+
+        renderThumbnails() {
+            this.strip.innerHTML = '';
+            this.images.forEach((img, idx) => {
+                const t = document.createElement('img');
+                t.src = img.src;
+                t.className = 'h-100 border border-secondary opacity-50';
+                t.style.cursor = 'pointer';
+                t.onclick = () => this.select(idx);
+                // Highlight active logic handled in select()
+                t.id = `${this.prefix}Thumb_${idx}`;
+                this.strip.appendChild(t);
+            });
+        }
+
+        select(index) {
+            if (index < 0 || index >= this.images.length) return;
+            this.currentIndex = index;
+            const imgData = this.images[index];
+
+            // Update Main Image
+            this.mainImg.src = imgData.src;
+            this.mainImg.style.display = 'block';
+            this.resetZoom();
+
+            // Update Meta
+            this.lblCount.innerText = `${index + 1} / ${this.images.length}`;
+            this.lblName.innerText = imgData.name || 'Image';
+
+            // Update Thumbnails Styles
+            [...this.strip.children].forEach((c, i) => {
+                if(i === index) {
+                    c.classList.remove('opacity-50', 'border-secondary');
+                    c.classList.add('opacity-100', 'border-warning');
+                    c.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                } else {
+                    c.classList.add('opacity-50', 'border-secondary');
+                    c.classList.remove('opacity-100', 'border-warning');
+                }
+            });
+        }
+
+        next() { this.select(this.currentIndex + 1); }
+        prev() { this.select(this.currentIndex - 1); }
+
+        resetUI() {
+            this.images = [];
+            this.currentIndex = -1;
+            this.mainImg.src = '';
+            this.mainImg.style.display = 'none';
+            this.strip.innerHTML = '';
+            this.lblCount.innerText = '0 / 0';
+            this.lblName.innerText = '---';
+        }
+
+        // --- Zoom Logic ---
+        zoom(amount) {
+            this.scale += amount;
+            if (this.scale < 0.2) this.scale = 0.2;
+            this.updateTransform();
+        }
+        resetZoom() {
+            this.scale = 1;
+            this.updateTransform();
+        }
+        updateTransform() {
+            this.mainImg.style.transform = `scale(${this.scale})`;
+        }
+    };
+}
+</script>

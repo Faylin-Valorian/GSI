@@ -1,11 +1,18 @@
 import os
 import json
 import urllib.parse
-from flask import Blueprint, request, jsonify, current_app
+import io
+from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_login import login_required, current_user
 from sqlalchemy import text, inspect
 from extensions import db
 from models import IndexingCounties, IndexingStates
+
+# Try to import PIL for image serving
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 review_legal_bp = Blueprint('review_legal_others', __name__)
 
@@ -19,6 +26,7 @@ def get_tables(county_name):
 @review_legal_bp.route('/api/tools/legal-others/init', methods=['POST'])
 @login_required
 def init_tool():
+    """Fetches records where fn LIKE '%legal%' AND legal_type is 'Other' or 'O'."""
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     county_id = request.json.get('county_id')
@@ -26,15 +34,17 @@ def init_tool():
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     
     try:
-        # Safety Check for Column
         inspector = inspect(db.engine)
         columns = [col['name'] for col in inspector.get_columns('GenericDataImport')]
+        
         if 'legal_type' not in columns:
-            return jsonify({'success': False, 'message': "Column 'legal_type' missing. Run Setup eData Table."})
+            return jsonify({
+                'success': False, 
+                'message': "Configuration Error: 'legal_type' column missing. Run 'Setup eData Table' first."
+            })
 
-        # FETCH: We need keyOriginalValue for the Clipboard and Image Linking
         sql = """
-        SELECT id, keyOriginalValue, col02varchar, col03varchar, col04varchar, 
+        SELECT id, OriginalValue, col02varchar, col03varchar, col04varchar, 
                col05varchar, col06varchar, col07varchar, col08varchar
         FROM GenericDataImport
         WHERE fn LIKE '%legal%' 
@@ -47,7 +57,7 @@ def init_tool():
         for r in results:
             records.append({
                 'id': r.id,
-                'desc': r.keyOriginalValue, # KEY VALUE for Clipboard/Display
+                'desc': r.OriginalValue,
                 'fields': {
                     'col02': r.col02varchar,
                     'col03': r.col03varchar,
@@ -59,9 +69,13 @@ def init_tool():
                 }
             })
             
+        if not records:
+            return jsonify({'success': False, 'message': "No records found matching criteria."})
+
         return jsonify({'success': True, 'records': records})
+
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return jsonify({'success': False, 'message': f"System Error: {str(e)}"})
 
 @review_legal_bp.route('/api/tools/legal-others/images', methods=['POST'])
 @login_required
@@ -72,45 +86,62 @@ def get_images():
         
         c = db.session.get(IndexingCounties, county_id)
         
-        # 1. Get the Key (keyOriginalValue) from the selected record
-        sql_key = "SELECT keyOriginalValue FROM GenericDataImport WHERE id = :id"
+        # 1. Get Key
+        sql_key = "SELECT OriginalValue FROM GenericDataImport WHERE id = :id"
         key_res = db.session.execute(text(sql_key), {'id': record_id}).fetchone()
-        
-        if not key_res or not key_res[0]: 
-            return jsonify({'success': False, 'images': [], 'message': 'No Key Found'})
+        if not key_res: return jsonify({'success': False, 'images': []})
         
         key_val = key_res[0]
         
-        # 2. Find Images sharing that Key (fn LIKE '%image%')
-        # We grab col03varchar which usually holds the Filename
-        sql_imgs = """
-        SELECT col03varchar 
-        FROM GenericDataImport 
-        WHERE fn LIKE '%image%' AND keyOriginalValue = :key 
-        ORDER BY fn
-        """
+        # 2. Get Images using Key
+        sql_imgs = "SELECT col03varchar FROM GenericDataImport WHERE fn LIKE '%image%' AND keyOriginalValue = :key ORDER BY fn"
         imgs = db.session.execute(text(sql_imgs), {'key': key_val}).fetchall()
         
-        # 3. Construct Path based on Folder Structure: data/{State}/{County}/Images/{Filename}
+        # 3. Build Paths
         s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
-        state_name = s.state_name
-        base_path = os.path.join(current_app.root_path, 'data', state_name, c.county_name, 'Images')
+        base_path = os.path.join(current_app.root_path, 'data', s.state_name, c.county_name, 'Images')
         
         images = []
         for i in imgs:
-            filename = i.col03varchar
-            if filename:
-                full_path = os.path.join(base_path, filename)
-                # We send the path to the 'view-image' endpoint just like Instrument Corrections
+            if i.col03varchar:
+                full_path = os.path.join(base_path, i.col03varchar)
                 safe_path = urllib.parse.quote(full_path)
                 images.append({
-                    'src': f"/api/tools/inst-corrections/view-image?path={safe_path}",
-                    'name': filename
+                    'src': f"/api/tools/legal-others/view-image?path={safe_path}",
+                    'name': i.col03varchar
                 })
 
         return jsonify({'success': True, 'images': images})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+@review_legal_bp.route('/api/tools/legal-others/view-image', methods=['GET'])
+@login_required
+def view_image():
+    """Proxy endpoint to view images from arbitrary local paths (Admin Only)."""
+    if current_user.role != 'admin': return "Unauthorized", 403
+    
+    file_path = request.args.get('path')
+    if not file_path: return "No path provided", 400
+    
+    file_path = os.path.abspath(file_path)
+    if not os.path.exists(file_path):
+        return "File not found", 404
+        
+    try:
+        if not Image: return "PIL not installed", 500
+        
+        with Image.open(file_path) as image:
+            if image.mode in ('P', 'CMYK', 'RGBA', 'LA', 'I', 'I;16', '1'):
+                image = image.convert('RGB')
+            
+            img_io = io.BytesIO()
+            image.save(img_io, 'JPEG', quality=85)
+            img_io.seek(0)
+            return send_file(img_io, mimetype='image/jpeg')
+                
+    except Exception as e:
+        return f"Error processing image: {str(e)}", 500
 
 @review_legal_bp.route('/api/tools/legal-others/search-tr', methods=['POST'])
 @login_required
@@ -120,6 +151,7 @@ def search_tr():
         c = db.session.get(IndexingCounties, data.get('county_id'))
         tbl = get_tables(c.county_name)['tr']
         col = 'Township' if data.get('mode') == 'township' else 'Range'
+        
         sql = f"SELECT DISTINCT {col} FROM {tbl} WHERE {col} LIKE :term AND Active = 1 ORDER BY {col}"
         res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
         return jsonify([r[0] for r in res])
@@ -132,6 +164,7 @@ def search_adds():
         data = request.json
         c = db.session.get(IndexingCounties, data.get('county_id'))
         tbl = get_tables(c.county_name)['adds']
+        
         sql = f"SELECT Name FROM {tbl} WHERE Name LIKE :term AND Active = 1 ORDER BY Name"
         res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
         return jsonify([r[0] for r in res])
@@ -143,7 +176,6 @@ def save_record():
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     try:
-        # Note: ValidationStatus Removed
         sql = """
         UPDATE GenericDataImport
         SET col02varchar = :c2, col03varchar = :c3, col04varchar = :c4,

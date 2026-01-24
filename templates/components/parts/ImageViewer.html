@@ -1,0 +1,33 @@
+{% macro image_viewer(prefix) %}
+<div id="{{ prefix }}ViewerContainer" class="d-flex flex-column h-100 w-100" style="background: #000;">
+    
+    <div class="d-flex justify-content-between align-items-center p-2 border-bottom border-secondary bg-dark flex-shrink-0">
+        <div class="d-flex align-items-center gap-2">
+            <span id="{{ prefix }}ImageCount" class="badge bg-secondary">0 / 0</span>
+            <span id="{{ prefix }}ImageName" class="text-muted small font-monospace text-truncate" style="max-width: 200px;">---</span>
+        </div>
+        <div class="btn-group btn-group-sm">
+            <button type="button" id="{{ prefix }}BtnPrev" class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" id="{{ prefix }}BtnZoomIn" class="btn btn-outline-secondary"><i class="bi bi-zoom-in"></i></button>
+            <button type="button" id="{{ prefix }}BtnZoomOut" class="btn btn-outline-secondary"><i class="bi bi-zoom-out"></i></button>
+            <button type="button" id="{{ prefix }}BtnReset" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button type="button" id="{{ prefix }}BtnNext" class="btn btn-outline-secondary"><i class="bi bi-chevron-right"></i></button>
+        </div>
+    </div>
+
+    <div id="{{ prefix }}ImageViewport" class="flex-grow-1 position-relative bg-black" style="overflow: hidden;">
+        <div id="{{ prefix }}NoImage" class="text-muted fst-italic position-absolute top-50 start-50 translate-middle">
+            No image selected
+        </div>
+        <div id="{{ prefix }}Loading" class="text-info position-absolute top-50 start-50 translate-middle d-none">
+            <div class="spinner-border spinner-border-sm" role="status"></div> Loading...
+        </div>
+        <div id="{{ prefix }}TransformLayer" class="w-100 h-100 d-flex align-items-center justify-content-center" style="transform-origin: center center;">
+            <img id="{{ prefix }}MainImage" src="" style="max-width: 100%; max-height: 100%; display: none; transition: transform 0.1s;">
+        </div>
+    </div>
+
+    <div id="{{ prefix }}ThumbnailStrip" class="border-top border-secondary p-2 d-flex justify-content-center gap-2 bg-dark flex-shrink-0" style="height: 80px; overflow-x: auto; white-space: nowrap;">
+    </div>
+</div>
+{% endmacro %}

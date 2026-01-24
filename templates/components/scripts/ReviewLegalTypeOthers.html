@@ -1,10 +1,27 @@
+{% include "components/scripts/ImageManager.html" %}
+
 <script>
     var rloCountyId = null;
     var rloCurrentRecord = null;
+    var rloImgManager = null;
+
+    // Initialize the Image Manager once the DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+        if(typeof ImageManager !== 'undefined') {
+            rloImgManager = new ImageManager({
+                prefix: 'rlo',
+                apiEndpoint: '/api/tools/legal-others/images'
+            });
+        }
+    });
 
     function openReviewLegalOthersModal(id) {
         closeAllModals(); 
         rloCountyId = id;
+        
+        // Reset the image viewer when opening the modal
+        if(rloImgManager) rloImgManager.resetUI();
+
         if(document.getElementById('reviewLegalOthersModal')) {
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewLegalOthersModal'));
             modal.show();
@@ -24,12 +41,7 @@
             list.innerHTML = '';
             
             if(!d.success) {
-                const debugEl = document.getElementById('debugModeToggle');
-                if (debugEl && debugEl.checked) {
-                    list.innerHTML = `<div class="p-3 text-danger small border-bottom border-danger bg-danger bg-opacity-10">Error: ${d.message}</div>`;
-                } else {
-                    list.innerHTML = `<div class="p-3 text-muted small border-bottom text-center">Unable to load records.<br><span class="x-small">Check debug mode.</span></div>`;
-                }
+                list.innerHTML = `<div class="p-3 text-danger small border-bottom border-danger bg-danger bg-opacity-10">Error: ${d.message}</div>`;
                 return;
             }
 
@@ -42,17 +54,18 @@
                 const item = document.createElement('div');
                 item.className = 'p-2 border-bottom border-secondary text-white small rlo-item text-truncate';
                 item.style.cursor = 'pointer';
-                // Show Key
                 item.innerText = r.desc || `Record ${r.id}`;
                 item.title = "Click to Copy & Load";
                 
                 item.onclick = (e) => {
                     // Clipboard Copy
-                    if(r.desc) {
-                        navigator.clipboard.writeText(r.desc).catch(err => console.error('Copy failed', err));
-                    }
-                    // Load
+                    if(r.desc) navigator.clipboard.writeText(r.desc);
+                    // Load Record
                     rloLoadRecord(r);
+                    
+                    // Highlight Active
+                    document.querySelectorAll('.rlo-item').forEach(el => el.classList.remove('bg-primary'));
+                    e.target.classList.add('bg-primary');
                 };
                 list.appendChild(item);
             });
@@ -63,6 +76,7 @@
 
     function rloLoadRecord(record) {
         rloCurrentRecord = record;
+        // Header Text
         document.getElementById('rloCurrentRecordLabel').innerText = record.desc || `Record #${record.id}`;
         
         // Load Fields
@@ -73,52 +87,23 @@
         document.getElementById('rloCol06').value = record.fields.col06 || '';
         document.getElementById('rloCol07').value = record.fields.col07 || '';
         
-        // Load Directions
+        // Load Directions (Col 8)
         document.getElementById('rloDirTags').innerHTML = '';
         if(record.fields.col08) {
             record.fields.col08.split(',').forEach(d => { if(d.trim()) rloAddDir(d.trim()); });
         }
         rloUpdateDirInput(false);
 
-        // Reset Image Area
-        const mainImg = document.getElementById('rloMainImage');
-        const strip = document.getElementById('rloThumbnailStrip');
-        mainImg.style.display = 'none';
-        strip.innerHTML = '';
-        document.getElementById('rloNoImage').style.display = 'block';
-        
-        // Fetch Images
-        fetch('/api/tools/legal-others/images', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({county_id: rloCountyId, record_id: record.id})
-        }).then(r => r.json()).then(d => {
-            if(d.success && d.images.length > 0) {
-                // Show Main Image
-                mainImg.src = d.images[0].src;
-                mainImg.style.display = 'block';
-                document.getElementById('rloNoImage').style.display = 'none';
-
-                // Populate Thumbnails
-                d.images.forEach(img => {
-                    const thumb = document.createElement('img');
-                    thumb.src = img.src;
-                    thumb.className = 'h-100 border border-secondary';
-                    thumb.style.cursor = 'pointer';
-                    thumb.style.opacity = '0.6';
-                    thumb.onmouseover = () => thumb.style.opacity = '1';
-                    thumb.onmouseout = () => thumb.style.opacity = '0.6';
-                    thumb.onclick = () => { mainImg.src = img.src; };
-                    strip.appendChild(thumb);
-                });
-            }
-        });
-        
-        // Highlight Active
-        document.querySelectorAll('.rlo-item').forEach(el => el.classList.remove('bg-primary'));
-        event.target.classList.add('bg-primary');
+        // Load Images using the Manager
+        if(rloImgManager) {
+            rloImgManager.load({
+                county_id: rloCountyId, 
+                record_id: record.id
+            });
+        }
     }
 
-    // --- UTILS ---
+    // --- VALIDATION & LOOKUPS ---
     function rloValidateSection(input) {
         let val = parseInt(input.value);
         if(val < 1) input.value = 1;
@@ -146,9 +131,11 @@
         });
     }
 
+    // --- DIRECTION TAGS ---
     function rloAddDir(val) {
         const container = document.getElementById('rloDirTags');
         if([...container.children].some(c => c.dataset.val === val)) return;
+        
         const tag = document.createElement('span');
         tag.className = 'badge bg-secondary d-flex align-items-center';
         tag.dataset.val = val;
@@ -163,6 +150,7 @@
         if(triggerSave) rloAutoSave();
     }
 
+    // --- AUTO SAVE ---
     function rloAutoSave() {
         if(!rloCurrentRecord) return;
         const statusEl = document.getElementById('rloSaveStatus');
