@@ -1,0 +1,23 @@
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -1,6 +1,17 @@
+ <script>
++    let edeTestMgr = null;
+     function openEDataModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('eDataCountyId').value = id;
+         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+         document.getElementById('edePreviewContainer').classList.add('d-none');
++        
++        // Init New Blue Button Manager
++        edeTestMgr = new PreviewManager({
++            prefix: 'edeTest',
++            apiPreview: '/api/tools/setup-edata/preview',
++            apiDownload: '/api/tools/setup-edata/download-sql',
++            filename: 'Setup_eData_Test.sql',
++            payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
++        });
++        edeTestMgr.reset();
++        
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(eDataModal) eDataModal.show(); 
+     }
