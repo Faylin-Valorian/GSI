@@ -1,76 +1,69 @@
-from flask import Blueprint, jsonify, request
+import json
+from flask import Blueprint, request, jsonify, Response, stream_with_context, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import text
 from extensions import db
+from sqlalchemy import text
 from utils import format_error
 
 db_compat_bp = Blueprint('db_compat', __name__)
 
-# --- NEW: GET CURRENT LEVEL ---
-@db_compat_bp.route('/api/tools/db-compatibility/current', methods=['GET'])
-@login_required
-def get_current_compatibility():
-    if current_user.role != 'admin': 
-        return jsonify({'success': False, 'message': 'Unauthorized'})
+def generate_compat_sql(data):
+    """Generates SQL to change compatibility level."""
+    level = data.get('level', '150')
+    
+    # Get current DB name safely
     try:
-        # Simple query to get the level of the current DB
-        with db.engine.connect() as connection:
-            result = connection.execute(text("SELECT compatibility_level FROM sys.databases WHERE name = DB_NAME()"))
-            row = result.fetchone()
-            current_level = row[0] if row else 'Unknown'
-            
-        return jsonify({'success': True, 'level': current_level})
+        db_name = db.session.execute(text("SELECT DB_NAME()")).scalar()
+    except:
+        db_name = "TargetDatabase"
+
+    yield "-- DATABASE COMPATIBILITY LEVEL UPDATE\n"
+    yield f"-- Target Database: {db_name}\n"
+    yield f"-- Target Level: {level}\n\n"
+
+    yield f"USE [master];\nGO\n"
+    yield f"ALTER DATABASE [{db_name}] SET COMPATIBILITY_LEVEL = {level};\nGO\n"
+    yield f"USE [{db_name}];\nGO\n"
+
+@db_compat_bp.route('/api/tools/db-compat/preview', methods=['POST'])
+@login_required
+def preview_compat():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    data = request.json or {}
+    try:
+        sql = "".join(list(generate_compat_sql(data)))
+        return jsonify({'success': True, 'sql': sql})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-# --- EXISTING: UPDATE LEVEL ---
-@db_compat_bp.route('/api/tools/db-compatibility', methods=['POST'])
+@db_compat_bp.route('/api/tools/db-compat/download-sql', methods=['POST'])
 @login_required
-def update_compatibility():
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': 'Unauthorized'})
+def download_compat_sql():
+    if current_user.role != 'admin': return Response("Unauthorized", 403)
+    data = request.json or {}
+    return Response(stream_with_context(generate_compat_sql(data)), mimetype='application/sql', 
+                   headers={'Content-Disposition': 'attachment; filename=Set_Compatibility.sql'})
 
-    data = request.json
-    target_level = data.get('target_level')
-    is_confirmed = data.get('confirmed', False)
-
-    if not target_level:
-        return jsonify({'success': False, 'message': 'Target level required'})
+@db_compat_bp.route('/api/tools/db-compat/run', methods=['POST'])
+@login_required
+def run_compat():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    data = request.json or {}
+    level = data.get('level', '150')
 
     try:
-        with db.engine.connect() as connection:
-            connection = connection.execution_options(isolation_level="AUTOCOMMIT")
-
-            # 1. Get Current Info
-            result = connection.execute(text("SELECT name, compatibility_level FROM sys.databases WHERE name = DB_NAME()"))
-            row = result.fetchone()
-            
-            if not row: raise Exception("Could not determine current database info")
-
-            current_db = row[0]
-            current_level = int(row[1])
-
-            # 2. Validate
-            try:
-                new_level = int(target_level)
-            except ValueError:
-                return jsonify({'success': False, 'message': 'Level must be an integer'})
-
-            if new_level < 130:
-                return jsonify({'success': False, 'message': 'Security Block: Level cannot be lower than 130.'})
-
-            if new_level < current_level and not is_confirmed:
-                return jsonify({
-                    'success': False, 
-                    'requires_confirmation': True, 
-                    'message': f"Warning: Downgrading from {current_level} to {new_level}. This may break features. Are you sure?"
-                })
-
-            # 3. Execute
-            sql = f"ALTER DATABASE [{current_db}] SET COMPATIBILITY_LEVEL = {new_level}"
-            connection.execute(text(sql))
-
-        return jsonify({'success': True, 'message': f'Compatibility Level set to {new_level}'})
-
+        # We must verify we are connected to the right DB context or use specific DB name
+        # SQLAlchemy usually connects to a specific DB defined in connection string.
+        # However, changing compat level usually requires no active connections or just simple ALTER.
+        
+        # Get current DB name
+        db_name = db.session.execute(text("SELECT DB_NAME()")).scalar()
+        
+        # Execute
+        sql = f"ALTER DATABASE [{db_name}] SET COMPATIBILITY_LEVEL = {level}"
+        db.session.execute(text(sql))
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f"Compatibility level set to {level} for {db_name}."})
     except Exception as e:
         return jsonify({'success': False, 'message': format_error(e)})

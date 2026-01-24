@@ -1,3 +1,4 @@
+{% from 'components/parts/PreviewArea.html' import preview_area %}
 <div class="modal fade" id="edataErrorsModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content custom-panel" style="border-color: #dc3545;">
@@ -28,14 +29,13 @@
                     <div class="progress bg-dark border border-secondary" style="height: 20px;"><div id="edeProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #dc3545;"></div></div>
                     <div id="edeLogBox" class="mt-2 p-2 bg-black border border-secondary text-muted font-monospace small" style="height: 100px; overflow-y: auto;"></div>
                 </div>
-                <div id="edeDebugPanel" class="d-none mb-3">
-                    <div class="d-flex justify-content-between align-items-end mb-1"><label class="text-warning small fw-bold">Debug: SQL Preview</label><button class="btn btn-xs btn-outline-secondary" onclick="copyEdeSql()">Copy</button></div>
-                    <textarea id="edeSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 200px;" readonly></textarea>
-                </div>
+                
+                {{ preview_area('edeErrors') }}
+
                 <div id="edeResult" class="text-center small mt-3"></div>
             </div>
             <div class="modal-footer border-secondary justify-content-between">
-                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnEdePreview" onclick="previewEdataErrors()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
+                <div><button type="button" class="btn btn-outline-warning btn-sm" id="btnEdePreview" onclick="edeErrorsMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
                 <div><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runEdataErrors()" id="btnRunEde"><i class="bi bi-play-fill me-1"></i>Run Scan</button></div>
             </div>
         </div>

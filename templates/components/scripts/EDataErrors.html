@@ -1,34 +1,73 @@
 <script>
+    let edeErrorsMgr = null;
+    let currentEdeErrorsId = null;
+
     function openEdataErrorsModal(id) {
-        closeAllModals(); document.getElementById('eDataCountyId').value = id; 
+        closeAllModals(); 
+        currentEdeErrorsId = id;
+        
+        // Ensure hidden field is updated (from your original script)
+        if(document.getElementById('eDataCountyId')) document.getElementById('eDataCountyId').value = id;
+
+        // Open Modal
+        if(document.getElementById('edataErrorsModal')) {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('edataErrorsModal'));
+            modal.show();
+        }
+
+        // Reset UI
         document.getElementById('edeResult').innerHTML = '';
-        if(document.getElementById('edeDebugPanel')) document.getElementById('edeDebugPanel').classList.add('d-none');
-        document.getElementById('edeProgressContainer').classList.add('d-none');
-        if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
-        if(edataErrorsModal) edataErrorsModal.show();
+        if(document.getElementById('edeProgressContainer')) document.getElementById('edeProgressContainer').classList.add('d-none');
+
+        // --- 1. Init Preview Manager (For the new button) ---
+        if(!edeErrorsMgr) {
+            edeErrorsMgr = new PreviewManager({
+                prefix: 'edeErrors',
+                apiPreview: '/api/tools/edata-errors/preview',
+                apiDownload: '/api/tools/edata-errors/download-sql',
+                filename: 'Error_Scan.sql',
+                payloadProvider: () => ({ 
+                    county_id: currentEdeErrorsId,
+                    book_start: document.getElementById('edeBookStart').value,
+                    book_end: document.getElementById('edeBookEnd').value,
+                    townships: document.getElementById('edeTownships').value,
+                    split_images: document.getElementById('edeSplitImages').checked
+                })
+            });
+        }
+        edeErrorsMgr.reset();
+
+        // --- 2. RESTORED: Auto-Generate Defaults (From your original script) ---
+        // This fetches the book ranges/townships when the tool opens
         fetch(`/api/tools/edata-errors/get-defaults/${id}`).then(r=>r.json()).then(d=>{
-            if(d.success) { document.getElementById('edeBookStart').value = d.book_start; document.getElementById('edeBookEnd').value = d.book_end; document.getElementById('edeTownships').value = d.townships; }
+            if(d.success) { 
+                if(document.getElementById('edeBookStart')) document.getElementById('edeBookStart').value = d.book_start; 
+                if(document.getElementById('edeBookEnd')) document.getElementById('edeBookEnd').value = d.book_end; 
+                if(document.getElementById('edeTownships')) document.getElementById('edeTownships').value = d.townships; 
+            }
         });
     }
-    function previewEdataErrors() {
-        const btn = document.getElementById('btnEdePreview'); btn.disabled = true;
-        fetch('/api/tools/edata-errors/preview', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value, book_start: document.getElementById('edeBookStart').value, book_end: document.getElementById('edeBookEnd').value, townships: document.getElementById('edeTownships').value, split_images: document.getElementById('edeSplitImages').checked })
-        }).then(r => r.json()).then(d => {
-            btn.disabled = false;
-            if(d.success) { document.getElementById('edeDebugPanel').classList.remove('d-none'); document.getElementById('edeSqlPreview').value = d.sql; document.getElementById('edeResult').innerHTML = ''; }
-            else { document.getElementById('edeResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
-        }).catch(e => { btn.disabled = false; document.getElementById('edeResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
-    }
-    function copyEdeSql() { navigator.clipboard.writeText(document.getElementById("edeSqlPreview").value); }
+
     function runEdataErrors() {
-        const btn = document.getElementById('btnRunEde'); btn.disabled=true;
+        const btn = document.getElementById('btnRunEde'); 
+        btn.disabled = true;
+        
+        // Setup UI for run
         document.getElementById('edeProgressContainer').classList.remove('d-none');
-        const pBar=document.getElementById('edeProgressBar'); pBar.style.width = '0%';
+        const pBar = document.getElementById('edeProgressBar'); 
+        pBar.style.width = '0%';
         document.getElementById('edeLogBox').innerHTML = '';
-        fetch('/api/tools/edata-errors/execute', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ county_id: document.getElementById('eDataCountyId').value, book_start: document.getElementById('edeBookStart').value, book_end: document.getElementById('edeBookEnd').value, townships: document.getElementById('edeTownships').value, split_images: document.getElementById('edeSplitImages').checked })})
-        .then(response => {
+        document.getElementById('edeResult').innerText = '';
+        
+        // Hide preview if running real tool
+        if(edeErrorsMgr) edeErrorsMgr.reset();
+        
+        // Use the manager's payload provider so we don't duplicate logic
+        const payload = edeErrorsMgr.payloadProvider();
+
+        fetch('/api/tools/edata-errors/execute', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+        }).then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
             function read() { reader.read().then(({ done, value }) => {
                 if (done) { btn.disabled = false; document.getElementById('edeResult').innerText = "Done"; pBar.style.width = '100%'; return; }
@@ -36,9 +75,16 @@
                 lines.forEach(l => { try { const d = JSON.parse(l); 
                     if(d.type === 'progress') { pBar.style.width = d.percent + '%'; document.getElementById('edeProgressPercent').innerText = d.percent + '%'; }
                     if(d.type === 'log') { const div = document.createElement('div'); div.innerText = d.message; document.getElementById('edeLogBox').appendChild(div); }
+                    if(d.type === 'error') { document.getElementById('edeResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
                 } catch(e){} });
                 read();
             }); } read();
+        }).catch(e => { 
+            btn.disabled = false; 
+            document.getElementById('edeResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; 
         });
     }
+    
+    // Alias for sidebar compatibility
+    window.openEDataErrorsModal = openEdataErrorsModal;
 </script>
