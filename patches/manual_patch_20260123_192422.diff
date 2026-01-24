@@ -1,0 +1,256 @@
+--- a/blueprints/AlterDatabaseFields.py
++++ b/blueprints/AlterDatabaseFields.py
+@@ -102,6 +102,32 @@
+             if default and 'IDENTITY' not in ftype.upper():
+                 sql += f"    ALTER TABLE GenericDataImport ADD CONSTRAINT [DF_GDI_{name}] DEFAULT {default} FOR [{name}];\n"
+             sql += "END\nGO\n\n"
+     return jsonify({'success': True, 'sql': sql})
++
++@alter_db_bp.route('/api/tools/alter-db/download-sql', methods=['POST'])
++@login_required
++def download_sql():
++    if current_user.role != 'admin': return Response("Unauthorized", 403)
++    
++    data = request.json
++    renames = data.get('renames', {})
++    new_fields = data.get('new_fields', [])
++    
++    def generate():
++        yield "-- GSI SCHEMA UPDATE SCRIPT\n-- Generated: " + str(sqlalchemy.func.now()) + "\n\n"
++        if renames:
++            yield "-- 1. Renames\n"
++            for old, new in renames.items():
++                if old != new:
++                    yield f"IF EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'{old}' AND Object_ID = Object_ID(N'GenericDataImport'))\n"
++                    yield f"BEGIN\n    EXEC sp_rename 'GenericDataImport.{old}', '{new}', 'COLUMN';\nEND\nGO\n\n"
++        if new_fields:
++            yield "-- 2. New Columns\n"
++            for f in new_fields:
++                name, ftype, default = f['name'], f['type'], f.get('default', '')
++                yield f"IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE Name = N'{name}' AND Object_ID = Object_ID(N'GenericDataImport'))\n"
++                yield f"BEGIN\n    ALTER TABLE GenericDataImport ADD [{name}] {ftype};\n"
++                if default and 'IDENTITY' not in ftype.upper():
++                    yield f"    ALTER TABLE GenericDataImport ADD CONSTRAINT [DF_GDI_{name}] DEFAULT {default} FOR [{name}];\n"
++                yield "END\nGO\n\n"
++
++    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': 'attachment; filename=Schema_Update.sql'})
+ 
+ @alter_db_bp.route('/api/tools/alter-db/execute', methods=['POST'])
+ @login_required
+--- a/blueprints/InitialKeliLinkup.py
++++ b/blueprints/InitialKeliLinkup.py
+@@ -165,6 +165,30 @@
+     steps = generate_linkup_sql(
+         c.county_name, 
+         data.get('use_book_range', False),
+         data.get('book_start'), 
+         data.get('book_end'),
+         data.get('use_path', False),
+         data.get('image_path_prefix'),
+         data.get('linkup_mode', 'neither'),
+         data.get('split_images', False)
+     )
+     full_script = "\n".join([s[1] for s in steps])
+     return jsonify({'success': True, 'sql': full_script})
++
++@initial_linkup_bp.route('/api/tools/initial-keli-linkup/download-sql', methods=['POST'])
++@login_required
++def download_sql():
++    if current_user.role != 'admin': return Response("Unauthorized", 403)
++    data = request.json
++    c = db.session.get(IndexingCounties, data.get('county_id'))
++    if not c: return Response("County not found", 404)
++
++    steps = generate_linkup_sql(
++        c.county_name, data.get('use_book_range'), data.get('book_start'), data.get('book_end'),
++        data.get('use_path'), data.get('image_path_prefix'), data.get('linkup_mode'), data.get('split_images')
++    )
++    
++    def generate():
++        for name, sql in steps:
++            yield f"-- STEP: {name}\n{sql}\nGO\n\n"
++            
++    filename = f"Keli_Linkup_{c.county_name}.sql"
++    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+ 
+ @initial_linkup_bp.route('/api/tools/initial-keli-linkup/execute', methods=['POST'])
+ @login_required
+--- a/blueprints/InitialPreparation.py
++++ b/blueprints/InitialPreparation.py
+@@ -164,6 +164,24 @@
+     steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'))
+     full_script = "\n".join([s[1] for s in steps])
+     return jsonify({'success': True, 'sql': full_script})
++
++@initial_prep_bp.route('/api/tools/initial-prep/download-sql', methods=['POST'])
++@login_required
++def download_sql():
++    if current_user.role != 'admin': return Response("Unauthorized", 403)
++    data = request.json
++    c = db.session.get(IndexingCounties, data.get('county_id'))
++    if not c: return Response("County not found", 404)
++
++    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'))
++    
++    def generate():
++        for name, sql in steps:
++            yield f"-- STEP: {name}\n{sql}\nGO\n\n"
++            
++    filename = f"Initial_Prep_{c.county_name}.sql"
++    return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+ 
+ @initial_prep_bp.route('/api/tools/initial-prep/execute', methods=['POST'])
+ @login_required
+--- a/templates/components/modals/AlterDatabaseFields.html
++++ b/templates/components/modals/AlterDatabaseFields.html
+@@ -35,7 +35,10 @@
+                     <td class="text-end pe-4"><button class="btn btn-sm btn-outline-warning" onclick="alterDbAddNewRow()"><i class="bi bi-plus-lg"></i></button></td>
+                 </tr>
+             </tbody>
+         </table>
+         <div id="alterDbPreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+-            <label class="text-warning small fw-bold font-monospace mb-2">SQL PREVIEW</label>
++            <div class="d-flex justify-content-between align-items-center mb-2">
++                <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
++                <button class="btn btn-sm btn-outline-light" onclick="downloadAlterDbSQL()"><i class="bi bi-download me-2"></i>Save .SQL</button>
++            </div>
+             <pre id="alterDbSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+         </div>
+     </div>
+--- a/templates/components/modals/InitialKeliLinkup.html
++++ b/templates/components/modals/InitialKeliLinkup.html
+@@ -62,7 +62,10 @@
+                 </div>
+ 
+                 <div id="linkupDebugPanel" class="d-none mt-3">
+-                    <label class="text-warning small fw-bold mb-2">SQL Preview</label>
++                    <div class="d-flex justify-content-between align-items-center mb-2">
++                        <label class="text-warning small fw-bold">SQL Preview</label>
++                        <button class="btn btn-sm btn-outline-light" onclick="downloadLinkupSQL()"><i class="bi bi-download me-2"></i>Save .SQL</button>
++                    </div>
+                     <textarea id="linkupSqlPreview" class="form-control bg-black text-success font-monospace small mb-2" rows="6" readonly></textarea>
+                     <div class="text-end">
+                         <button class="btn btn-sm btn-outline-secondary" onclick="copyLinkupSql()"><i class="bi bi-clipboard me-1"></i>Copy</button>
+--- a/templates/components/modals/InitialPreparation.html
++++ b/templates/components/modals/InitialPreparation.html
+@@ -38,7 +38,10 @@
+                 <div id="prepResult" class="text-center small mt-3"></div>
+ 
+                 <div id="prepDebugPanel" class="d-none mt-3">
+-                    <label class="text-warning small fw-bold mb-2">SQL Preview</label>
++                    <div class="d-flex justify-content-between align-items-center mb-2">
++                        <label class="text-warning small fw-bold">SQL Preview</label>
++                        <button class="btn btn-sm btn-outline-light" onclick="downloadPrepSQL()"><i class="bi bi-download me-2"></i>Save .SQL</button>
++                    </div>
+                     <textarea id="prepSqlPreview" class="form-control bg-black text-success font-monospace small mb-2" rows="6" readonly></textarea>
+                     <div class="text-end">
+                         <button class="btn btn-sm btn-outline-secondary" onclick="copyPrepSql()"><i class="bi bi-clipboard me-1"></i>Copy</button>
+--- a/templates/components/scripts/AlterDatabaseFields.html
++++ b/templates/components/scripts/AlterDatabaseFields.html
+@@ -48,9 +48,22 @@
+ 
+     function alterDbGeneratePreview() {
++        const cont = document.getElementById('alterDbPreviewContainer');
++        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
++        cont.classList.remove('d-none');
+         const payload = alterDbCollectData();
+         document.getElementById('alterDbSqlOutput').innerText = 'Generating...';
+-        document.getElementById('alterDbPreviewContainer').classList.remove('d-none');
+         fetch('/api/tools/alter-db/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+         .then(r => r.json()).then(d => document.getElementById('alterDbSqlOutput').innerText = d.success ? d.sql : "Error: " + d.message);
+     }
++
++    function downloadAlterDbSQL() {
++        const payload = alterDbCollectData();
++        fetch('/api/tools/alter-db/download-sql', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
++        .then(r => r.blob())
++        .then(blob => {
++            const url = window.URL.createObjectURL(blob);
++            const a = document.createElement('a'); a.href = url; a.download = "Schema_Update.sql";
++            document.body.appendChild(a); a.click(); a.remove();
++        });
++    }
+ 
+     function alterDbRun() {
+--- a/templates/components/scripts/InitialKeliLinkup.html
++++ b/templates/components/scripts/InitialKeliLinkup.html
+@@ -29,8 +29,10 @@
+     }
+     function previewLinkupSql() {
+         const btn = document.getElementById('btnLinkupPreview'); btn.disabled = true;
++        const cont = document.getElementById('linkupDebugPanel');
++        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); btn.disabled = false; return; }
++        
+         const payload = {
+             county_id: currentLinkupCountyId,
+             use_book_range: document.getElementById('linkupToggleBook').checked,
+             book_start: document.getElementById('linkupBookStart').value,
+             book_end: document.getElementById('linkupBookEnd').value,
+             use_path: document.getElementById('linkupTogglePath').checked,
+             image_path_prefix: document.getElementById('linkupImgPath').value,
+             split_images: document.getElementById('linkupSplitImages').checked,
+             linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+         };
+         fetch('/api/tools/initial-keli-linkup/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+         .then(r => r.json()).then(d => {
+             btn.disabled = false;
+-            if(d.success) { document.getElementById('linkupDebugPanel').classList.remove('d-none'); document.getElementById('linkupSqlPreview').value = d.sql; document.getElementById('linkupResult').innerHTML = ''; } 
++            if(d.success) { cont.classList.remove('d-none'); document.getElementById('linkupSqlPreview').value = d.sql; document.getElementById('linkupResult').innerHTML = ''; } 
+             else { document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
+         }).catch(e => { btn.disabled = false; document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+     }
++    function downloadLinkupSQL() {
++        const payload = {
++            county_id: currentLinkupCountyId,
++            use_book_range: document.getElementById('linkupToggleBook').checked,
++            book_start: document.getElementById('linkupBookStart').value,
++            book_end: document.getElementById('linkupBookEnd').value,
++            use_path: document.getElementById('linkupTogglePath').checked,
++            image_path_prefix: document.getElementById('linkupImgPath').value,
++            split_images: document.getElementById('linkupSplitImages').checked,
++            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
++        };
++        fetch('/api/tools/initial-keli-linkup/download-sql', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
++        .then(r => r.blob())
++        .then(blob => {
++            const url = window.URL.createObjectURL(blob);
++            const a = document.createElement('a'); a.href = url; a.download = "Keli_Linkup.sql";
++            document.body.appendChild(a); a.click(); a.remove();
++        });
++    }
+     function copyLinkupSql() { navigator.clipboard.writeText(document.getElementById("linkupSqlPreview").value); }
+     function runLinkupTool() {
+--- a/templates/components/scripts/InitialPreparation.html
++++ b/templates/components/scripts/InitialPreparation.html
+@@ -16,13 +16,25 @@
+     function previewPrepSql() {
+         const btn = document.getElementById('btnPrepPreview');
++        const cont = document.getElementById('prepDebugPanel');
++        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
++        
+         const textarea = document.getElementById('prepSqlPreview');
+         btn.disabled = true;
+         fetch('/api/tools/initial-prep/preview', {
+             method: 'POST', headers: {'Content-Type': 'application/json'},
+             body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
+         }).then(r => r.json()).then(d => {
+             btn.disabled = false;
+-            if(d.success) { document.getElementById('prepDebugPanel').classList.remove('d-none'); textarea.value = d.sql; document.getElementById('prepResult').innerHTML = ''; } 
++            if(d.success) { cont.classList.remove('d-none'); textarea.value = d.sql; document.getElementById('prepResult').innerHTML = ''; } 
+             else { document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
+         }).catch(e => { btn.disabled = false; document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+     }
++    function downloadPrepSQL() {
++        fetch('/api/tools/initial-prep/download-sql', {
++            method: 'POST', headers: {'Content-Type': 'application/json'},
++            body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
++        })
++        .then(r => r.blob())
++        .then(blob => {
++            const url = window.URL.createObjectURL(blob);
++            const a = document.createElement('a'); a.href = url; a.download = "Initial_Prep.sql";
++            document.body.appendChild(a); a.click(); a.remove();
++        });
++    }
+     function copyPrepSql() { navigator.clipboard.writeText(document.getElementById("prepSqlPreview").value); }
+     function runPrepTool() {
