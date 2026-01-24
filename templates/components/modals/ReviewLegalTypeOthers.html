@@ -26,19 +26,19 @@
                     <div class="p-3 bg-dark" style="height: auto; min-height: 300px;">
                         <div class="d-flex justify-content-between mb-3">
                             <span class="text-white fw-bold" id="rloCurrentRecordLabel">Record #</span>
-                            <button class="btn btn-sm btn-success px-4" onclick="rloSave()" id="rloSaveBtn" disabled>SAVE & NEXT</button>
+                            <span class="text-muted small fst-italic" id="rloSaveStatus"></span>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-md-2">
                                 <label class="form-label x-small text-muted text-uppercase">Section (1-32)</label>
-                                <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)">
+                                <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)" onchange="rloAutoSave()">
                             </div>
                             
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Township</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="text" id="rloCol03" class="form-control bg-black text-white border-secondary" list="rloTownshipList" oninput="rloSearchTR(this, 'township')">
+                                    <input type="text" id="rloCol03" class="form-control bg-black text-white border-secondary" list="rloTownshipList" oninput="rloSearchTR(this, 'township')" onchange="rloAutoSave()">
                                     <datalist id="rloTownshipList"></datalist>
                                 </div>
                             </div>
@@ -46,7 +46,7 @@
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Range</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="text" id="rloCol04" class="form-control bg-black text-white border-secondary" list="rloRangeList" oninput="rloSearchTR(this, 'range')">
+                                    <input type="text" id="rloCol04" class="form-control bg-black text-white border-secondary" list="rloRangeList" oninput="rloSearchTR(this, 'range')" onchange="rloAutoSave()">
                                     <datalist id="rloRangeList"></datalist>
                                 </div>
                             </div>
@@ -54,19 +54,19 @@
                             <div class="col-md-4">
                                 <label class="form-label x-small text-muted text-uppercase">Addition</label>
                                 <div class="input-group input-group-sm">
-                                    <input type="text" id="rloCol05" class="form-control bg-black text-white border-secondary" list="rloAddList" oninput="rloSearchAdd(this)">
+                                    <input type="text" id="rloCol05" class="form-control bg-black text-white border-secondary" list="rloAddList" oninput="rloSearchAdd(this)" onchange="rloAutoSave()">
                                     <datalist id="rloAddList"></datalist>
                                 </div>
                             </div>
                             
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Lot / Col 6</label>
-                                <input type="text" id="rloCol06" class="form-control form-control-sm bg-black text-white border-secondary">
+                                <input type="text" id="rloCol06" class="form-control form-control-sm bg-black text-white border-secondary" onchange="rloAutoSave()">
                             </div>
 
                             <div class="col-md-3">
                                 <label class="form-label x-small text-muted text-uppercase">Block / Col 7</label>
-                                <input type="text" id="rloCol07" class="form-control form-control-sm bg-black text-white border-secondary">
+                                <input type="text" id="rloCol07" class="form-control form-control-sm bg-black text-white border-secondary" onchange="rloAutoSave()">
                             </div>
 
                             <div class="col-md-6">

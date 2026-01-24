@@ -39,7 +39,6 @@
     function rloLoadRecord(record) {
         rloCurrentRecord = record;
         document.getElementById('rloCurrentRecordLabel').innerText = `Record #${record.id}`;
-        document.getElementById('rloSaveBtn').disabled = false;
         
         // Load Fields
         document.getElementById('rloCol02').value = record.fields.col02 || '';
@@ -54,7 +53,7 @@
         if(record.fields.col08) {
             record.fields.col08.split(',').forEach(d => { if(d.trim()) rloAddDir(d.trim()); });
         }
-        rloUpdateDirInput();
+        rloUpdateDirInput(false); // false = do not trigger save on load
 
         // Load Images
         const img = document.getElementById('rloMainImage');
@@ -114,19 +113,22 @@
         const tag = document.createElement('span');
         tag.className = 'badge bg-secondary d-flex align-items-center';
         tag.dataset.val = val;
-        tag.innerHTML = `${val} <i class="bi bi-x ms-1" style="cursor:pointer" onclick="this.parentElement.remove(); rloUpdateDirInput();"></i>`;
+        tag.innerHTML = `${val} <i class="bi bi-x ms-1" style="cursor:pointer" onclick="this.parentElement.remove(); rloUpdateDirInput(true);"></i>`;
         container.appendChild(tag);
-        rloUpdateDirInput();
+        rloUpdateDirInput(true);
     }
 
-    function rloUpdateDirInput() {
+    function rloUpdateDirInput(triggerSave = true) {
         const vals = [...document.getElementById('rloDirTags').children].map(c => c.dataset.val);
         document.getElementById('rloCol08').value = vals.join(', ');
+        if(triggerSave) rloAutoSave();
     }
 
-    // --- SAVE ---
-    function rloSave() {
+    // --- AUTO SAVE ---
+    function rloAutoSave() {
         if(!rloCurrentRecord) return;
+        const statusEl = document.getElementById('rloSaveStatus');
+        statusEl.innerText = 'Saving...';
         
         const payload = {
             id: rloCurrentRecord.id,
@@ -140,25 +142,15 @@
             col08: document.getElementById('rloCol08').value
         };
         
-        const btn = document.getElementById('rloSaveBtn');
-        btn.disabled = true;
-        btn.innerText = 'Saving...';
-        
         fetch('/api/tools/legal-others/save', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         }).then(r => r.json()).then(d => {
-            btn.innerText = 'SAVE & NEXT';
             if(d.success) {
-                // Remove from list or visual check
-                rloFetchList(); // Refresh list to move to next
-                // Reset form
-                rloCurrentRecord = null;
-                document.getElementById('rloMainImage').style.display = 'none';
-                document.getElementById('rloNoImage').style.display = 'block';
+                statusEl.innerText = 'Saved';
+                setTimeout(() => { if(statusEl.innerText === 'Saved') statusEl.innerText = ''; }, 2000);
             } else {
-                alert('Save failed: ' + d.message);
-                btn.disabled = false;
+                 statusEl.innerText = 'Error!';
             }
         });
     }
