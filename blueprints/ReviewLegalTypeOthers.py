@@ -3,7 +3,7 @@ import json
 import urllib.parse
 from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from extensions import db
 from models import IndexingCounties, IndexingStates
 
@@ -19,22 +19,35 @@ def get_tables(county_name):
 @review_legal_bp.route('/api/tools/legal-others/init', methods=['POST'])
 @login_required
 def init_tool():
-    """Fetches records where fn LIKE '%legal%' AND legal_type is 'Other' or 'O'."""
-    if current_user.role != 'admin': return jsonify({'success': False}), 403
+    """
+    Fetches records where:
+    1. fn LIKE '%legal%' 
+    2. legal_type is 'Other' or 'O'
+    """
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     county_id = request.json.get('county_id')
     c = db.session.get(IndexingCounties, county_id)
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     
     try:
-        # UPDATED QUERY: Uses legal_type
+        # 1. PREVENT USE IF TABLE NOT ALTERED (Safety Check)
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('GenericDataImport')]
+        
+        if 'legal_type' not in columns:
+            return jsonify({
+                'success': False, 
+                'message': "Configuration Error: The 'legal_type' column is missing. You must run the 'Setup eData Table' (Alter Table) tool before using this review tool."
+            })
+
+        # 2. RUN QUERY (ValidationStatus REMOVED)
         sql = """
         SELECT id, OriginalValue, col02varchar, col03varchar, col04varchar, 
                col05varchar, col06varchar, col07varchar, col08varchar
         FROM GenericDataImport
         WHERE fn LIKE '%legal%' 
           AND (legal_type = 'Other' OR legal_type = 'O')
-          AND ValidationStatus != 'Reviewed'
         ORDER BY id
         """
         results = db.session.execute(text(sql)).fetchall()
@@ -55,64 +68,75 @@ def init_tool():
                 }
             })
             
+        if not records:
+            return jsonify({
+                'success': False, 
+                'message': "No records found. Verified criteria: Filename contains 'legal' AND legal_type is 'Other'/'O'."
+            })
+
         return jsonify({'success': True, 'records': records})
+
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return jsonify({'success': False, 'message': f"System Error: {str(e)}"})
 
 @review_legal_bp.route('/api/tools/legal-others/images', methods=['POST'])
 @login_required
 def get_images():
-    record_id = request.json.get('record_id')
-    county_id = request.json.get('county_id')
-    
-    c = db.session.get(IndexingCounties, county_id)
-    
-    # 1. Get Key
-    sql_key = "SELECT OriginalValue FROM GenericDataImport WHERE id = :id"
-    key_res = db.session.execute(text(sql_key), {'id': record_id}).fetchone()
-    if not key_res: return jsonify({'success': False, 'images': []})
-    
-    key_val = key_res[0]
-    
-    # 2. Get Images
-    sql_imgs = "SELECT col03varchar FROM GenericDataImport WHERE fn LIKE '%image%' AND keyOriginalValue = :key ORDER BY fn"
-    imgs = db.session.execute(text(sql_imgs), {'key': key_val}).fetchall()
-    
-    # 3. Build Paths
-    s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
-    base_path = os.path.join(current_app.root_path, 'data', s.state_name, c.county_name, 'Images')
-    
-    images = []
-    for i in imgs:
-        if i.col03varchar:
-            full_path = os.path.join(base_path, i.col03varchar)
-            safe_path = urllib.parse.quote(full_path)
-            images.append({'src': f"/api/tools/inst-corrections/view-image?path={safe_path}"})
+    try:
+        record_id = request.json.get('record_id')
+        county_id = request.json.get('county_id')
+        
+        c = db.session.get(IndexingCounties, county_id)
+        
+        sql_key = "SELECT OriginalValue FROM GenericDataImport WHERE id = :id"
+        key_res = db.session.execute(text(sql_key), {'id': record_id}).fetchone()
+        if not key_res: return jsonify({'success': False, 'images': []})
+        
+        key_val = key_res[0]
+        
+        sql_imgs = "SELECT col03varchar FROM GenericDataImport WHERE fn LIKE '%image%' AND keyOriginalValue = :key ORDER BY fn"
+        imgs = db.session.execute(text(sql_imgs), {'key': key_val}).fetchall()
+        
+        s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
+        base_path = os.path.join(current_app.root_path, 'data', s.state_name, c.county_name, 'Images')
+        
+        images = []
+        for i in imgs:
+            if i.col03varchar:
+                full_path = os.path.join(base_path, i.col03varchar)
+                safe_path = urllib.parse.quote(full_path)
+                images.append({'src': f"/api/tools/inst-corrections/view-image?path={safe_path}"})
 
-    return jsonify({'success': True, 'images': images})
+        return jsonify({'success': True, 'images': images})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @review_legal_bp.route('/api/tools/legal-others/search-tr', methods=['POST'])
 @login_required
 def search_tr():
-    data = request.json
-    c = db.session.get(IndexingCounties, data.get('county_id'))
-    tbl = get_tables(c.county_name)['tr']
-    col = 'Township' if data.get('mode') == 'township' else 'Range'
-    
-    sql = f"SELECT DISTINCT {col} FROM {tbl} WHERE {col} LIKE :term AND Active = 1 ORDER BY {col}"
-    res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
-    return jsonify([r[0] for r in res])
+    try:
+        data = request.json
+        c = db.session.get(IndexingCounties, data.get('county_id'))
+        tbl = get_tables(c.county_name)['tr']
+        col = 'Township' if data.get('mode') == 'township' else 'Range'
+        
+        sql = f"SELECT DISTINCT {col} FROM {tbl} WHERE {col} LIKE :term AND Active = 1 ORDER BY {col}"
+        res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
+        return jsonify([r[0] for r in res])
+    except: return jsonify([])
 
 @review_legal_bp.route('/api/tools/legal-others/search-adds', methods=['POST'])
 @login_required
 def search_adds():
-    data = request.json
-    c = db.session.get(IndexingCounties, data.get('county_id'))
-    tbl = get_tables(c.county_name)['adds']
-    
-    sql = f"SELECT Name FROM {tbl} WHERE Name LIKE :term AND Active = 1 ORDER BY Name"
-    res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
-    return jsonify([r[0] for r in res])
+    try:
+        data = request.json
+        c = db.session.get(IndexingCounties, data.get('county_id'))
+        tbl = get_tables(c.county_name)['adds']
+        
+        sql = f"SELECT Name FROM {tbl} WHERE Name LIKE :term AND Active = 1 ORDER BY Name"
+        res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
+        return jsonify([r[0] for r in res])
+    except: return jsonify([])
 
 @review_legal_bp.route('/api/tools/legal-others/save', methods=['POST'])
 @login_required
@@ -120,11 +144,12 @@ def save_record():
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     try:
+        # ValidationStatus REMOVED from update
         sql = """
         UPDATE GenericDataImport
         SET col02varchar = :c2, col03varchar = :c3, col04varchar = :c4,
             col05varchar = :c5, col06varchar = :c6, col07varchar = :c7,
-            col08varchar = :c8, ValidationStatus = 'Reviewed'
+            col08varchar = :c8
         WHERE id = :id
         """
         db.session.execute(text(sql), {
