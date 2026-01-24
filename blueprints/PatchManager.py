@@ -49,7 +49,6 @@ def create_backup(root, current_ver):
     try:
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for foldername, subfolders, filenames in os.walk(root):
-                # Exclude data, versions, and system folders
                 subfolders[:] = [d for d in subfolders if d not in [BACKUP_DIR, 'data', '.git', '__pycache__', 'instance', 'venv', '.idea']]
 
                 for filename in filenames:
@@ -68,7 +67,6 @@ def create_backup(root, current_ver):
 def restart_server():
     print(" >>> SYSTEM UPDATE COMPLETE.")
     
-    # Check if running with Flask Auto-Reloader (Development Mode)
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         print(" >>> DETECTED FLASK RELOADER: Letting file change trigger auto-restart.")
         return
@@ -87,9 +85,23 @@ class SimplePatcher:
         
         for hunk in hunks:
             full_path = os.path.join(root_path, hunk['file'])
+            
+            # --- NEW FILE CREATION LOGIC ---
             if not os.path.exists(full_path):
-                results.append(f"Skipped {hunk['file']} (File not found)")
+                # If the 'search' block is empty, it means we are creating a new file
+                if not hunk['search'].strip():
+                    try:
+                        # Ensure directory exists
+                        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                        with open(full_path, 'w', encoding='utf-8') as f:
+                            f.write(hunk['replace'])
+                        results.append(f"Created {hunk['file']}")
+                    except Exception as e:
+                        results.append(f"Error creating {hunk['file']}: {str(e)}")
+                else:
+                    results.append(f"Skipped {hunk['file']} (File not found & not a creation patch)")
                 continue
+            # -------------------------------
             
             try:
                 with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -160,7 +172,6 @@ def get_version():
 @login_required
 def apply_patch():
     try:
-        # 1. SECURITY CHECKS
         if current_user.role != 'admin':
             return jsonify({'success': False, 'message': 'Unauthorized'}), 403
         
@@ -169,11 +180,8 @@ def apply_patch():
 
         patch_content = ""
 
-        # 2. DETERMINE SOURCE (Text vs File)
         if 'patch_content' in request.form and request.form['patch_content'].strip():
             patch_content = request.form['patch_content']
-            
-            # Auto-save manual patch
             try:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 filename = f"manual_patch_{timestamp}.diff"
@@ -193,27 +201,21 @@ def apply_patch():
             return jsonify({'success': False, 'message': 'No patch data provided'}), 400
 
         root = current_app.root_path
-        
-        # 3. BACKUP
         current_v = load_version(root)['string']
         backup_name = create_backup(root, current_v)
         
         if not backup_name:
             return jsonify({'success': False, 'message': 'Backup failed. Update aborted.'}), 500
 
-        # 4. APPLY PATCH
         patch_content = patch_content.replace('\r\n', '\n')
         patcher = SimplePatcher()
         logs = patcher.apply(patch_content, root)
         
-        # 5. INCREMENT VERSION
         new_v = increment_version(root)
         
-        # 6. LOGS
         log_text = f"BACKUP: {backup_name}\nVERSION: {current_v} -> {new_v}\n--------------------------\n" + "\n".join(logs)
         print(f"\n >>> PATCH REPORT:\n{log_text}\n")
 
-        # 7. TRIGGER RESTART
         threading.Thread(target=restart_server).start()
 
         return jsonify({
@@ -224,5 +226,5 @@ def apply_patch():
 
     except Exception as e:
         import traceback
-        traceback.print_exc() # Print full error to console for debugging
+        traceback.print_exc()
         return jsonify({'success': False, 'message': f"Server Error: {str(e)}"}), 500
