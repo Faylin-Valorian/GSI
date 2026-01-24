@@ -2,16 +2,20 @@
     let currentLinkupCountyId = null;
     let linkupMgr = null;
 
-    function openLinkupModal(id, name) {
-        closeAllModals(); currentLinkupCountyId = id;
-        document.getElementById('linkupCountyName').innerText = name;
+    function openLinkupModal(passedId) {
+        closeAllModals(); 
+        let countyId = passedId || (document.getElementById('eDataCountyId') ? document.getElementById('eDataCountyId').value : null);
+        if (!countyId) return showNotification("No County Selected");
         
-        // UI Toggles
-        const bookToggle = document.getElementById('linkupToggleBook');
-        const pathToggle = document.getElementById('linkupTogglePath');
-        bookToggle.onchange = () => document.getElementById('linkupBookContainer').classList.toggle('d-none', !bookToggle.checked);
-        pathToggle.onchange = () => document.getElementById('linkupImgPath').classList.toggle('d-none', !pathToggle.checked);
+        currentLinkupCountyId = countyId; 
+        
+        // Set Header
+        const countyName = document.getElementById('prepCountyName') ? document.getElementById('prepCountyName').innerText : 'Unknown'; 
+        // Better logic to find name if opened directly? For now rely on sidebar context or passed arg if possible
+        // Actually, just set ID, the name loads via the sidebar usually.
+        if(document.getElementById('linkupCountyName')) document.getElementById('linkupCountyName').innerText = "County ID: " + countyId;
 
+        
         if(!linkupMgr) {
             linkupMgr = new PreviewManager({
                 prefix: 'linkup',
@@ -32,27 +36,75 @@
         }
         linkupMgr.reset();
         
+        // Auto-fetch defaults
+        fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`).then(r=>r.json()).then(d=>{
+            if(d.success && d.found) {
+                document.getElementById('linkupBookStart').value = d.book_start;
+                document.getElementById('linkupBookEnd').value = d.book_end;
+                document.getElementById('linkupImgPath').value = d.path_prefix;
+            }
+        });
+
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
         if(linkupModal) linkupModal.show();
     }
 
     function closeLinkupModal() { if(linkupModal) linkupModal.hide(); }
 
+    function toggleLinkupBookInputs() {
+        const el = document.getElementById('linkupBookContainer');
+        if(document.getElementById('linkupToggleBook').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
+    }
+    
+    function toggleLinkupPathInput() {
+        const el = document.getElementById('linkupPathContainer');
+        if(document.getElementById('linkupTogglePath').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
+    }
+
     function runLinkupTool() {
         const btn = document.querySelector('#linkupModal .btn-warning');
         const res = document.getElementById('linkupResult');
-        btn.disabled = true; res.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+        btn.disabled = true; 
+        document.getElementById('linkupProgressContainer').classList.remove('d-none');
+        const pBar = document.getElementById('linkupProgressBar');
+        pBar.style.width = '0%';
         
         if(linkupMgr) linkupMgr.reset();
         
-        const payload = linkupMgr.payloadProvider(); // Reuse payload logic
+        const payload = linkupMgr.payloadProvider();
         
-        fetch('/api/tools/initial-keli-linkup/run', {
+        fetch('/api/tools/initial-keli-linkup/execute', {
             method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
-        }).then(r => r.json()).then(d => {
-            btn.disabled = false;
-            if(d.success) res.innerHTML = `<div class="alert alert-success">${d.message}</div>`;
-            else res.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
-        }).catch(e => { btn.disabled = false; res.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+        }).then(response => {
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            function read() { 
+                reader.read().then(({ done, value }) => {
+                    if (done) { btn.disabled = false; return; }
+                    const lines = decoder.decode(value).split('\n');
+                    lines.forEach(l => { 
+                        if(l) try { 
+                            const d = JSON.parse(l);
+                            if(d.type === 'progress') { 
+                                pBar.style.width = d.percent + '%'; 
+                                document.getElementById('linkupProgressPercent').innerText = d.percent + '%'; 
+                                document.getElementById('linkupProgressLabel').innerText = d.message;
+                            }
+                            if(d.type === 'complete') { 
+                                pBar.style.width = '100%'; 
+                                res.innerHTML = `<div class="alert alert-success">${d.message}</div>`; 
+                            }
+                            if(d.type === 'error') {
+                                res.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                            }
+                        } catch(e){} 
+                    });
+                    read();
+                }); 
+            } 
+            read();
+        }).catch(e => { 
+            btn.disabled = false; 
+            res.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; 
+        });
     }
 </script>

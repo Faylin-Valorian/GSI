@@ -6,13 +6,18 @@
         closeAllModals(); currentPrepCountyId = id;
         document.getElementById('prepCountyName').innerText = name;
         
+        // Init Preview Manager
         if(!prepMgr) {
             prepMgr = new PreviewManager({
                 prefix: 'prep',
                 apiPreview: '/api/tools/initial-prep/preview',
                 apiDownload: '/api/tools/initial-prep/download-sql',
                 filename: 'Initial_Prep.sql',
-                payloadProvider: () => ({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
+                payloadProvider: () => ({ 
+                    county_id: currentPrepCountyId, 
+                    book_start: document.getElementById('prepBookStart').value, 
+                    book_end: document.getElementById('prepBookEnd').value 
+                })
             });
         }
         prepMgr.reset();
@@ -23,23 +28,70 @@
 
     function closePrepModal() { if(prepModal) prepModal.hide(); }
 
+    function togglePrepBookInputs() {
+        if(document.getElementById('prepToggleBook').checked) {
+            document.getElementById('prepBookInputsContainer').classList.remove('d-none');
+            fetch('/api/tools/initial-prep/get-book-range/'+currentPrepCountyId).then(r=>r.json()).then(d=>{ 
+                if(d.found){ 
+                    document.getElementById('prepBookStart').value=d.start; 
+                    document.getElementById('prepBookEnd').value=d.end; 
+                }
+            });
+        } else { 
+            document.getElementById('prepBookInputsContainer').classList.add('d-none'); 
+        }
+    }
+
     function runPrepTool() {
         const btn = document.querySelector('#prepModal .btn-primary');
         const res = document.getElementById('prepResult');
-        btn.disabled = true; res.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> Processing...';
+        btn.disabled = true; 
+        document.getElementById('prepProgressContainer').classList.remove('d-none');
+        const pBar = document.getElementById('prepProgressBar');
+        pBar.style.width = '0%';
         
         if(prepMgr) prepMgr.reset();
         
-        fetch('/api/tools/initial-prep/run', {
+        fetch('/api/tools/initial-prep/execute', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
-        }).then(r => r.json()).then(d => {
-            btn.disabled = false;
-            if(d.success) res.innerHTML = `<div class="alert alert-success">${d.message}</div>`;
-            else res.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
-        }).catch(e => { btn.disabled = false; res.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+            body: JSON.stringify({ 
+                county_id: currentPrepCountyId, 
+                book_start: document.getElementById('prepBookStart').value, 
+                book_end: document.getElementById('prepBookEnd').value 
+            })
+        }).then(response => {
+            const reader = response.body.getReader(); const decoder = new TextDecoder();
+            function read() { 
+                reader.read().then(({ done, value }) => {
+                    if (done) { btn.disabled = false; return; }
+                    const lines = decoder.decode(value).split('\n');
+                    lines.forEach(l => { 
+                        if(l) try { 
+                            const d = JSON.parse(l);
+                            if(d.type === 'progress') { 
+                                pBar.style.width = d.percent + '%'; 
+                                document.getElementById('prepProgressPercent').innerText = d.percent + '%'; 
+                                document.getElementById('prepProgressLabel').innerText = d.message; 
+                            }
+                            if(d.type === 'complete') { 
+                                pBar.style.width = '100%'; 
+                                res.innerHTML = `<div class="alert alert-success">${d.message}</div>`; 
+                            }
+                            if(d.type === 'error') {
+                                res.innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+                            }
+                        } catch(e){} 
+                    });
+                    read();
+                }); 
+            } 
+            read();
+        }).catch(e => { 
+            btn.disabled = false; 
+            res.innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; 
+        });
     }
 
-    // --- FIX: Add Aliases for Backward Compatibility ---
+    // Backward Compatibility
     window.openInitialPrepTool = openPrepModal;
 </script>
