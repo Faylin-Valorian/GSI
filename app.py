@@ -36,6 +36,7 @@ from blueprints.InstrumentTypeCorrections import inst_type_bp
 from blueprints.InitialKeliLinkup import initial_linkup_bp
 from blueprints.EDataErrors import edata_errors_bp
 from blueprints.ImportEDataErrors import import_edata_errors_bp
+from blueprints.ReviewLegalTypeOthers import review_legal_bp
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
@@ -124,6 +125,7 @@ app.register_blueprint(inst_type_bp)
 app.register_blueprint(edata_errors_bp)
 app.register_blueprint(initial_linkup_bp) 
 app.register_blueprint(import_edata_errors_bp)
+app.register_blueprint(review_legal_bp)
 
 # --- MIDDLEWARE: FORCE SETUP ---
 @app.before_request

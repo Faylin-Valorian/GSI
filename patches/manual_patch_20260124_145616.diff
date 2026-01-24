@@ -1,0 +1,127 @@
+--- a/blueprints/ReviewLegalTypeOthers.py
++++ b/blueprints/ReviewLegalTypeOthers.py
+@@ -31,8 +31,8 @@
+         SELECT id, OriginalValue, col01varchar, col02varchar, col03varchar, col04varchar, 
+                col05varchar, col06varchar, col07varchar, col08varchar
+         FROM GenericDataImport
+-        WHERE fn LIKE '%legal%' 
+-          AND legal_type = 'Other'
++        WHERE fn LIKE '%legal%'
++          AND (col01varchar = 'Other' OR col01varchar = 'O')
+           AND ValidationStatus != 'Reviewed'
+         ORDER BY id
+         """
+--- a/templates/components/modals/ReviewLegalTypeOthers.html
++++ b/templates/components/modals/ReviewLegalTypeOthers.html
+@@ -29,14 +29,13 @@
+                     <div class="p-3 bg-dark" style="height: auto; min-height: 300px;">
+                         <div class="d-flex justify-content-between mb-3">
+                             <span class="text-white fw-bold" id="rloCurrentRecordLabel">Record #</span>
+-                            <button class="btn btn-sm btn-success px-4" onclick="rloSave()" id="rloSaveBtn" disabled>SAVE & NEXT</button>
++                            <span class="text-muted small fst-italic" id="rloSaveStatus"></span>
+                         </div>
+ 
+                         <div class="row g-3">
+                             <div class="col-md-2">
+                                 <label class="form-label x-small text-muted text-uppercase">Section (1-32)</label>
+-                                <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)">
++                                <input type="number" id="rloCol02" class="form-control form-control-sm bg-black text-white border-secondary" min="1" max="32" oninput="rloValidateSection(this)" onchange="rloAutoSave()">
+                             </div>
+                             
+                             -                                <div class="input-group input-group-sm">
+-                                    <input type="text" id="rloCol03" class="form-control bg-black text-white border-secondary" list="rloTownshipList" oninput="rloSearchTR(this, 'township')">
++                            <div class="col-md-3">
++                                <label class="form-label x-small text-muted text-uppercase">Township</label>
++                                <div class="input-group input-group-sm">
++                                    <input type="text" id="rloCol03" class="form-control bg-black text-white border-secondary" list="rloTownshipList" oninput="rloSearchTR(this, 'township')" onchange="rloAutoSave()">
+                                     <datalist id="rloTownshipList"></datalist>
+                                 </div>
+                             </div>
+                             
+                             -                                <div class="input-group input-group-sm">
+-                                    <input type="text" id="rloCol04" class="form-control bg-black text-white border-secondary" list="rloRangeList" oninput="rloSearchTR(this, 'range')">
++                            <div class="col-md-3">
++                                <label class="form-label x-small text-muted text-uppercase">Range</label>
++                                <div class="input-group input-group-sm">
++                                    <input type="text" id="rloCol04" class="form-control bg-black text-white border-secondary" list="rloRangeList" oninput="rloSearchTR(this, 'range')" onchange="rloAutoSave()">
+                                     <datalist id="rloRangeList"></datalist>
+                                 </div>
+                             </div>
+ 
+                             -                                <div class="input-group input-group-sm">
+-                                    <input type="text" id="rloCol05" class="form-control bg-black text-white border-secondary" list="rloAddList" oninput="rloSearchAdd(this)">
++                            <div class="col-md-4">
++                                <label class="form-label x-small text-muted text-uppercase">Addition</label>
++                                <div class="input-group input-group-sm">
++                                    <input type="text" id="rloCol05" class="form-control bg-black text-white border-secondary" list="rloAddList" oninput="rloSearchAdd(this)" onchange="rloAutoSave()">
+                                     <datalist id="rloAddList"></datalist>
+                                 </div>
+                             </div>
+                             
+                             <div class="col-md-3">
+                                 <label class="form-label x-small text-muted text-uppercase">Lot / Col 6</label>
+-                                <input type="text" id="rloCol06" class="form-control form-control-sm bg-black text-white border-secondary">
++                                <input type="text" id="rloCol06" class="form-control form-control-sm bg-black text-white border-secondary" onchange="rloAutoSave()">
+                             </div>
+ 
+                             <div class="col-md-3">
+                                 <label class="form-label x-small text-muted text-uppercase">Block / Col 7</label>
+-                                <input type="text" id="rloCol07" class="form-control form-control-sm bg-black text-white border-secondary">
++                                <input type="text" id="rloCol07" class="form-control form-control-sm bg-black text-white border-secondary" onchange="rloAutoSave()">
+                             </div>
+ 
+                             --- a/templates/components/scripts/ReviewLegalTypeOthers.html
++++ b/templates/components/scripts/ReviewLegalTypeOthers.html
+@@ -39,7 +39,6 @@
+     function rloLoadRecord(record) {
+         rloCurrentRecord = record;
+         document.getElementById('rloCurrentRecordLabel').innerText = `Record #${record.id}`;
+-        document.getElementById('rloSaveBtn').disabled = false;
+         
+         // Load Fields
+         document.getElementById('rloCol02').value = record.fields.col02 || '';
+@@ -122,12 +121,13 @@
+     function rloUpdateDirInput() {
+         const vals = [...document.getElementById('rloDirTags').children].map(c => c.dataset.val);
+         document.getElementById('rloCol08').value = vals.join(', ');
++        rloAutoSave();
+     }
+ 
+-    // --- SAVE ---
+-    function rloSave() {
++    // --- AUTO SAVE ---
++    function rloAutoSave() {
+         if(!rloCurrentRecord) return;
++        const statusEl = document.getElementById('rloSaveStatus');
++        statusEl.innerText = 'Saving...';
+         
+         const payload = {
+             id: rloCurrentRecord.id,
+@@ -140,24 +140,11 @@
+             col08: document.getElementById('rloCol08').value
+         };
+         
+-        const btn = document.getElementById('rloSaveBtn');
+-        btn.disabled = true;
+-        btn.innerText = 'Saving...';
+-        
+         fetch('/api/tools/legal-others/save', {
+             method: 'POST', headers: {'Content-Type': 'application/json'},
+             body: JSON.stringify(payload)
+         }).then(r => r.json()).then(d => {
+-            btn.innerText = 'SAVE & NEXT';
+             if(d.success) {
+-                // Remove from list or visual check
+-                rloFetchList(); // Refresh list to move to next
+-                // Reset form
+-                rloCurrentRecord = null;
+-                document.getElementById('rloMainImage').style.display = 'none';
+-                document.getElementById('rloNoImage').style.display = 'block';
+-            } else {
+-                alert('Save failed: ' + d.message);
+-                btn.disabled = false;
++                statusEl.innerText = 'Saved';
++                setTimeout(() => { if(statusEl.innerText === 'Saved') statusEl.innerText = ''; }, 2000);
+             }
+         });
+     }
