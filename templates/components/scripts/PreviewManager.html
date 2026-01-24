@@ -8,6 +8,63 @@ class PreviewManager {
         this.prefix = config.prefix;       // Unique ID prefix (e.g., 'ede', 'keli')
         this.apiPreview = config.apiPreview; 
         this.apiDownload = config.apiDownload;
+        this.payloadProvider = config.payloadProvider; // Function returning the JSON payload
+        this.filename = config.filename || 'Script.sql';
+
+        // Bind DOM Elements
+        this.container = document.getElementById(`${this.prefix}PreviewContainer`);
+        this.output = document.getElementById(`${this.prefix}PreviewOutput`);
+        this.btnSave = document.getElementById(`${this.prefix}BtnSave`);
+
+        // Bind Save Action
+        if(this.btnSave) {
+            this.btnSave.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.download();
+            };
+        }
+    }
+
+    // Toggle Logic: If open, close it. If closed, generate and open.
+    toggle() {
+        if (!this.container.classList.contains('d-none')) {
+            this.container.classList.add('d-none');
+            return;
+        }
+        this.generate();
+    }
+
+    generate() {
+        const payload = this.payloadProvider();
+        if (!payload) return; // Validation failed in the provider
+
+        this.container.classList.remove('d-none');
+        this.output.innerText = 'Generating Preview...';
+
+        fetch(this.apiPreview, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.json())
+        .then(d => { this.output.innerText = d.success ? d.sql : `Error: ${d.message}`; })
+        .catch(e => { this.output.innerText = `Connection Error: ${e}`; });
+    }
+
+    download() {
+        const payload = this.payloadProvider();
+        if (!payload) return;
+        fetch(this.apiDownload, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+        .then(r => r.blob()).then(blob => { const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = this.filename; document.body.appendChild(a); a.click(); a.remove(); });
+    }
+}
+</script><script>
+/**
+ * Universal Preview Manager
+ * Handles Toggling, API Fetching, and File Downloading for any tool.
+ */
+class PreviewManager {
+    constructor(config) {
+        this.prefix = config.prefix;       // Unique ID prefix (e.g., 'ede', 'keli')
+        this.apiPreview = config.apiPreview; 
+        this.apiDownload = config.apiDownload;
         this.payloadProvider = config.payloadProvider; // Function returning JSON data
         this.filename = config.filename || 'Script.sql';
 

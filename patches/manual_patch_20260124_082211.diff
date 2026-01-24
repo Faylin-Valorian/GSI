@@ -1,0 +1,276 @@
+--- a/templates/components/modals/AlterDatabaseFields.html
++++ b/templates/components/modals/AlterDatabaseFields.html
+@@ -1,3 +1,4 @@
++{% from 'components/parts/PreviewArea.html' import preview_area %}
+ <div class="modal fade" id="alterDbModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+         <div class="modal-content border-0 shadow-lg" style="background: #1e1e24; color: #e0e0e0;">
+@@ -40,16 +41,10 @@
+                         </div>
+                     </div>
+                 </div>
+-                <div id="alterDbPreviewContainer" class="d-none bg-black border-top border-secondary p-3">
+-                    <div class="d-flex justify-content-between align-items-center mb-2">
+-                        <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
+-                        <button class="btn btn-xs btn-outline-secondary" onclick="copyAlterDbSql()">Copy</button>
+-                    </div>
+-                    <pre id="alterDbSqlOutput" class="text-success small font-monospace m-0" style="max-height: 150px; overflow-y: auto; white-space: pre-wrap;"></pre>
+-                </div>
++                {{ preview_area('alterDb') }}
+             </div>
+             <div class="modal-footer border-top border-secondary justify-content-between bg-dark">
+                 <div class="d-flex align-items-center">
+-                    <button id="btnAlterDbPreview" class="btn btn-sm btn-outline-warning d-none me-2" onclick="alterDbGeneratePreview()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                    <button id="btnAlterDbPreview" class="btn btn-sm btn-outline-warning d-none me-2" onclick="alterDbMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                     <span id="alterDbStatus" class="text-muted small fst-italic">Loading...</span>
+                 </div>
+                 <div>
+--- a/templates/components/scripts/AlterDatabaseFields.html
++++ b/templates/components/scripts/AlterDatabaseFields.html
+@@ -1,12 +1,16 @@
+ <script>
++    let alterDbMgr = null;
+     function openAlterDbModal() {
+         closeAllModals();
+         if(alterDbModal) alterDbModal.show();
+         // Reset UI
+         document.getElementById('alterDbFieldsBody').innerHTML = '<tr><td colspan="4" class="text-center p-3 text-muted">Scanning Schema...</td></tr>';
+         document.getElementById('alterDbAddBody').innerHTML = '';
+-        document.getElementById('alterDbPreviewContainer').classList.add('d-none');
+         document.getElementById('alterDbStatus').innerText = 'Scanning Schema...';
+         document.getElementById('btnAlterDbRun').disabled = true;
+         
++        alterDbMgr = new PreviewManager({
++            prefix: 'alterDb', apiPreview: '/api/tools/alter-db/preview', apiDownload: '/api/tools/alter-db/download-sql',
++            filename: 'Schema_Update.sql', payloadProvider: alterDbCollectData
++        });
++        alterDbMgr.reset();
++        
+         if(typeof updateToolDebugVisibility === 'function') updateToolDebugVisibility();
+ 
+         fetch('/api/tools/alter-db/init').then(r => r.json()).then(d => {
+@@ -53,24 +57,4 @@
+         return { renames, new_fields: newFields };
+     }
+ 
+-    function alterDbGeneratePreview() {
+-        const cont = document.getElementById('alterDbPreviewContainer');
+-        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
+-        cont.classList.remove('d-none');
+-        const payload = alterDbCollectData();
+-        document.getElementById('alterDbSqlOutput').innerText = 'Generating...';
+-        fetch('/api/tools/alter-db/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+-        .then(r => r.json()).then(d => document.getElementById('alterDbSqlOutput').innerText = d.success ? d.sql : "Error: " + d.message);
+-    }
+-
+-    function downloadAlterDbSQL() {
+-        const payload = alterDbCollectData();
+-        fetch('/api/tools/alter-db/download-sql', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+-        .then(r => r.blob())
+-        .then(blob => {
+-            const url = window.URL.createObjectURL(blob);
+-            const a = document.createElement('a'); a.href = url; a.download = "Schema_Update.sql";
+-            document.body.appendChild(a); a.click(); a.remove();
+-        });
+-    }
+-
+     function alterDbRun() {
+         const payload = alterDbCollectData();
+@@ -87,7 +71,6 @@
+         }).catch(e => { btn.disabled = false; document.getElementById('alterDbStatus').innerText = 'Connection Failed'; });
+     }
+-    function copyAlterDbSql() { navigator.clipboard.writeText(document.getElementById('alterDbSqlOutput').innerText); }
+ 
+     // --- FIX: Add Alias for Popup Compatibility ---
+     window.openAlterDbTool = openAlterDbModal;
+--- a/templates/components/modals/InitialPreparation.html
++++ b/templates/components/modals/InitialPreparation.html
+@@ -1,3 +1,4 @@
++{% from 'components/parts/PreviewArea.html' import preview_area %}
+ <div class="modal fade" id="initialPrepModal" tabindex="-1" data-bs-backdrop="static">
+     <div class="modal-dialog modal-lg modal-dialog-centered">
+         <div class="modal-content custom-panel border-info">
+@@ -32,13 +33,9 @@
+                     <div class="d-flex justify-content-between align-items-center mb-1"><label class="small text-info" id="prepProgressLabel">Processing...</label><span class="small text-muted" id="prepProgressPercent">0%</span></div>
+                     <div class="progress bg-dark border border-secondary" style="height: 20px;"><div id="prepProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%"></div></div>
+                 </div>
+-                <div id="prepDebugPanel" class="d-none mb-3">
+-                    <div class="d-flex justify-content-between align-items-end mb-1"><label class="text-warning small fw-bold">Debug: SQL Preview</label><button class="btn btn-xs btn-outline-secondary" onclick="copyPrepSql()">Copy</button></div>
+-                    <textarea id="prepSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 150px;" readonly></textarea>
+-                </div>
++                {{ preview_area('prep') }}
+                 <div id="prepResult" class="text-center small mt-3"></div>
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnPrepPreview" onclick="previewPrepSql()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
++                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnPrepPreview" onclick="prepMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
+                 <div><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-info fw-bold text-dark" onclick="runPrepTool()" id="btnRunPrep"><i class="bi bi-play-fill me-1"></i>Run Preparation</button></div>
+             </div>
+         </div>
+--- a/templates/components/scripts/InitialPreparation.html
++++ b/templates/components/scripts/InitialPreparation.html
+@@ -1,10 +1,16 @@
+ <script>
+     var currentPrepCountyId = null; 
++    let prepMgr = null;
+     function openInitialPrepTool(id) {
+         closeAllModals(); currentPrepCountyId = id;
+         document.getElementById('prepResult').innerHTML='';
+         document.getElementById('prepProgressContainer').classList.add('d-none');
+-        document.getElementById('prepDebugPanel').classList.add('d-none');
++        
++        prepMgr = new PreviewManager({
++            prefix: 'prep', apiPreview: '/api/tools/initial-prep/preview', apiDownload: '/api/tools/initial-prep/download-sql',
++            filename: 'Initial_Prep.sql', payloadProvider: () => ({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
++        });
++        prepMgr.reset();
++        
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(initialPrepModal) initialPrepModal.show();
+     }
+@@ -14,29 +20,4 @@
+         } else { document.getElementById('prepBookInputsContainer').classList.add('d-none'); }
+     }
+-    function previewPrepSql() {
+-        const btn = document.getElementById('btnPrepPreview');
+-        const cont = document.getElementById('prepDebugPanel');
+-        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
+-        
+-        const textarea = document.getElementById('prepSqlPreview');
+-        btn.disabled = true;
+-        fetch('/api/tools/initial-prep/preview', {
+-            method: 'POST', headers: {'Content-Type': 'application/json'},
+-            body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
+-        }).then(r => r.json()).then(d => {
+-            btn.disabled = false;
+-            if(d.success) { cont.classList.remove('d-none'); textarea.value = d.sql; document.getElementById('prepResult').innerHTML = ''; } 
+-            else { document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
+-        }).catch(e => { btn.disabled = false; document.getElementById('prepResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+-    }
+-    function downloadPrepSQL() {
+-        fetch('/api/tools/initial-prep/download-sql', {
+-            method: 'POST', headers: {'Content-Type': 'application/json'},
+-            body: JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
+-        })
+-        .then(r => r.blob())
+-        .then(blob => {
+-            const url = window.URL.createObjectURL(blob);
+-            const a = document.createElement('a'); a.href = url; a.download = "Initial_Prep.sql";
+-            document.body.appendChild(a); a.click(); a.remove();
+-        });
+-    }
+-    function copyPrepSql() { navigator.clipboard.writeText(document.getElementById("prepSqlPreview").value); }
+     function runPrepTool() {
+         const btn = document.getElementById('btnRunPrep'); btn.disabled = true;
+--- a/templates/components/modals/InitialKeliLinkup.html
++++ b/templates/components/modals/InitialKeliLinkup.html
+@@ -1,3 +1,4 @@
++{% from 'components/parts/PreviewArea.html' import preview_area %}
+ <div class="modal fade" id="keliLinkupModal" tabindex="-1" data-bs-backdrop="static">
+     <div class="modal-dialog modal-lg modal-dialog-centered">
+         <div class="modal-content custom-panel" style="border-color: #d63384;">
+@@ -37,10 +38,7 @@
+                     <div class="d-flex justify-content-between align-items-center mb-1"><label class="small" style="color: #d63384;" id="linkupProgressLabel">Processing...</label><span class="small text-muted" id="linkupProgressPercent">0%</span></div>
+                     <div class="progress bg-dark border border-secondary" style="height: 20px;"><div id="linkupProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%; background-color: #d63384;"></div></div>
+                 </div>
+-                <div id="linkupDebugPanel" class="d-none mb-3">
+-                    <div class="d-flex justify-content-between align-items-end mb-1"><label class="text-warning small fw-bold">Debug: SQL Preview</label><button class="btn btn-xs btn-outline-secondary" onclick="copyLinkupSql()">Copy</button></div>
+-                    <textarea id="linkupSqlPreview" class="form-control bg-black text-success border-warning font-monospace small" style="height: 150px;" readonly></textarea>
+-                </div>
++                {{ preview_area('linkup') }}
+                 <div id="linkupResult" class="text-center small mt-3"></div>
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnLinkupPreview" onclick="previewLinkupSql()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
++                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnLinkupPreview" onclick="linkupMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
+                 <div><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn fw-bold text-white" style="background-color: #d63384;" onclick="runLinkupTool()" id="btnRunLinkup"><i class="bi bi-play-fill me-1"></i>Run Linkup</button></div>
+             </div>
+         </div>
+--- a/templates/components/scripts/InitialKeliLinkup.html
++++ b/templates/components/scripts/InitialKeliLinkup.html
+@@ -1,13 +1,22 @@
+ <script>
+     var currentLinkupCountyId = null; 
++    let linkupMgr = null;
+     function openLinkupModal(passedId) {
+         closeAllModals(); 
+         let countyId = passedId || (document.getElementById('eDataCountyId') ? document.getElementById('eDataCountyId').value : null);
+         if (!countyId) return showNotification("No County Selected");
+         currentLinkupCountyId = countyId; 
+         if(linkupModal) linkupModal.show();
+         
+         document.getElementById('linkupResult').innerHTML = '';
+         document.getElementById('linkupProgressContainer').classList.add('d-none');
+-        document.getElementById('linkupDebugPanel').classList.add('d-none');
++        
++        linkupMgr = new PreviewManager({
++            prefix: 'linkup', apiPreview: '/api/tools/initial-keli-linkup/preview', apiDownload: '/api/tools/initial-keli-linkup/download-sql',
++            filename: 'Keli_Linkup.sql', 
++            payloadProvider: () => {
++                // Re-using the payload logic from the run function for the preview
++                return {
++                    county_id: currentLinkupCountyId,
++                    use_book_range: document.getElementById('linkupToggleBook').checked,
++                    book_start: document.getElementById('linkupBookStart').value,
++                    book_end: document.getElementById('linkupBookEnd').value,
++                    use_path: document.getElementById('linkupTogglePath').checked,
++                    image_path_prefix: document.getElementById('linkupImgPath').value,
++                    split_images: document.getElementById('linkupSplitImages').checked,
++                    linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
++                };
++            }
++        });
++        linkupMgr.reset();
++        
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+ 
+         fetch(`/api/tools/initial-keli-linkup/defaults/${currentLinkupCountyId}`).then(r=>r.json()).then(d=>{
+             if(d.success && d.found) {
+@@ -29,31 +38,4 @@
+     function toggleLinkupPathInput() {
+         const el = document.getElementById('linkupPathContainer');
+         if(document.getElementById('linkupTogglePath').checked) el.classList.remove('d-none'); else el.classList.add('d-none');
+     }
+-    function previewLinkupSql() {
+-        const btn = document.getElementById('btnLinkupPreview'); btn.disabled = true;
+-        const cont = document.getElementById('linkupDebugPanel');
+-        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); btn.disabled = false; return; }
+-        
+-        const payload = {
+-            county_id: currentLinkupCountyId,
+-            use_book_range: document.getElementById('linkupToggleBook').checked,
+-            book_start: document.getElementById('linkupBookStart').value,
+-            book_end: document.getElementById('linkupBookEnd').value,
+-            use_path: document.getElementById('linkupTogglePath').checked,
+-            image_path_prefix: document.getElementById('linkupImgPath').value,
+-            split_images: document.getElementById('linkupSplitImages').checked,
+-            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+-        };
+-        fetch('/api/tools/initial-keli-linkup/preview', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+-        .then(r => r.json()).then(d => {
+-            btn.disabled = false;
+-            if(d.success) { cont.classList.remove('d-none'); document.getElementById('linkupSqlPreview').value = d.sql; document.getElementById('linkupResult').innerHTML = ''; } 
+-            else { document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`; }
+-        }).catch(e => { btn.disabled = false; document.getElementById('linkupResult').innerHTML = `<div class="alert alert-danger">Error: ${e}</div>`; });
+-    }
+-    function downloadLinkupSQL() {
+-        const payload = {
+-            county_id: currentLinkupCountyId,
+-            use_book_range: document.getElementById('linkupToggleBook').checked,
+-            book_start: document.getElementById('linkupBookStart').value,
+-            book_end: document.getElementById('linkupBookEnd').value,
+-            use_path: document.getElementById('linkupTogglePath').checked,
+-            image_path_prefix: document.getElementById('linkupImgPath').value,
+-            split_images: document.getElementById('linkupSplitImages').checked,
+-            linkup_mode: document.querySelector('input[name="linkupMode"]:checked').value
+-        };
+-        fetch('/api/tools/initial-keli-linkup/download-sql', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+-        .then(r => r.blob())
+-        .then(blob => {
+-            const url = window.URL.createObjectURL(blob);
+-            const a = document.createElement('a'); a.href = url; a.download = "Keli_Linkup.sql";
+-            document.body.appendChild(a); a.click(); a.remove();
+-        });
+-    }
+-    function copyLinkupSql() { navigator.clipboard.writeText(document.getElementById("linkupSqlPreview").value); }
+     function runLinkupTool() {
