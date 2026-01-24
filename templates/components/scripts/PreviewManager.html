@@ -26,6 +26,12 @@ class PreviewManager {
         }
     }
 
+    // Missing method that caused the error
+    reset() {
+        if (this.container) this.container.classList.add('d-none');
+        if (this.output) this.output.innerText = '';
+    }
+
     // Toggle Logic: If open, close it. If closed, generate and open.
     toggle() {
         if (!this.container.classList.contains('d-none')) {

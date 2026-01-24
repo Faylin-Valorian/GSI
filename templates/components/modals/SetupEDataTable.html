@@ -36,11 +36,15 @@
                     </div>
                     <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
                 </div>
+                {{ preview_area('edeTest') }}
                 <div id="eDataResult" class="text-center small"></div>
                 <input type="hidden" id="eDataCountyId">
             </div>
             <div class="modal-footer border-secondary justify-content-between">
-                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                <div class="d-flex gap-2">
+                    <button id="btnEdePreview" class="btn btn-sm btn-outline-warning" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Old Preview</button>
+                    <button id="btnEdeTestBlue" class="btn btn-sm btn-info" onclick="edeTestMgr.toggle()"><i class="bi bi-lightning-charge me-1"></i>Test New Preview</button>
+                </div>
                 <div>
                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
                 <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>

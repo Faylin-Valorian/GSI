@@ -1,0 +1,80 @@
+--- a/templates/components/scripts/PreviewManager.html
++++ b/templates/components/scripts/PreviewManager.html
+@@ -16,6 +16,11 @@
+         if(this.btnSave) {
+             this.btnSave.onclick = (e) => {
+                 e.preventDefault();
+                 e.stopPropagation();
+                 this.download();
+             };
+         }
+     }
+ 
++    // Missing method that caused the error
++    reset() {
++        if (this.container) this.container.classList.add('d-none');
++        if (this.output) this.output.innerText = '';
++    }
++
+     // Toggle Logic: If open, close it. If closed, generate and open.
+     toggle() {
+         if (!this.container.classList.contains('d-none')) {
+             this.container.classList.add('d-none');
+             return;
+         }
+         this.generate();
+     }
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -1,13 +1,13 @@
+ <script>
++    let edeMgr = null;
+     function openEDataModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('eDataCountyId').value = id;
+         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+-        document.getElementById('edePreviewContainer').classList.add('d-none');
+         
++        // Init Unified Manager
++        if (!edeMgr) {
++            edeMgr = new PreviewManager({
++                prefix: 'ede', 
++                apiPreview: '/api/tools/setup-edata/preview', 
++                apiDownload: '/api/tools/setup-edata/download-sql',
++                filename: 'Setup_eData.sql', 
++                payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
++            });
++        }
++        edeMgr.reset();
++        
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(eDataModal) eDataModal.show(); 
+     }
+-    function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
+-    function previewEDataSetup() {
+-        const cont = document.getElementById('edePreviewContainer');
+-        if(!cont.classList.contains('d-none')) { cont.classList.add('d-none'); return; }
+-        cont.classList.remove('d-none');
+-        document.getElementById('edeSqlOutput').innerText = 'Generating Preview...';
+-        fetch('/api/tools/setup-edata/preview', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: document.getElementById('eDataCountyId').value })})
+-        .then(r => r.json()).then(d => { document.getElementById('edeSqlOutput').innerText = d.success ? d.sql : 'Error: ' + d.message; });
+-    }
+-    function downloadEDataSQL() {
+-        window.location.href = `/api/tools/setup-edata/download-sql?county_id=${document.getElementById('eDataCountyId').value}`;
+-    }
++    function closeEDataModal() { if(eDataModal) eDataModal.hide(); }
++    
+     async function submitEDataSetup() {
+         const btn = document.querySelector('#eDataModal .btn-success');
+@@ -20,3 +20,3 @@
+         btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Initializing...';
+         resultDiv.innerHTML = ''; 
+-        document.getElementById('edePreviewContainer').classList.add('d-none');
++        if(edeMgr) edeMgr.reset();
+         document.getElementById('eDataProgressContainer').classList.remove('d-none');
+--- a/templates/components/scripts.html
++++ b/templates/components/scripts.html
+@@ -17,3 +17,4 @@
+ {% include 'components/scripts/OpenDriveConnection.html' %}
+ {% include 'components/scripts/PatchManager.html' %}
+ {% include 'components/scripts/DatabaseCompatibility.html' %}
++{% include 'components/scripts/PreviewManager.html' %}

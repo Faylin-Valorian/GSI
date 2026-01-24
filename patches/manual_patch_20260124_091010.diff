@@ -1,0 +1,47 @@
+--- a/templates/components/modals/SetupEDataTable.html
++++ b/templates/components/modals/SetupEDataTable.html
+@@ -29,13 +29,16 @@
+                     <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
++                {{ preview_area('edeTest') }}
+                 <div id="eDataResult" class="text-center small"></div>
+                 <input type="hidden" id="eDataCountyId">
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div class="d-flex gap-2">
++                    <button id="btnEdePreview" class="btn btn-sm btn-outline-warning" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Old Preview</button>
++                    <button id="btnEdeTestBlue" class="btn btn-sm btn-info" onclick="edeTestMgr.toggle()"><i class="bi bi-lightning-charge me-1"></i>Test New Preview</button>
++                </div>
+                 <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                 <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -1,7 +1,18 @@
+ <script>
++    let edeTestMgr = null;
+     function openEDataModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('eDataCountyId').value = id;
+         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+         document.getElementById('edePreviewContainer').classList.add('d-none');
++        
++        // Init New Blue Button Manager
++        edeTestMgr = new PreviewManager({
++            prefix: 'edeTest',
++            apiPreview: '/api/tools/setup-edata/preview',
++            apiDownload: '/api/tools/setup-edata/download-sql',
++            filename: 'Setup_eData_Test.sql',
++            payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
++        });
++        edeTestMgr.reset();
++
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(eDataModal) eDataModal.show(); 
+     }
+--- a/templates/components/scripts.html
++++ b/templates/components/scripts.html
+@@ -17,3 +17,4 @@
+ {% include 'components/scripts/PatchManager.html' %}
+ {% include 'components/scripts/DatabaseCompatibility.html' %}
++{% include 'components/scripts/PreviewManager.html' %}
