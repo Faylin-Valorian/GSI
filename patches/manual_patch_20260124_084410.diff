@@ -1,0 +1,86 @@
+--- a/templates/components/scripts.html
++++ b/templates/components/scripts.html
+@@ -17,3 +17,4 @@
+ {% include 'components/scripts/SetupDatabaseProcedures.html' %}
+ {% include 'components/scripts/blueprint_loader.html' %}
++{% include 'components/scripts/PreviewManager.html' %}
+--- a/templates/components/parts/PreviewArea.html
++++ b/templates/components/parts/PreviewArea.html
+@@ -1,6 +1,6 @@
+ {% macro preview_area(prefix) %}
+-++<div id="{{ prefix }}PreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3 rounded">
++<div id="{{ prefix }}PreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3 rounded">
+     <div class="d-flex justify-content-between align-items-center mb-2">
+         <div class="d-flex align-items-center">
+             <i class="bi bi-code-slash text-warning me-2"></i>
+             <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
+         </div>
+         <div class="btn-group">
+             <button type="button" id="{{ prefix }}BtnSave" class="btn btn-sm btn-outline-light">
+                 <i class="bi bi-download me-2"></i>Save .SQL
+             </button>
+         </div>
+     </div>
+     <pre id="{{ prefix }}PreviewOutput" class="text-success small font-monospace m-0" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; user-select: text;"></pre>
+ </div>
+ {% endmacro %}
+--- a/templates/components/modals/SetupEDataTable.html
++++ b/templates/components/modals/SetupEDataTable.html
+@@ -1,3 +1,4 @@
++{% from 'components/parts/PreviewArea.html' import preview_area %}
+ <div class="modal fade" id="eDataModal" tabindex="-1" style="z-index: 1080;">
+     <div class="modal-dialog modal-dialog-centered">
+         <div class="modal-content custom-panel border-success">
+@@ -32,20 +33,12 @@
+                 <div id="edePreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3">
+                     <div class="d-flex justify-content-between align-items-center mb-2">
+                         <label class="text-warning small fw-bold font-monospace">SQL PREVIEW (First 5 Rows)</label>
+                         <button class="btn btn-sm btn-outline-light" onclick="downloadEDataSQL()"><i class="bi bi-download me-2"></i>Save Full .SQL</button>
+                     </div>
+                     <pre id="edeSqlOutput" class="text-success small font-monospace m-0" style="max-height: 200px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                 </div>
+-                
+-                -                {{ preview_area('edeTest') }}
+-                
++                {{ preview_area('ede') }}
+                 <div id="eDataResult" class="text-center small"></div>
+                 <input type="hidden" id="eDataCountyId">
+             </div>
+-            <div class="modal-footer border-secondary justify-content-between">
+-                <div class="btn-group">
+-                    <button id="btnEdePreview" class="btn btn-sm btn-outline-warning" onclick="previewEDataSetup()"><i class="bi bi-code-square me-1"></i>Old Preview</button>
+-                    <button id="btnEdeTestBlue" class="btn btn-sm btn-info" onclick="edeTestMgr.toggle()"><i class="bi bi-lightning-charge me-1"></i>Test New Preview</button>
+-                </div>
+-                <div>
++            <div class="modal-footer border-secondary justify-content-between">
++                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning" onclick="edeMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+--- a/templates/components/scripts/SetupEDataTable.html
++++ b/templates/components/scripts/SetupEDataTable.html
+@@ -1,13 +1,13 @@
+ <script>
+-    let edeTestMgr = null;
++    let edeMgr = null;
+     function openEDataModal(id, stateName, countyName) { 
+         closeAllModals(); document.getElementById('eDataCountyId').value = id;
+         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
+-        document.getElementById('edePreviewContainer').classList.add('d-none');
+         
+-        // Initialize the NEW Test Manager (Blue Button)
+-        edeTestMgr = new PreviewManager({
+-            prefix: 'edeTest', 
++        // Init Unified Manager
++        edeMgr = new PreviewManager({
++            prefix: 'ede', 
+             apiPreview: '/api/tools/setup-edata/preview', 
+             apiDownload: '/api/tools/setup-edata/download-sql',
+             filename: 'Setup_eData.sql', 
+             payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
+         });
+-        edeTestMgr.reset();
++        edeMgr.reset();
+         
+         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+         if(eDataModal) eDataModal.show(); 
+     }

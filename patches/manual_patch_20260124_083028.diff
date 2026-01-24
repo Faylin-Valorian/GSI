@@ -1,0 +1,86 @@
+--- a/templates/components/parts/PreviewArea.html
++++ b/templates/components/parts/PreviewArea.html
+@@ -1,18 +1,18 @@
+ {% macro preview_area(prefix) %}
+-++<div id="{{ prefix }}PreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3 rounded">
++<div id="{{ prefix }}PreviewContainer" class="d-none bg-black border-top border-secondary p-3 mt-3 rounded">
+     <div class="d-flex justify-content-between align-items-center mb-2">
+         <div class="d-flex align-items-center">
+             <i class="bi bi-code-slash text-warning me-2"></i>
+             <label class="text-warning small fw-bold font-monospace">SQL PREVIEW</label>
+         </div>
+         <div class="btn-group">
+             <button type="button" id="{{ prefix }}BtnSave" class="btn btn-sm btn-outline-light">
+                 <i class="bi bi-download me-2"></i>Save .SQL
+             </button>
+         </div>
+     </div>
+     <pre id="{{ prefix }}PreviewOutput" class="text-success small font-monospace m-0" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; user-select: text;"></pre>
+ </div>
+ {% endmacro %}
+--- a/templates/components/modals/SetupEDataTable.html
++++ b/templates/components/modals/SetupEDataTable.html
+@@ -37,7 +37,7 @@
+                 <input type="hidden" id="eDataCountyId">
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="edeMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <button id="btnEdePreview" class="btn btn-sm btn-outline-warning" onclick="edeMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                 <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeEDataModal()">Close</button>
+                 <button type="button" class="btn btn-success" onclick="submitEDataSetup()">Run Import</button>
+--- a/templates/components/modals/SetupKeliTables.html
++++ b/templates/components/modals/SetupKeliTables.html
+@@ -29,7 +29,7 @@
+                 <input type="hidden" id="keliCountyId">
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <button id="btnKeliPreview" class="btn btn-sm btn-outline-warning d-none" onclick="keliMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <button id="btnKeliPreview" class="btn btn-sm btn-outline-warning" onclick="keliMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                 <div>
+                 <button type="button" class="btn btn-secondary" onclick="closeKeliModal()">Close</button>
+                 <button type="button" class="btn text-white" style="background-color: #a370f7;" onclick="submitKeliSetup()">Run Import</button>
+--- a/templates/components/modals/ImportEDataErrors.html
++++ b/templates/components/modals/ImportEDataErrors.html
+@@ -26,7 +26,7 @@
+                 <div id="importEdeResult" class="text-center small mt-3"></div>
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning d-none" onclick="importEdeMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                <button id="btnImportEdePreview" class="btn btn-sm btn-outline-warning" onclick="importEdeMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                 <div>
+                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                 <button type="button" class="btn fw-bold text-white" style="background-color: #dc3545;" onclick="runImportEDataErrors()" id="btnRunImportEde">
+--- a/templates/components/modals/AlterDatabaseFields.html
++++ b/templates/components/modals/AlterDatabaseFields.html
+@@ -44,7 +44,7 @@
+             </div>
+             <div class="modal-footer border-top border-secondary justify-content-between bg-dark">
+                 <div class="d-flex align-items-center">
+-                    <button id="btnAlterDbPreview" class="btn btn-sm btn-outline-warning d-none me-2" onclick="alterDbMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
++                    <button id="btnAlterDbPreview" class="btn btn-sm btn-outline-warning me-2" onclick="alterDbMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                     <span id="alterDbStatus" class="text-muted small fst-italic">Loading...</span>
+                 </div>
+                 <div>
+--- a/templates/components/modals/InitialPreparation.html
++++ b/templates/components/modals/InitialPreparation.html
+@@ -37,7 +37,7 @@
+                 <div id="prepResult" class="text-center small mt-3"></div>
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnPrepPreview" onclick="prepMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
++                <div><button type="button" class="btn btn-outline-warning btn-sm" id="btnPrepPreview" onclick="prepMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
+                 <div><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-info fw-bold text-dark" onclick="runPrepTool()" id="btnRunPrep"><i class="bi bi-play-fill me-1"></i>Run Preparation</button></div>
+             </div>
+         </div>
+--- a/templates/components/modals/InitialKeliLinkup.html
++++ b/templates/components/modals/InitialKeliLinkup.html
+@@ -73,7 +73,7 @@
+                 <div id="linkupResult" class="text-center small mt-3"></div>
+             </div>
+             <div class="modal-footer border-secondary justify-content-between">
+-                <div><button type="button" class="btn btn-outline-warning btn-sm d-none" id="btnLinkupPreview" onclick="linkupMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
++                <div><button type="button" class="btn btn-outline-warning btn-sm" id="btnLinkupPreview" onclick="linkupMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
+                 <div><button type="button" class="btn btn-secondary" onclick="closeLinkupModal()">Close</button><button type="button" class="btn fw-bold text-white" style="background-color: #d63384;" onclick="runLinkupTool()" id="btnRunLinkup"><i class="bi bi-play-fill me-1"></i>Run Linkup</button></div>
+             </div>
+         </div>

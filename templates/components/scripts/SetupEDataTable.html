@@ -1,19 +1,18 @@
 <script>
-    let edeTestMgr = null;
+    let edeMgr = null;
     function openEDataModal(id, stateName, countyName) { 
         closeAllModals(); document.getElementById('eDataCountyId').value = id;
         document.getElementById('eDataDisplayPath').innerText = `/data/${stateName}/${countyName}/eData Files`;
-        document.getElementById('edePreviewContainer').classList.add('d-none');
         
-        // Initialize the NEW Test Manager (Blue Button)
-        edeTestMgr = new PreviewManager({
-            prefix: 'edeTest', 
+        // Init Unified Manager
+        edeMgr = new PreviewManager({
+            prefix: 'ede', 
             apiPreview: '/api/tools/setup-edata/preview', 
             apiDownload: '/api/tools/setup-edata/download-sql',
             filename: 'Setup_eData.sql', 
             payloadProvider: () => ({ county_id: document.getElementById('eDataCountyId').value })
         });
-        edeTestMgr.reset();
+        edeMgr.reset();
         
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
         if(eDataModal) eDataModal.show(); 
