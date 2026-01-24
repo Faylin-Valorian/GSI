@@ -14,7 +14,10 @@
                 <div class="text-center mb-3">
                     <span class="badge bg-danger rounded-pill" id="importEdeFileCount">Checking...</span>
                 </div>
-                <div id="importEdeProgressContainer" class="d-none mb-3">
+                
+                {{ preview_area('importEde') }}
+
+                <div id="importEdeProgressContainer" class="d-none mb-3 mt-3">
                     <div class="d-flex justify-content-between small mb-1">
                         <span class="text-muted">Processing...</span>
                         <span id="importEdeProgressText" class="text-light">0%</span>
@@ -24,9 +27,6 @@
                     </div>
                     <div id="importEdeCurrentFile" class="text-muted small mt-1 text-truncate">Initializing...</div>
                 </div>
-                
-                {{ preview_area('importEde') }}
-
                 <div id="importEdeResult" class="text-center small mt-3"></div>
             </div>
             <div class="modal-footer border-secondary justify-content-between">

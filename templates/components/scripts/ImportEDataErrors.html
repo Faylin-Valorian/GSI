@@ -4,7 +4,11 @@
 
     function openImportEDataErrorsModal(passedId) {
         closeAllModals(); currentImportEdeCountyId = passedId;
-        if(importEdeModal) importEdeModal.show();
+        if(document.getElementById('importEDataErrorsModal')) {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('importEDataErrorsModal'));
+            modal.show();
+        }
+        
         document.getElementById('importEdeResult').innerText = '';
         document.getElementById('importEdeProgressContainer').classList.add('d-none');
         
@@ -20,6 +24,7 @@
         importEdeMgr.reset();
         
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
+        
         fetch('/api/tools/import-edata-errors/init', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: passedId })})
         .then(r => r.json()).then(d => {
             if(d.success) {
@@ -37,6 +42,7 @@
         if(importEdeMgr) importEdeMgr.reset();
         
         const pBar = document.getElementById('importEdeProgressBar'); pBar.style.width = '0%';
+        
         fetch('/api/tools/import-edata-errors/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
         .then(async response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
@@ -53,4 +59,7 @@
             }
         });
     }
+
+    // --- ALIAS FOR SIDEBAR COMPATIBILITY ---
+    window.openImportEDataErrorsTool = openImportEDataErrorsModal;
 </script>

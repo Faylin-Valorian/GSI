@@ -1,22 +1,49 @@
 <script>
-    function openDriveModal() { closeAllModals(); if(driveModal) driveModal.show(); }
-    function closeDriveModal() { if(driveModal) driveModal.hide(); document.getElementById('driveResult').innerHTML = ''; }
-    function submitDriveConnection() {
-        const btn = document.querySelector('#driveModal .btn-primary');
-        const resultDiv = document.getElementById('driveResult');
-        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Connecting...'; resultDiv.innerHTML = '';
-        fetch('/api/tools/connect-drive', { 
-            method: 'POST', headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({
-                drive_letter: document.getElementById('driveLetter').value,
-                network_path: document.getElementById('drivePath').value,
-                username: document.getElementById('driveUser').value,
-                password: document.getElementById('drivePass').value
-            })
-        }).then(r => r.json()).then(d => {
-            btn.disabled = false; btn.innerHTML = '<i class="bi bi-plug-fill me-2"></i>Connect';
-            if (d.success) { resultDiv.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle me-2"></i>${d.message}</span>`; setTimeout(closeDriveModal, 2000); } 
-            else { resultDiv.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-2"></i>${d.message}</span>`; }
-        }).catch(e => { btn.disabled = false; resultDiv.innerHTML = `<span class="text-danger">Request Failed</span>`; });
+    let driveMgr = null;
+
+    function openDriveTool() {
+        closeAllModals();
+        if(document.getElementById('openDriveModal')) {
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('openDriveModal'));
+            modal.show();
+        }
+
+        if(!driveMgr) {
+            driveMgr = new PreviewManager({
+                prefix: 'drive',
+                apiPreview: '/api/tools/open-drive/preview',
+                apiDownload: '/api/tools/open-drive/download-sql',
+                filename: 'Map_Drive.sql',
+                payloadProvider: () => ({
+                    letter: document.getElementById('driveLetter').value,
+                    path: document.getElementById('drivePath').value,
+                    user: document.getElementById('driveUser').value,
+                    pass: document.getElementById('drivePass').value
+                })
+            });
+        }
+        driveMgr.reset();
+        document.getElementById('driveResult').innerText = '';
     }
+
+    function runOpenDrive() {
+        const btn = document.querySelector('#openDriveModal .btn-light');
+        btn.disabled = true; btn.innerText = "Connecting...";
+        document.getElementById('driveResult').innerText = '';
+        
+        if(driveMgr) driveMgr.reset();
+
+        const payload = driveMgr.payloadProvider();
+
+        fetch('/api/tools/open-drive/run', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+        }).then(r => r.json()).then(d => {
+            btn.disabled = false; btn.innerText = "Connect";
+            if(d.success) document.getElementById('driveResult').innerHTML = `<div class="alert alert-success">${d.message}</div>`;
+            else document.getElementById('driveResult').innerHTML = `<div class="alert alert-danger">${d.message}</div>`;
+        }).catch(e => { btn.disabled = false; btn.innerText = "Connect"; document.getElementById('driveResult').innerText = "Error: " + e; });
+    }
+
+    // --- ALIAS FOR SIDEBAR COMPATIBILITY ---
+    window.openDriveModal = openDriveTool;
 </script>

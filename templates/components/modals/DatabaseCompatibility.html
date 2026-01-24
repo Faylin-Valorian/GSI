@@ -1,36 +1,36 @@
-<div class="modal fade" id="dbCompatModal" tabindex="-1" style="z-index: 1080;">
+{% from 'components/parts/PreviewArea.html' import preview_area %}
+<div class="modal fade" id="dbCompatModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content custom-panel border-info">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title"><i class="bi bi-database-gear me-2"></i>SQL Compatibility</h5>
-                <button type="button" class="btn-close btn-close-white" onclick="closeDbCompatModal()"></button>
+                <h5 class="modal-title"><i class="bi bi-database-fill-gear me-2"></i>Database Compatibility</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p class="small text-muted">Enter desired Compatibility Level (e.g., 150 for SQL 2019).</p>
-                <input type="number" id="targetCompatLevel" class="form-control border-secondary bg-transparent text-light" placeholder="150">
+                <p class="small text-muted">Adjust the SQL Server Compatibility Level for the current database.</p>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Compatibility Level</label>
+                    <select id="dbCompatLevel" class="form-select bg-dark text-light border-secondary">
+                        <option value="100">100 (SQL Server 2008)</option>
+                        <option value="110">110 (SQL Server 2012)</option>
+                        <option value="120">120 (SQL Server 2014)</option>
+                        <option value="130">130 (SQL Server 2016)</option>
+                        <option value="140">140 (SQL Server 2017)</option>
+                        <option value="150" selected>150 (SQL Server 2019)</option>
+                        <option value="160">160 (SQL Server 2022)</option>
+                    </select>
+                </div>
+
+                {{ preview_area('dbCompat') }}
+
                 <div id="dbCompatResult" class="text-center small mt-2"></div>
             </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" onclick="closeDbCompatModal()">Close</button>
-                <button type="button" class="btn btn-info" onclick="submitDbCompat()">Update Level</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="dbDowngradeModal" tabindex="-1" style="z-index: 1090;">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content custom-panel border-warning">
-            <div class="modal-header border-secondary bg-warning text-dark">
-                <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Downgrade</h5>
-            </div>
-            <div class="modal-body">
-                <p id="dbDowngradeMessage" class="fw-bold">Warning: Downgrading compatibility level.</p>
-                <p class="small text-muted">Are you sure you want to proceed?</p>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" onclick="closeDowngradeModal()">Cancel</button>
-                <button type="button" class="btn btn-warning fw-bold" onclick="confirmDowngrade()">Yes, Downgrade</button>
+            <div class="modal-footer border-secondary justify-content-between">
+                <button class="btn btn-sm btn-outline-warning" onclick="dbCompatMgr.toggle()"><i class="bi bi-code-square me-1"></i>Generate Preview</button>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-info" onclick="runDbCompat()">Apply Level</button>
+                </div>
             </div>
         </div>
     </div>
