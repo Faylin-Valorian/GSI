@@ -1,0 +1,54 @@
+--- a/templates/components/popups/CountyPopup.html
++++ b/templates/components/popups/CountyPopup.html
+@@ -19,10 +19,10 @@
+                 </div>
+                 
+                 <div class="popup-tabs">
+-                    <button class="tab-btn active" data-tab="tab-county">County</button>
+-                    <button class="tab-btn" data-tab="tab-database">Database</button>
+-                    <button class="tab-btn" data-tab="tab-edata">eData</button>
+-                    <button class="tab-btn" data-tab="tab-keli">Keli</button>
++                    <button class="tab-btn active" data-tab="tab-database">Database Setup</button>
++                    <button class="tab-btn" data-tab="tab-edata">eData Setup</button>
++                    <button class="tab-btn" data-tab="tab-keli">Keli Setup</button>
++                    <button class="tab-btn" data-tab="tab-indexing">Indexing Tools</button>
+                 </div>
+ 
+                 <div class="popup-content">
+-                    -                    <div id="tab-county" class="tab-pane active">
+-                        <div class="tool-grid">
+-                            <button class="tool-btn" onclick="openReviewUnindexedImagesModal(selectedCountyId)">
+-                                <i class="bi bi-images tool-icon text-warning"></i>
+-                                <span>Review Unindexed Images</span>
+-                            </button>
+-                            <button class="tool-btn" onclick="openInstrumentTypeCorrectionsModal(selectedCountyId)">
+-                                <i class="bi bi-pencil-square tool-icon text-info"></i>
+-                                <span>Instrument Corrections</span>
+-                            </button>
+-                        </div>
+-                    </div>
+-
+                     -                    <div id="tab-database" class="tab-pane">
++                    <div id="tab-database" class="tab-pane active">
+                         <div class="tool-grid">
+                             <button class="tool-btn" onclick="openInitialPrepTool(selectedCountyId)">
+                                 <i class="bi bi-magic tool-icon text-primary"></i>
+@@ -73,6 +57,17 @@
+                             </button>
+                         </div>
+                     </div>
++
++                    +                    <div id="tab-indexing" class="tab-pane">
++                        <div class="tool-grid">
++                            <button class="tool-btn" onclick="openReviewUnindexedImagesModal(selectedCountyId)">
++                                <i class="bi bi-images tool-icon text-warning"></i>
++                                <span>Review Unindexed Images</span>
++                            </button>
++                            <button class="tool-btn" onclick="openInstrumentTypeCorrectionsModal(selectedCountyId)">
++                                <i class="bi bi-pencil-square tool-icon text-info"></i>
++                                <span>Instrument Corrections</span>
++                            </button>
++                        </div>
++                    </div>
+                 </div>
+             </div>

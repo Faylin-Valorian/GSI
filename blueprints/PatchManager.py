@@ -4,8 +4,9 @@ import time
 import json
 import zipfile
 import threading
+import re
 from datetime import datetime
-from flask import Blueprint, request, jsonify, current_app, session
+from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_required, current_user
 
 patch_bp = Blueprint('patch_manager', __name__)
@@ -14,7 +15,7 @@ VERSION_FILE = 'version.json'
 BACKUP_DIR = 'versions'
 PATCH_STORAGE_DIR = 'patches'
 
-# --- UTILITY FUNCTIONS ---
+# --- UTILITY FUNCTIONS (PRESERVED) ---
 
 def load_version(root):
     """Loads the current system version."""
@@ -77,16 +78,16 @@ def create_backup(root, current_ver):
 def restart_server():
     """Restarts the Flask process."""
     print(" >>> SYSTEM UPDATE COMPLETE. RESTARTING...")
-    
-    # Allow time for the response to be sent back to the client
     time.sleep(2) 
-    
-    # Restart the current process
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-# --- ATOMIC PATCHER ENGINE ---
+# --- ROBUST PATCHER ENGINE (UPGRADED) ---
 
-class SimplePatcher:
+class RobustPatcher:
+    def normalize_line(self, line):
+        """Strip whitespace for loose comparison."""
+        return "".join(line.split())
+
     def parse(self, lines):
         """Parses a unified diff into a list of file operations."""
         hunks = []
@@ -109,7 +110,10 @@ class SimplePatcher:
                 
                 while i < len(lines):
                     hl = lines[i]
+                    # Stop if we hit a new hunk or file header
                     if hl.startswith('diff ') or hl.startswith('--- ') or hl.startswith('+++ '): break
+                    # Stop if we hit a new @@ block
+                    if hl.startswith('@@'): break 
                     
                     if hl.startswith(' '):
                         search.append(hl[1:])
@@ -118,15 +122,19 @@ class SimplePatcher:
                         search.append(hl[1:])
                     elif hl.startswith('+'):
                         replace.append(hl[1:])
+                    elif hl == '' or hl == '\n':
+                        # Handle empty lines in diffs sometimes missing space
+                        search.append("")
+                        replace.append("")
                     i += 1
                 
-                hunks.append({'file': current_file, 'search': "\n".join(search), 'replace': "\n".join(replace)})
+                hunks.append({'file': current_file, 'search_lines': search, 'replace_lines': replace})
                 continue
             i += 1
         return hunks
 
     def apply(self, patch_content, root_path):
-        """ATOMIC APPLY: Verifies all hunks before writing any file."""
+        """Applies hunks using fuzzy line matching."""
         lines = patch_content.splitlines()
         hunks = self.parse(lines)
         if not hunks: raise Exception("No valid patch segments found.")
@@ -144,34 +152,63 @@ class SimplePatcher:
             full_path = os.path.join(root_path, filename)
             
             # Read original content
+            file_lines = []
             if os.path.exists(full_path):
                 with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-            else:
-                content = None # Signal that file doesn't exist
-
-            # Apply hunks in order
-            for hunk in fhunks:
-                if content is None:
-                    # Creating new file
-                    if not hunk['search'].strip():
-                        content = hunk['replace'] # New content
-                        logs.append(f"Create: {filename}")
-                    else:
-                        raise Exception(f"File missing: {filename} (Cannot modify non-existent file)")
-                else:
-                    # Modifying existing
-                    c_norm = content.replace('\r\n', '\n')
-                    s_norm = hunk['search'].replace('\r\n', '\n')
-                    
-                    if s_norm in c_norm:
-                        content = c_norm.replace(s_norm, hunk['replace'], 1)
-                        logs.append(f"Patch: {filename}")
-                    else:
-                        start_snippet = c_norm[:50].replace('\n', '\\n')
-                        raise Exception(f"Context mismatch in {filename}. Search block not found.\nFile starts with: {start_snippet}...")
+                    file_lines = f.read().splitlines()
             
-            pending_writes[full_path] = content
+            # Apply hunks
+            for hunk in fhunks:
+                search_block = hunk['search_lines']
+                replace_block = hunk['replace_lines']
+                
+                # Case 1: New File (Search block is empty)
+                if not search_block and not file_lines:
+                    file_lines = replace_block
+                    logs.append(f"Create: {filename}")
+                    continue
+
+                # Case 2: Fuzzy Match
+                # We try to find the search block in the file lines ignoring whitespace
+                found_idx = -1
+                
+                # If search block is empty but file exists, it's an append or overwrite? 
+                # Assuming context is usually provided. 
+                if not search_block:
+                     # Fallback for overwrite
+                     file_lines = replace_block
+                     logs.append(f"Overwrite: {filename}")
+                     continue
+
+                search_len = len(search_block)
+                # Optimization: normalized search block
+                norm_search = [self.normalize_line(l) for l in search_block]
+                
+                for idx in range(len(file_lines) - search_len + 1):
+                    match = True
+                    for offset in range(search_len):
+                        if self.normalize_line(file_lines[idx+offset]) != norm_search[offset]:
+                            match = False
+                            break
+                    if match:
+                        found_idx = idx
+                        break
+                
+                if found_idx != -1:
+                    # Replace lines
+                    # Remove old lines
+                    del file_lines[found_idx:found_idx+search_len]
+                    # Insert new lines
+                    for r_line in reversed(replace_block):
+                        file_lines.insert(found_idx, r_line)
+                    logs.append(f"Patch: {filename} (Block found at line {found_idx+1})")
+                else:
+                    # Debug info
+                    start_snippet = "..."
+                    if file_lines: start_snippet = file_lines[0][:50]
+                    raise Exception(f"Context mismatch in {filename}. Search block not found (Fuzzy match failed).\nFile starts with: {start_snippet}")
+            
+            pending_writes[full_path] = "\n".join(file_lines)
 
         # Commit all changes
         for path, data in pending_writes.items():
@@ -181,7 +218,7 @@ class SimplePatcher:
         
         return logs
 
-# --- API ENDPOINTS ---
+# --- API ENDPOINTS (PRESERVED) ---
 
 @patch_bp.route('/api/admin/version', methods=['GET'])
 @login_required
@@ -202,7 +239,7 @@ def apply_patch():
         if 'patch_content' in request.form and request.form['patch_content'].strip():
             patch_content = request.form['patch_content']
             
-            # Save Manual Patch for history
+            # Save Manual Patch
             try:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 filename = f"manual_patch_{timestamp}.diff"
@@ -223,25 +260,23 @@ def apply_patch():
         root = current_app.root_path
         current_v = load_version(root)['string']
         
-        # 2. Create Backup
+        # 2. Create Backup (PRESERVED)
         backup_name = create_backup(root, current_v)
         if not backup_name:
             return jsonify({'success': False, 'message': 'Backup failed. Update aborted for safety.'}), 500
 
-        # 3. Apply Patch
-        patcher = SimplePatcher()
-        # Clean inputs
+        # 3. Apply Patch (NEW ROBUST ENGINE)
+        patcher = RobustPatcher()
         patch_content = patch_content.replace('\r\n', '\n')
         
         logs = patcher.apply(patch_content, root)
         
-        # 4. Increment Version & Restart
+        # 4. Increment Version & Restart (PRESERVED)
         new_v = increment_version(root)
         
         log_text = f"BACKUP: {backup_name}\nVERSION: {current_v} -> {new_v}\n--------------------------\n" + "\n".join(logs)
         print(f"\n >>> PATCH SUCCESS:\n{log_text}\n")
 
-        # Spawn restart thread
         threading.Thread(target=restart_server).start()
 
         return jsonify({
@@ -251,6 +286,5 @@ def apply_patch():
         })
 
     except Exception as e:
-        # Log the error and return 500 so the UI knows it failed
         print(f"PATCH ERROR: {str(e)}")
         return jsonify({'success': False, 'message': f"PATCH FAILED: {str(e)}"}), 500

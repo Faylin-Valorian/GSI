@@ -23,18 +23,15 @@
     </div>
 
     <div class="row g-1 mb-3" style="height: 120px;">
-        
         <div class="col h-100">
             <textarea class="form-control form-control-sm h-100 popup-notes" 
                 {% if not is_mine %}disabled placeholder="Set as 'Working On' to edit notes"{% endif %}
                 onblur="saveNotes({{ id }}, this.value)">{{ notes }}</textarea>
         </div>
-        
         <div class="col-5 h-100">
             <div class="popup-image-container" 
                  style="cursor: {% if is_mine %}pointer{% else %}default{% endif %};"
                  onclick="triggerUpload({{ id }}, {{ 'true' if is_mine else 'false' }})">
-                 
                  {% if image_url %}
                     <img src="{{ image_url }}?t={{ time }}" class="popup-img">
                  {% else %}
@@ -42,37 +39,23 @@
                         <i class="bi bi-camera-fill fs-2 opacity-50"></i>
                     </div>
                  {% endif %}
-
                  {% if is_mine %}
                     <div class="popup-upload-overlay">Upload</div>
                  {% endif %}
-                 
                  <input type="file" id="upload-{{ id }}" hidden accept="image/*" onchange="uploadImage({{ id }}, this)">
             </div>
         </div>
     </div>
 
     <ul class="nav nav-tabs nav-fill popup-nav-tabs mb-2" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-county-{{ id }}">County</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-db-{{ id }}">Database</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-edata-{{ id }}">eData</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-keli-{{ id }}">Keli</button></li>
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-db-{{ id }}">Database Setup</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-edata-{{ id }}">eData Setup</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-keli-{{ id }}">Keli Setup</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-indexing-{{ id }}">Indexing Tools</button></li>
     </ul>
 
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="tab-county-{{ id }}">
-            <div class="p-2 bg-dark rounded border border-secondary">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="small text-muted">Global Availability:</span>
-                    <button class="btn btn-sm {% if is_active %}btn-success{% else %}btn-danger{% endif %}" 
-                            onclick="toggleGlobalActiveFromPopup({{ id }})">
-                        {% if is_active %}Active{% else %}Inactive{% endif %}
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-db-{{ id }}">
+        <div class="tab-pane fade show active" id="tab-db-{{ id }}">
             <div class="d-grid gap-2">
                 <button class="btn btn-sm btn-outline-primary text-start" {% if not is_mine %}disabled{% endif %} onclick="openDriveModal()">
                     <i class="bi bi-hdd-network me-2"></i>Open Drive Connection
@@ -90,9 +73,6 @@
                         <button class="btn btn-sm btn-outline-success text-start" {% if not is_mine %}disabled{% endif %} onclick="openEDataModal({{ id }}, '{{ state_name }}', '{{ name }}')">
                             <i class="bi bi-table me-1"></i>Setup eData
                         </button>
-                        <button class="btn btn-sm btn-outline-warning text-start" {% if not is_mine %}disabled{% endif %} onclick="openUnindexedReview({{ id }}, '{{ state_name }}', '{{ name }}')">
-                            <i class="bi bi-images me-1"></i>Unindexed Img
-                        </button>
                         <button class="btn btn-sm btn-outline-danger text-start" {% if not is_mine %}disabled{% endif %} onclick="openAlterDbTool()">
                             <i class="bi bi-database-exclamation me-1"></i>Alter Table
                         </button>
@@ -103,9 +83,6 @@
                 </div>
                 <div class="col-6">
                     <div class="d-grid gap-2">
-                        <button class="btn btn-sm btn-outline-warning text-start" {% if not is_mine %}disabled{% endif %} onclick="openInstCorrectionTool({{ id }}, '{{ state_name }}', '{{ name }}')">
-                            <i class="bi bi-pencil-square me-1"></i>Inst Correct
-                        </button>
                         <button class="btn btn-sm btn-dark text-start border-secondary" onclick="openLinkupModal({{ id }})">
                             <i class="bi bi-link-45deg me-1" style="color: #d63384;"></i>Linkup
                         </button>
@@ -124,6 +101,17 @@
             <div class="d-grid gap-2">
                 <button class="btn btn-sm btn-outline-light text-start" style="border-color: #a370f7; color: #a370f7;" {% if not is_mine %}disabled{% endif %} onclick="openKeliModal({{ id }}, '{{ state_name }}', '{{ name }}')">
                     <i class="bi bi-collection me-2"></i>Setup Keli Tables
+                </button>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-indexing-{{ id }}">
+            <div class="d-grid gap-2">
+                <button class="btn btn-sm btn-outline-warning text-start" {% if not is_mine %}disabled{% endif %} onclick="openUnindexedReview({{ id }}, '{{ state_name }}', '{{ name }}')">
+                    <i class="bi bi-images me-1"></i>Review Unindexed Images
+                </button>
+                <button class="btn btn-sm btn-outline-warning text-start" {% if not is_mine %}disabled{% endif %} onclick="openInstCorrectionTool({{ id }}, '{{ state_name }}', '{{ name }}')">
+                    <i class="bi bi-pencil-square me-1"></i>Instrument Corrections
                 </button>
             </div>
         </div>
