@@ -68,12 +68,12 @@ def init_tool():
         saved_renames = saved_config.get('renames', {})
         saved_adds = saved_config.get('adds', [])
 
+        # 1. Processing Renames
         field_list = []
         for col in columns:
             orig = col['name']
-            orig_lower = orig.lower() # Normalize for lookup
+            orig_lower = orig.lower()
             
-            # Check Saved -> Default (Case Insensitive) -> Original
             if orig in saved_renames: 
                 current = saved_renames[orig]
             elif orig_lower in DEFAULT_RENAMES: 
@@ -83,12 +83,19 @@ def init_tool():
             
             field_list.append({'original': orig, 'current': current, 'type': str(col['type'])})
 
+        # 2. Processing New Fields (THE FIX)
         existing_col_names = [c['name'].lower() for c in columns]
         
-        if not saved_config:
-            adds_list = [f for f in DEFAULT_NEW_FIELDS if f['name'].lower() not in existing_col_names]
-        else:
-            adds_list = saved_adds
+        # Start with saved user adds
+        adds_list = list(saved_adds) 
+        
+        # Check Factory Defaults: If not in DB and not already in our list, ADD IT
+        current_add_names = [a['name'].lower() for a in adds_list]
+        
+        for df in DEFAULT_NEW_FIELDS:
+            # If the default field is NOT in the database AND NOT already queued to be added
+            if df['name'].lower() not in existing_col_names and df['name'].lower() not in current_add_names:
+                adds_list.append(df)
 
         return jsonify({'success': True, 'fields': field_list, 'new_fields': adds_list})
     except Exception as e:

@@ -82,34 +82,22 @@ def init_tool():
 def get_images():
     try:
         record_id = request.json.get('record_id')
-        county_id = request.json.get('county_id')
         
-        c = db.session.get(IndexingCounties, county_id)
+        # New Logic: Get path directly from the record (stech_image_path)
+        sql_path = "SELECT stech_image_path FROM GenericDataImport WHERE id = :id"
+        res = db.session.execute(text(sql_path), {'id': record_id}).fetchone()
         
-        # 1. Get Key
-        sql_key = "SELECT OriginalValue FROM GenericDataImport WHERE id = :id"
-        key_res = db.session.execute(text(sql_key), {'id': record_id}).fetchone()
-        if not key_res: return jsonify({'success': False, 'images': []})
+        if not res or not res[0]:
+            return jsonify({'success': False, 'images': [], 'message': 'No image path found on record.'})
         
-        key_val = key_res[0]
+        full_disk_path = res[0]
+        safe_path = urllib.parse.quote(full_disk_path)
         
-        # 2. Get Images using Key
-        sql_imgs = "SELECT col03varchar FROM GenericDataImport WHERE fn LIKE '%image%' AND keyOriginalValue = :key ORDER BY fn"
-        imgs = db.session.execute(text(sql_imgs), {'key': key_val}).fetchall()
-        
-        # 3. Build Paths
-        s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
-        base_path = os.path.join(current_app.root_path, 'data', s.state_name, c.county_name, 'Images')
-        
-        images = []
-        for i in imgs:
-            if i.col03varchar:
-                full_path = os.path.join(base_path, i.col03varchar)
-                safe_path = urllib.parse.quote(full_path)
-                images.append({
-                    'src': f"/api/tools/legal-others/view-image?path={safe_path}",
-                    'name': i.col03varchar
-                })
+        # Return as a list (Viewer supports lists)
+        images = [{
+            'src': f"/api/tools/legal-others/view-image?path={safe_path}",
+            'name': os.path.basename(full_disk_path)
+        }]
 
         return jsonify({'success': True, 'images': images})
     except Exception as e:
@@ -123,6 +111,9 @@ def view_image():
     
     file_path = request.args.get('path')
     if not file_path: return "No path provided", 400
+    
+    # Simple security check (expand if needed)
+    # if '..' in file_path: return "Invalid path", 403
     
     file_path = os.path.abspath(file_path)
     if not os.path.exists(file_path):

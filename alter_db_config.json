@@ -32,16 +32,37 @@
         "addition_external_id": "addition_external_id",
         "township_range_internal_id": "township_range_internal_id",
         "township_range_external_id": "township_range_external_id",
-        "col20other": "col20other2",
+        "col20other": "col20other",
         "uf1": "uf1",
         "uf2": "uf2",
         "uf3": "uf3",
-        "leftovers": "leftovers",
-        "instrumentid": "instrumentid",
-        "change_script_locations": "change_script_locations",
-        "instTypeOriginal": "instTypeOriginal",
-        "keyOriginalValue": "keyOriginalValue",
-        "deleteFlag": "deleteFlag"
+        "leftovers": "leftovers"
     },
-    "adds": []
+    "adds": [
+        {
+            "name": "instrumentid",
+            "type": "INT",
+            "default": ""
+        },
+        {
+            "name": "change_script_locations",
+            "type": "VARCHAR(MAX)",
+            "default": ""
+        },
+        {
+            "name": "instTypeOriginal",
+            "type": "VARCHAR(255)",
+            "default": ""
+        },
+        {
+            "name": "keyOriginalValue",
+            "type": "VARCHAR(255)",
+            "default": ""
+        },
+        {
+            "name": "deleteFlag",
+            "type": "VARCHAR(10)",
+            "default": ""
+        }
+    ]
 }

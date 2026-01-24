@@ -1,23 +1,22 @@
 <script>
 /**
  * Universal Image Manager
- * Handles fetching image lists, thumbnail generation, navigation, and basic zoom/pan.
+ * Refactored: Fit-Width, Top-Left Alignment, and Robust Click-and-Hold Panning.
  */
 if (typeof window.ImageManager === 'undefined') {
     window.ImageManager = class {
         constructor(config) {
             this.prefix = config.prefix;
-            this.apiEndpoint = config.apiEndpoint; // URL to fetch image list
+            this.apiEndpoint = config.apiEndpoint;
             
             // State
             this.images = [];
             this.currentIndex = -1;
-            this.scale = 1;
+            this.zoomLevel = 1.0; // 1.0 = 100% width
 
             // Bind Elements
             this.viewport = document.getElementById(`${this.prefix}ImageViewport`);
             this.mainImg = document.getElementById(`${this.prefix}MainImage`);
-            this.transformLayer = document.getElementById(`${this.prefix}TransformLayer`);
             this.strip = document.getElementById(`${this.prefix}ThumbnailStrip`);
             this.lblCount = document.getElementById(`${this.prefix}ImageCount`);
             this.lblName = document.getElementById(`${this.prefix}ImageName`);
@@ -31,18 +30,64 @@ if (typeof window.ImageManager === 'undefined') {
             document.getElementById(`${this.prefix}BtnZoomOut`).onclick = () => this.zoom(-0.2);
             document.getElementById(`${this.prefix}BtnReset`).onclick = () => this.resetZoom();
 
-            // Keyboard Nav Support (Optional)
-            this.viewport.tabIndex = 0; // Make focusable
+            // Keyboard Nav
+            this.viewport.tabIndex = 0;
             this.viewport.onkeydown = (e) => {
                 if(e.key === 'ArrowRight') this.next();
                 if(e.key === 'ArrowLeft') this.prev();
             };
+
+            // --- DRAG TO PAN LOGIC (FIXED) ---
+            this.isDown = false;
+            this.startX = 0;
+            this.startY = 0;
+            this.scrollLeft = 0;
+            this.scrollTop = 0;
+            
+            // 1. Set default cursor
+            this.viewport.style.cursor = 'grab';
+
+            this.viewport.addEventListener('mousedown', (e) => {
+                // CRITICAL: Prevent browser from dragging the image element itself
+                e.preventDefault();
+                
+                this.isDown = true;
+                this.viewport.style.cursor = 'grabbing';
+                
+                // Capture start positions
+                this.startX = e.pageX - this.viewport.offsetLeft;
+                this.startY = e.pageY - this.viewport.offsetTop;
+                this.scrollLeft = this.viewport.scrollLeft;
+                this.scrollTop = this.viewport.scrollTop;
+            });
+
+            this.viewport.addEventListener('mouseleave', () => {
+                this.isDown = false;
+                this.viewport.style.cursor = 'grab';
+            });
+
+            this.viewport.addEventListener('mouseup', () => {
+                this.isDown = false;
+                this.viewport.style.cursor = 'grab';
+            });
+
+            this.viewport.addEventListener('mousemove', (e) => {
+                if (!this.isDown) return;
+                
+                // Prevent any selection
+                e.preventDefault();
+                
+                const x = e.pageX - this.viewport.offsetLeft;
+                const y = e.pageY - this.viewport.offsetTop;
+                
+                const walkX = (x - this.startX); 
+                const walkY = (y - this.startY);
+                
+                this.viewport.scrollLeft = this.scrollLeft - walkX;
+                this.viewport.scrollTop = this.scrollTop - walkY;
+            });
         }
 
-        /**
-         * Loads images for a specific record.
-         * @param {Object} payload - JSON body to send to apiEndpoint (e.g. {record_id: 1, county_id: 5})
-         */
         load(payload) {
             this.resetUI();
             this.loader.classList.remove('d-none');
@@ -81,7 +126,6 @@ if (typeof window.ImageManager === 'undefined') {
                 t.className = 'h-100 border border-secondary opacity-50';
                 t.style.cursor = 'pointer';
                 t.onclick = () => this.select(idx);
-                // Highlight active logic handled in select()
                 t.id = `${this.prefix}Thumb_${idx}`;
                 this.strip.appendChild(t);
             });
@@ -95,7 +139,11 @@ if (typeof window.ImageManager === 'undefined') {
             // Update Main Image
             this.mainImg.src = imgData.src;
             this.mainImg.style.display = 'block';
+            
+            // Reset View
             this.resetZoom();
+            this.viewport.scrollTop = 0; 
+            this.viewport.scrollLeft = 0;
 
             // Update Meta
             this.lblCount.innerText = `${index + 1} / ${this.images.length}`;
@@ -129,16 +177,16 @@ if (typeof window.ImageManager === 'undefined') {
 
         // --- Zoom Logic ---
         zoom(amount) {
-            this.scale += amount;
-            if (this.scale < 0.2) this.scale = 0.2;
+            this.zoomLevel += amount;
+            if (this.zoomLevel < 0.1) this.zoomLevel = 0.1;
             this.updateTransform();
         }
         resetZoom() {
-            this.scale = 1;
+            this.zoomLevel = 1.0;
             this.updateTransform();
         }
         updateTransform() {
-            this.mainImg.style.transform = `scale(${this.scale})`;
+            this.mainImg.style.width = `${this.zoomLevel * 100}%`;
         }
     };
 }
