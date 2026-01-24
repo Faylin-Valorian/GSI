@@ -42,14 +42,14 @@
                 const item = document.createElement('div');
                 item.className = 'p-2 border-bottom border-secondary text-white small rlo-item text-truncate';
                 item.style.cursor = 'pointer';
-                // Display Original Value (Key)
+                // Show Original Value
                 item.innerText = r.desc || `Record ${r.id}`;
                 item.title = "Click to Copy & Load";
                 
                 item.onclick = () => {
                     // Clipboard Copy
                     if(r.desc) navigator.clipboard.writeText(r.desc);
-                    // Load
+                    // Load Record
                     rloLoadRecord(r);
                 };
                 list.appendChild(item);
@@ -61,7 +61,7 @@
 
     function rloLoadRecord(record) {
         rloCurrentRecord = record;
-        // Header Text matches Record Key
+        // Header Text
         document.getElementById('rloCurrentRecordLabel').innerText = record.desc || `Record #${record.id}`;
         
         // Load Fields
@@ -92,12 +92,12 @@
             body: JSON.stringify({county_id: rloCountyId, record_id: record.id})
         }).then(r => r.json()).then(d => {
             if(d.success && d.images.length > 0) {
-                // Show Main Image (First one)
+                // Show First Image
                 mainImg.src = d.images[0].src;
                 mainImg.style.display = 'block';
                 document.getElementById('rloNoImage').style.display = 'none';
 
-                // Populate Thumbnails
+                // Populate Gallery Strip
                 d.images.forEach(img => {
                     const thumb = document.createElement('img');
                     thumb.src = img.src;
@@ -112,7 +112,7 @@
             }
         });
         
-        // Highlight active list item
+        // Highlight active item
         document.querySelectorAll('.rlo-item').forEach(el => el.classList.remove('bg-primary'));
         event.target.classList.add('bg-primary');
     }

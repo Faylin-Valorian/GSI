@@ -27,6 +27,7 @@ def init_tool():
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     
     try:
+        # Check if 'legal_type' exists to avoid SQL errors if not run yet
         inspector = inspect(db.engine)
         columns = [col['name'] for col in inspector.get_columns('GenericDataImport')]
         
@@ -36,6 +37,7 @@ def init_tool():
                 'message': "Configuration Error: 'legal_type' column missing. Run 'Setup eData Table' first."
             })
 
+        # Removed ValidationStatus
         sql = """
         SELECT id, OriginalValue, col02varchar, col03varchar, col04varchar, 
                col05varchar, col06varchar, col07varchar, col08varchar
@@ -50,7 +52,7 @@ def init_tool():
         for r in results:
             records.append({
                 'id': r.id,
-                'desc': r.OriginalValue, # This is the Key Value
+                'desc': r.OriginalValue, # Used for display & clipboard
                 'fields': {
                     'col02': r.col02varchar,
                     'col03': r.col03varchar,
@@ -86,7 +88,7 @@ def get_images():
         
         key_val = key_res[0]
         
-        # 2. Get Images
+        # 2. Get Images using Key
         sql_imgs = "SELECT col03varchar FROM GenericDataImport WHERE fn LIKE '%image%' AND keyOriginalValue = :key ORDER BY fn"
         imgs = db.session.execute(text(sql_imgs), {'key': key_val}).fetchall()
         
@@ -99,7 +101,6 @@ def get_images():
             if i.col03varchar:
                 full_path = os.path.join(base_path, i.col03varchar)
                 safe_path = urllib.parse.quote(full_path)
-                # Re-uses the viewer from Instrument Corrections as requested
                 images.append({
                     'src': f"/api/tools/inst-corrections/view-image?path={safe_path}",
                     'name': i.col03varchar
@@ -142,6 +143,7 @@ def save_record():
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     try:
+        # Removed ValidationStatus
         sql = """
         UPDATE GenericDataImport
         SET col02varchar = :c2, col03varchar = :c3, col04varchar = :c4,
