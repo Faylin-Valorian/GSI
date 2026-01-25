@@ -52,16 +52,6 @@ class CountyImages(db.Model):
     county_id = db.Column(db.Integer, db.ForeignKey('indexing_counties.id'))
     image_path = db.Column(db.String(255))
 
-class UnindexedImages(db.Model):
-    __tablename__ = 'unindexed_images'
-    id = db.Column(db.Integer, primary_key=True)
-    county_id = db.Column(db.Integer, db.ForeignKey('indexing_counties.id'), nullable=False)
-    full_path = db.Column(db.String(4000), nullable=False)
-    book_name = db.Column(db.String(255))
-    page_name = db.Column(db.String(255))
-    require_indexing = db.Column(db.Boolean, default=False)
-    scanned_at = db.Column(db.DateTime, default=datetime.utcnow)
-
 class GenericDataImport(db.Model):
     __tablename__ = 'GenericDataImport'
     id = db.Column(db.Integer, primary_key=True)
