@@ -12,7 +12,7 @@ from werkzeug.utils import secure_filename
 
 initial_prep_bp = Blueprint('initial_preparation', __name__)
 
-def generate_prep_sql(county_name, book_start=None, book_end=None, use_path=False, image_path_prefix=''):
+def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_prefix=''):
     """
     Generates the SQL script steps for the Initial Preparation Tool.
     """
@@ -82,12 +82,13 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, use_path=Fals
     """
     steps.append(('Generating Instrument IDs', sql_inst))
 
-    # 7. UPDATE STECH IMAGE PATH (Moved from Keli Linkup)
-    if use_path and image_path_prefix:
+    # 7. UPDATE STECH IMAGE PATH
+    # Non-optional execution if path is provided
+    if image_path_prefix:
         sql_path = f"UPDATE GenericDataImport SET stech_image_path = '{image_path_prefix}' + col03varchar WHERE fn LIKE '%image%'"
         steps.append(('Setting Stech Image Paths', sql_path))
         
-        # 8. SYNC PATH TO HEADER (New Step)
+        # 8. SYNC PATH TO HEADER
         # We must sync this to the header so the "Other" legals (created next) inherit it.
         sql_sync = """
         UPDATE a 
@@ -161,7 +162,7 @@ def preview_prep():
     c = db.session.get(IndexingCounties, data.get('county_id'))
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     
-    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('use_path'), data.get('image_path_prefix'))
+    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('image_path_prefix'))
     full_script = "\n".join([s[1] for s in steps])
     return jsonify({'success': True, 'sql': full_script})
 
@@ -173,7 +174,7 @@ def download_sql():
     c = db.session.get(IndexingCounties, data.get('county_id'))
     if not c: return Response("County not found", 404)
 
-    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('use_path'), data.get('image_path_prefix'))
+    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('image_path_prefix'))
     
     def generate():
         for name, sql in steps:
@@ -190,7 +191,7 @@ def execute_prep():
     c = db.session.get(IndexingCounties, data.get('county_id'))
     if not c: return jsonify({'success': False, 'message': 'County not found'})
 
-    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('use_path'), data.get('image_path_prefix'))
+    steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('image_path_prefix'))
     total_steps = len(steps)
     
     def generate_stream():
@@ -208,19 +209,36 @@ def execute_prep():
 
     return Response(stream_with_context(generate_stream()), mimetype='application/json')
 
-@initial_prep_bp.route('/api/tools/initial-prep/get-book-range/<int:county_id>', methods=['GET'])
+@initial_prep_bp.route('/api/tools/initial-prep/get-defaults/<int:county_id>', methods=['GET'])
 @login_required
-def get_book_range(county_id):
-    # (Same as before)
+def get_prep_defaults(county_id):
     if current_user.role != 'admin': return jsonify({'success': False})
     try:
         c = db.session.get(IndexingCounties, county_id)
         if not c: return jsonify({'success': False})
         s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
         if not s: return jsonify({'success': False})
+        
         path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'Images')
-        if not os.path.exists(path): return jsonify({'success': True, 'start': '', 'end': '', 'found': False})
-        folders = sorted([f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))])
-        if not folders: return jsonify({'success': True, 'start': '', 'end': '', 'found': False})
-        return jsonify({'success': True, 'start': folders[0], 'end': folders[-1], 'found': True})
+        
+        folders = []
+        path_found = os.path.exists(path)
+        path_prefix = ""
+
+        if path_found:
+            folders = sorted([f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))])
+            path_prefix = path
+            if not path_prefix.endswith(os.sep):
+                path_prefix += os.sep
+
+        book_start = folders[0] if folders else ''
+        book_end = folders[-1] if folders else ''
+
+        return jsonify({
+            'success': True, 
+            'start': book_start, 
+            'end': book_end, 
+            'path_prefix': path_prefix,
+            'found': path_found
+        })
     except Exception as e: return jsonify({'success': False, 'message': str(e)})

@@ -16,14 +16,24 @@
                 payloadProvider: () => ({ 
                     county_id: currentPrepCountyId, 
                     book_start: document.getElementById('prepBookStart').value, 
-                    book_end: document.getElementById('prepBookEnd').value 
+                    book_end: document.getElementById('prepBookEnd').value,
+                    image_path_prefix: document.getElementById('prepImgPath').value
                 })
             });
         }
         prepMgr.reset();
 
         if(typeof updateAllToolsDebug === 'function') updateAllToolsDebug();
-        // Uses the existing ID variable
+
+        // Fetch defaults immediately upon opening
+        fetch('/api/tools/initial-prep/get-defaults/'+currentPrepCountyId).then(r=>r.json()).then(d=>{ 
+            if(d.found){ 
+                document.getElementById('prepBookStart').value = d.start; 
+                document.getElementById('prepBookEnd').value = d.end;
+                document.getElementById('prepImgPath').value = d.path_prefix;
+            }
+        });
+
         if(initialPrepModal) initialPrepModal.show();
     }
 
@@ -32,8 +42,9 @@
     function togglePrepBookInputs() {
         if(document.getElementById('prepToggleBook').checked) {
             document.getElementById('prepBookInputsContainer').classList.remove('d-none');
-            fetch('/api/tools/initial-prep/get-book-range/'+currentPrepCountyId).then(r=>r.json()).then(d=>{ if(d.found){ document.getElementById('prepBookStart').value=d.start; document.getElementById('prepBookEnd').value=d.end; }});
-        } else { document.getElementById('prepBookInputsContainer').classList.add('d-none'); }
+        } else { 
+            document.getElementById('prepBookInputsContainer').classList.add('d-none'); 
+        }
     }
 
     function runPrepTool() {
@@ -46,7 +57,12 @@
 
         fetch('/api/tools/initial-prep/execute', {
             method:'POST', headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({ county_id: currentPrepCountyId, book_start: document.getElementById('prepBookStart').value, book_end: document.getElementById('prepBookEnd').value })
+            body:JSON.stringify({ 
+                county_id: currentPrepCountyId, 
+                book_start: document.getElementById('prepBookStart').value, 
+                book_end: document.getElementById('prepBookEnd').value,
+                image_path_prefix: document.getElementById('prepImgPath').value
+            })
         }).then(response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
             function read() { reader.read().then(({ done, value }) => {

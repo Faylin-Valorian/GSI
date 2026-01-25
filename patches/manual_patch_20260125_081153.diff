@@ -1,0 +1,33 @@
+--- faylin-valorian/gsi/blueprints/UnindexedImages.py
++++ faylin-valorian/gsi/blueprints/UnindexedImages.py
+@@ -10,7 +10,7 @@
+ 
+ @unindexed_bp.route('/api/edata/scan-unindexed', methods=['POST'])
+ @login_required
+-def scan_unindexed_images():
++def scan_unindexed_images():
+     try:
+         county_id = request.json.get('county_id')
+         scan_path = request.json.get('scan_path')
+--- faylin-valorian/gsi/templates/components/modals/UnindexedImages.html
++++ faylin-valorian/gsi/templates/components/modals/UnindexedImages.html
+@@ -10,7 +10,6 @@
+                 <h5 class="modal-title text-warning"><i class="bi bi-images me-2"></i>Review Unindexed Images</h5>
+                 <div class="ms-4 d-flex align-items-center">
+                     <input type="text" id="scanPathInput" class="form-control form-control-sm bg-dark text-light border-secondary me-2" placeholder="Scan Path..." style="width: 300px;">
+-                    <div class="form-check form-switch me-3"><input class="form-check-input" type="checkbox" id="scanSplitToggle"><label class="form-check-label small text-light" for="scanSplitToggle">Split Images</label></div>
+                     <button class="btn btn-sm btn-warning" onclick="scanForUnindexed()"><i class="bi bi-search me-1"></i>Scan</button>
+                 </div>
+                 <button type="button" class="btn-close btn-close-white" onclick="closeUnindexedModal()"></button>
+--- faylin-valorian/gsi/templates/components/scripts/UnindexedImages.html
++++ faylin-valorian/gsi/templates/components/scripts/UnindexedImages.html
+@@ -35,8 +35,7 @@
+         fetch('/api/edata/scan-unindexed', {
+             method: 'POST', headers: {'Content-Type': 'application/json'},
+             body: JSON.stringify({ 
+-                county_id: cid, 
+-                scan_path: document.getElementById('scanPathInput').value 
++                county_id: cid, 
++                scan_path: document.getElementById('scanPathInput').value
+             })
+         }).then(r=>r.json()).then(d => {

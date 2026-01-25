@@ -11,9 +11,9 @@
         document.getElementById('scanPathInput').value = `data/${stateName}/${countyName}/Images`;
         document.getElementById('unindexedTableBody').innerHTML = '';
         
-        if(unindexedReviewModal) unindexedReviewModal.show();
+        const el = document.getElementById('unindexedReviewModal');
+        if(el) bootstrap.Modal.getOrCreateInstance(el).show();
         
-        // Init Manager
         if(!unindexedImgMgr) {
             unindexedImgMgr = new ImageManager({
                 prefix: 'unindexed',
@@ -21,52 +21,45 @@
             });
         }
         unindexedImgMgr.resetUI();
-        
         loadUnindexedTable(countyId);
     }
 
-    function closeUnindexedModal() { if(unindexedReviewModal) unindexedReviewModal.hide(); }
+    function closeUnindexedModal() { 
+        const el = document.getElementById('unindexedReviewModal');
+        if(el) bootstrap.Modal.getOrCreateInstance(el).hide(); 
+    }
 
     function scanForUnindexed() {
         const cid = document.getElementById('currentReviewCountyId').value;
+        const scanPath = document.getElementById('scanPathInput').value;
+        
         document.getElementById('globalLoader').style.display = 'flex';
         fetch('/api/edata/scan-unindexed', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                county_id: cid, 
-                scan_path: document.getElementById('scanPathInput').value 
-            })
+            body: JSON.stringify({ county_id: cid, scan_path: scanPath })
         }).then(r=>r.json()).then(d => {
             document.getElementById('globalLoader').style.display = 'none';
-            if(d.success) {
-                loadUnindexedTable(cid);
-            } else {
-                alert(d.message);
-            }
+            if(d.success) loadUnindexedTable(cid);
+            else showNotification(d.message, "danger");
         });
     }
 
     function loadUnindexedTable(cid) {
         fetch(`/api/edata/unindexed-list/${cid}`).then(r=>r.json()).then(data => {
             const b = document.getElementById('unindexedTableBody'); b.innerHTML = '';
-            
-            if(data.length === 0) {
+            if(!data || data.length === 0) {
                 b.innerHTML = '<tr><td colspan="2" class="text-muted text-center p-3">No unindexed images found.</td></tr>';
                 return;
             }
-
             data.forEach(img => {
                 const tr = document.createElement('tr');
                 tr.style.cursor = 'pointer';
-                
-                // CLICK ROW
                 tr.onclick = (e) => { 
                     if(e.target.tagName === 'INPUT') return;
                     unindexedImgMgr.load({ record_id: img.id, county_id: cid });
                     document.querySelectorAll('#unindexedTableBody tr').forEach(r => r.classList.remove('table-active'));
                     tr.classList.add('table-active');
                 };
-                
                 const checkState = img.require_indexing ? 'checked' : '';
                 tr.innerHTML = `
                     <td class="ps-3 text-truncate" style="max-width: 200px;">${img.display_name}</td>

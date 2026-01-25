@@ -1,0 +1,9 @@
+--- a/faylin-valorian/gsi/GSI-845cd5901d78d3349d86e576f1ad7886844dab6e/templates/components/modals/UnindexedImages.html
++++ b/faylin-valorian/gsi/GSI-845cd5901d78d3349d86e576f1ad7886844dab6e/templates/components/modals/UnindexedImages.html
+@@ -8,7 +8,6 @@
+                 <div class="ms-4 d-flex align-items-center">
+                     <input type="text" id="scanPathInput" class="form-control form-control-sm bg-dark text-light border-secondary me-2" placeholder="Scan Path..." style="width: 300px;">
+-                    <div class="form-check form-switch me-3"><input class="form-check-input" type="checkbox" id="scanSplitToggle"><label class="form-check-label small text-light" for="scanSplitToggle">Split Images</label></div>
+                     <button class="btn btn-sm btn-warning" onclick="scanForUnindexed()"><i class="bi bi-search me-1"></i>Scan</button>
+                 </div>
+                 <button type="button" class="btn-close btn-close-white" onclick="closeUnindexedModal()"></button>
