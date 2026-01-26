@@ -43,8 +43,9 @@ def init_tool():
                 'message': "Configuration Error: 'legal_type' column missing. Run 'Setup eData Table' first."
             })
 
+        # UPDATED SQL: Added keyOriginalValue
         sql = """
-        SELECT id, OriginalValue, col02varchar, col03varchar, col04varchar, 
+        SELECT id, OriginalValue, keyOriginalValue, col02varchar, col03varchar, col04varchar, 
                col05varchar, col06varchar, col07varchar, col08varchar
         FROM GenericDataImport
         WHERE fn LIKE '%legal%' 
@@ -58,6 +59,7 @@ def init_tool():
             records.append({
                 'id': r.id,
                 'desc': r.OriginalValue,
+                'key_val': r.keyOriginalValue,  # Added to payload
                 'fields': {
                     'col02': r.col02varchar,
                     'col03': r.col03varchar,

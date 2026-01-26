@@ -76,8 +76,11 @@
 
     function rloLoadRecord(record) {
         rloCurrentRecord = record;
-        // Header Text
-        document.getElementById('rloCurrentRecordLabel').innerText = record.desc || `Record #${record.id}`;
+        
+        // Header Text: Updated to include keyOriginalValue
+        let label = record.desc || `Record #${record.id}`;
+        if(record.key_val) label += ` [${record.key_val}]`;
+        document.getElementById('rloCurrentRecordLabel').innerText = label;
         
         // Load Fields
         document.getElementById('rloCol02').value = record.fields.col02 || '';

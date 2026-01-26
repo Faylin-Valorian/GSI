@@ -1,0 +1,24 @@
+--- faylin-valorian/gsi/GSI-845cd5901d78d3349d86e576f1ad7886844dab6e/blueprints/ReviewLegalTypeOthers.py
++++ faylin-valorian/gsi/GSI-845cd5901d78d3349d86e576f1ad7886844dab6e/blueprints/ReviewLegalTypeOthers.py
+@@ -46,7 +46,7 @@
+ 
+         sql = """
+-        SELECT id, OriginalValue, col02varchar, col03varchar, col04varchar, 
+-               col05varchar, col06varchar, col07varchar, col08varchar
++        SELECT id, OriginalValue, keyOriginalValue, col02varchar, col03varchar, col04varchar, 
++               col05varchar, col06varchar, col07varchar, col08varchar
+         FROM GenericDataImport
+         WHERE fn LIKE '%legal%' 
+           AND (legal_type = 'Other' OR legal_type = 'O')
+         ORDER BY id
+         """
+         results = db.session.execute(text(sql)).fetchall()
+         
+         records = []
+         for r in results:
+             records.append({
+                 'id': r.id,
+                 'desc': r.OriginalValue,
++                'key_val': r.keyOriginalValue,
+                 'fields': {
+                     'col02': r.col02varchar,
