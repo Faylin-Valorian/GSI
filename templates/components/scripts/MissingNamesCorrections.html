@@ -1,0 +1,141 @@
+<script>
+    var missingNamesModal;
+    var mnCountyId = null;
+    var mnCurrentRecord = null;
+    var mnImgMgr = null;
+    var mnBasePath = "";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('missingNamesModal');
+        if (el) missingNamesModal = new bootstrap.Modal(el);
+    });
+
+    function openMissingNamesTool(id, s, c) {
+        closeAllModals(); 
+        mnCountyId = id;
+        mnBasePath = `data/${s}/${c}/Images`; 
+        
+        if(!mnImgMgr) {
+            mnImgMgr = new ImageManager({
+                prefix: 'mn',
+                // Reuse generic image endpoint or existing one if path logic is same.
+                // Since this uses normal instrument logic, we can likely reuse 'inst-corrections/images' 
+                // IF we map the record correctly. 
+                // Actually, let's use the same endpoint as Instrument Corrections since logic is 'get images for this record'.
+                // Or create a generic one? For now, we reuse the InstCorrections one because it accepts 'instrument_id' if we mod it, 
+                // OR we just use the file logic.
+                // Let's reuse additions one? No.
+                // We will reuse the 'inst-corrections' image fetcher logic but passing instrument ID is key.
+                // Actually, the simplest is to reuse the 'unindexed-images' or similar if we have the file path.
+                // BUT: We don't have the file path on the missing record (it's a name record).
+                // We need to fetch images by InstrumentID.
+                // Let's use the API endpoint from InstrumentTypeCorrections but tailored?
+                // Wait, 'get_images_for_record' in Additions uses value.
+                // 'get_images' in InstType uses 'record_id' (instrument id).
+                apiEndpoint: '/api/tools/inst-corrections/images' 
+            });
+        }
+        mnImgMgr.resetUI();
+        
+        // Init Tool (Tagging)
+        fetch('/api/tools/missing-names/init', {
+            method:'POST', headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({county_id:id})
+        }).then(r=>r.json()).then(d => { 
+            if(d.success) mnFetchList(); 
+        });
+
+        if(missingNamesModal) missingNamesModal.show();
+    }
+
+    function mnFetchList() {
+        document.getElementById('mnListStatus').innerText = 'Loading...';
+        fetch('/api/tools/missing-names/list', {
+            method:'POST', headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({county_id:mnCountyId})
+        }).then(r=>r.json()).then(d => {
+            const l = document.getElementById('mnRecordList'); l.innerHTML = '';
+            document.getElementById('mnListStatus').innerText = `${d.records.length} Records Found`;
+            
+            d.records.forEach(r => {
+                const item = document.createElement('div'); 
+                item.className='p-2 border-bottom text-white mn-item small'; 
+                item.style.cursor = 'pointer';
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <span class="badge bg-secondary">${r.type}</span>
+                        <span class="text-muted x-small">#${r.inst_id}</span>
+                    </div>
+                `;
+                item.onclick = () => mnLoadRecord(r, item);
+                l.appendChild(item);
+            });
+            
+            // Auto load first
+            if(d.records.length > 0) mnLoadRecord(d.records[0], l.firstChild);
+        });
+    }
+
+    function mnLoadRecord(r, el) {
+        mnCurrentRecord = r;
+        document.querySelectorAll('.mn-item').forEach(e => e.classList.remove('bg-danger'));
+        if(el) el.classList.add('bg-danger');
+
+        document.getElementById('mnTypeDisplay').innerText = r.type;
+        document.getElementById('mnInstIdDisplay').innerText = r.inst_id;
+        document.getElementById('mnInput').value = '';
+        document.getElementById('mnReverseToggle').checked = false;
+
+        // Load Images by Instrument ID (Using existing InstCorrection API which expects record_id = row id, 
+        // BUT that endpoint fetches by id. 
+        // We can pass our record ID. The endpoint looks up instrumentid from the row.
+        // GenericDataImport ID is unique. 
+        // /api/tools/inst-corrections/images looks up by ID. This works perfectly.
+        mnImgMgr.load({
+            county_id: mnCountyId,
+            record_id: r.id, // This is the ID of the Name record. 
+            // NOTE: The backend endpoint for inst-corrections/images does:
+            // "SELECT instrumentid FROM GenericDataImport WHERE id = :id"
+            // Then selects images for that instrument. 
+            // Since this is a name record in same table/instrument, it works.
+            base_path: mnBasePath
+        });
+    }
+
+    function mnSave() {
+        if(!mnCurrentRecord) return;
+        const val = document.getElementById('mnInput').value;
+        const rev = document.getElementById('mnReverseToggle').checked;
+        
+        if(!val) { alert("Please enter a name or click Skip."); return; }
+
+        fetch('/api/tools/missing-names/save', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                county_id: mnCountyId,
+                id: mnCurrentRecord.id,
+                value: val,
+                reverse: rev
+            })
+        }).then(r=>r.json()).then(d => {
+            if(d.success) mnFetchList();
+            else alert("Error: " + d.message);
+        });
+    }
+
+    function mnSkip() {
+        if(!mnCurrentRecord) return;
+        if(!confirm("Are you sure? This will either:\n1. Copy the other name if it exists.\n2. DELETE the entire instrument if no names exist.")) return;
+
+        fetch('/api/tools/missing-names/skip', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({
+                county_id: mnCountyId,
+                id: mnCurrentRecord.id
+            })
+        }).then(r=>r.json()).then(d => {
+            if(d.success) mnFetchList();
+            else alert("Error: " + d.message);
+        });
+    }
+</script>

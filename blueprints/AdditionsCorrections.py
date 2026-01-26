@@ -175,15 +175,23 @@ def search_additions():
         
         out = []
         for r in results:
+            # FIX: Robust check for '1' (string) or 1 (int)
+            is_active = False
+            if r.active is not None:
+                # Convert to string and strip whitespace to catch '1', ' 1', or 1
+                if str(r.active).strip() == '1':
+                    is_active = True
+
             out.append({
                 'name': r.name, 
                 'desc': r.comments if r.comments else '', 
-                'active': True if r.active == 1 else False
+                'active': is_active
             })
             
         return jsonify(out)
 
     except Exception as e:
+        print(f"Search Error: {e}")
         return jsonify([])
 
 @additions_bp.route('/api/tools/additions-corrections/save', methods=['POST'])

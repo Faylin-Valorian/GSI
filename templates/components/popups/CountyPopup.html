@@ -136,8 +136,11 @@
                 <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openReviewLegalOthersModal({{ id }})">
                     <i class="bi bi-ui-checks-grid me-1"></i>Review Legal Type Others
                 </button>
-                <button class="btn btn-sm btn-outline-secondary w-100 text-start mb-2" onclick="openAdditionsCorrectionTool(MATCH_THE_BUTTON_ABOVE)">
-                    <i class="bi bi-building-add me-2"></i>Additions Correction Tool
+                <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openAdditionsCorrectionTool({{ id }}, '{{ state_name }}', '{{ name }}')">
+                    <i class="bi bi-building-add me-1"></i>Additions Correction Tool
+                </button>
+                <button class="btn btn-sm btn-outline-secondary w-100 text-start mb-2" onclick="openMissingNamesTool({{ id }}, '{{ state_name }}', '{{ name }}')">
+                    <i class="bi bi-person-x me-2"></i>Missing Names Corrections
                 </button>
             </div>
         </div>

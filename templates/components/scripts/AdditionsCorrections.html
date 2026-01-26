@@ -1,8 +1,17 @@
 <script>
+    var additionsCorrectionModal; // Variable to hold the Bootstrap instance
     var acCountyId = null; 
     var acCurrentRecord = null; 
     var acImgMgr = null;
     var acBasePath = "";
+
+    // 1. INITIALIZE MODAL ON LOAD
+    document.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('additionsCorrectionModal');
+        if (el) {
+            additionsCorrectionModal = new bootstrap.Modal(el);
+        }
+    });
 
     function openAdditionsCorrectionTool(id, s, c) {
         closeAllModals(); 
@@ -22,6 +31,7 @@
         document.getElementById('acOriginalDisplay').innerText = '---';
         document.getElementById('acCurrentDisplay').innerText = '---';
 
+        // Now this will work because 'additionsCorrectionModal' is a Bootstrap instance
         if(additionsCorrectionModal) additionsCorrectionModal.show();
         
         fetch('/api/tools/additions-corrections/init', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:id})})
