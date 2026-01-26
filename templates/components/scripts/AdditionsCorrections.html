@@ -1,0 +1,150 @@
+<script>
+    var acCountyId = null; 
+    var acCurrentRecord = null; 
+    var acImgMgr = null;
+    var acBasePath = "";
+
+    function openAdditionsCorrectionTool(id, s, c) {
+        closeAllModals(); 
+        acCountyId = id;
+        acBasePath = `data/${s}/${c}/Images`; 
+        
+        // Reuse Image Manager Logic, prefix 'ac'
+        if(!acImgMgr) {
+            acImgMgr = new ImageManager({
+                prefix: 'ac',
+                apiEndpoint: '/api/tools/additions-corrections/images'
+            });
+        }
+        acImgMgr.resetUI();
+        
+        document.getElementById('acInput').value = '';
+        document.getElementById('acOriginalDisplay').innerText = '---';
+        document.getElementById('acCurrentDisplay').innerText = '---';
+
+        if(additionsCorrectionModal) additionsCorrectionModal.show();
+        
+        fetch('/api/tools/additions-corrections/init', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({county_id:id})})
+            .then(r=>r.json())
+            .then(d => { if(d.success) acFetchList(); });
+    }
+
+    function acFetchList() {
+        document.getElementById('acListStatus').innerText = 'Loading...';
+        fetch('/api/tools/additions-corrections/list', {
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body:JSON.stringify({county_id:acCountyId, hide_completed:document.getElementById('acHideCompleted').checked})
+        }).then(r=>r.json()).then(d => {
+            const l = document.getElementById('acRecordList'); l.innerHTML = '';
+            document.getElementById('acListStatus').innerText = `${d.records.length} Records Found`;
+            
+            d.records.forEach(r => {
+                const item = document.createElement('div'); 
+                item.className='p-2 border-bottom text-white ac-item small d-flex justify-content-between align-items-center'; 
+                item.style.cursor = 'pointer';
+                
+                const txt = document.createElement('span');
+                txt.className = 'text-truncate pe-2';
+                txt.innerText = r.value;
+                item.appendChild(txt);
+
+                if(r.corrected) {
+                    const icon = document.createElement('i');
+                    icon.className = 'bi bi-check-circle-fill text-success flex-shrink-0';
+                    item.appendChild(icon);
+                }
+                
+                item.onclick = () => acLoadRecord(r, item);
+                l.appendChild(item);
+            });
+        });
+    }
+
+    function acLoadRecord(record, element) {
+        acCurrentRecord = record;
+        document.querySelectorAll('.ac-item').forEach(el => el.classList.remove('bg-primary'));
+        element.classList.add('bg-primary');
+        
+        document.getElementById('acOriginalDisplay').innerText = record.value;
+        document.getElementById('acCurrentDisplay').innerText = record.corrected || '(Pending)';
+        document.getElementById('acInput').value = record.corrected || ''; 
+
+        acImgMgr.load({
+            county_id: acCountyId,
+            value: record.value,
+            base_path: acBasePath
+        });
+    }
+
+    let acSearchTimeout = null;
+    function acSearch(input) {
+        clearTimeout(acSearchTimeout);
+        const resultsDiv = document.getElementById('acSearchResults');
+        
+        if(input.value.length < 2) {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        acSearchTimeout = setTimeout(() => {
+            fetch('/api/tools/additions-corrections/search', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ county_id: acCountyId, term: input.value })
+            }).then(r => r.json()).then(data => {
+                resultsDiv.innerHTML = '';
+                if(data.length > 0) {
+                    data.forEach(item => {
+                        const a = document.createElement('a');
+                        a.className = 'list-group-item list-group-item-action bg-dark text-white border-secondary small';
+                        a.style.cursor = 'pointer';
+                        
+                        // Active/Inactive Logic
+                        const statusBadge = item.active 
+                            ? '<span class="badge bg-success ms-2 me-2 flex-shrink-0">Active</span>'
+                            : '<span class="badge bg-secondary ms-2 me-2 flex-shrink-0">Inactive</span>';
+
+                        a.innerHTML = `
+                            <div class="d-flex align-items-center w-100">
+                                <strong class="flex-shrink-0">${item.name}</strong>
+                                ${statusBadge}
+                                <span class="text-muted small fst-italic text-truncate">${item.desc || ''}</span>
+                            </div>`;
+                            
+                        a.onclick = () => {
+                            document.getElementById('acInput').value = item.name;
+                            resultsDiv.style.display = 'none';
+                        };
+                        resultsDiv.appendChild(a);
+                    });
+                    resultsDiv.style.display = 'block';
+                } else {
+                    resultsDiv.style.display = 'none';
+                }
+            });
+        }, 300);
+    }
+
+    function acSave() {
+        if(!acCurrentRecord) return;
+        const newVal = document.getElementById('acInput').value;
+        if(!newVal) return;
+
+        fetch('/api/tools/additions-corrections/save', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                county_id: acCountyId, 
+                original: acCurrentRecord.value, 
+                corrected: newVal 
+            })
+        }).then(r => r.json()).then(d => {
+            if(d.success) {
+                acCurrentRecord.corrected = newVal;
+                document.getElementById('acCurrentDisplay').innerText = newVal;
+                acFetchList();
+            } else {
+                alert("Error saving: " + d.message);
+            }
+        });
+    }
+</script>

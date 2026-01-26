@@ -83,13 +83,11 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_pr
     steps.append(('Generating Instrument IDs', sql_inst))
 
     # 7. UPDATE STECH IMAGE PATH
-    # Non-optional execution if path is provided
     if image_path_prefix:
         sql_path = f"UPDATE GenericDataImport SET stech_image_path = '{image_path_prefix}' + col03varchar WHERE fn LIKE '%image%'"
         steps.append(('Setting Stech Image Paths', sql_path))
         
         # 8. SYNC PATH TO HEADER
-        # We must sync this to the header so the "Other" legals (created next) inherit it.
         sql_sync = """
         UPDATE a 
         SET stech_image_path = b.stech_image_path 
@@ -103,7 +101,6 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_pr
         steps.append(('Syncing Image Paths to Headers', sql_sync))
 
     # 9. INSERT 'OTHER' LEGALS
-    # Now that path is on the Header (from Step 8), this insert will include the correct path.
     sql_legal = """
     INSERT INTO GenericDataImport (fn, col01varchar, stech_image_path, legal_type, col20other, deleteFlag, instrumentid) 
     SELECT REPLACE(fn, 'HEADER', 'Legal'), col01varchar, stech_image_path, 'Other', 'NO LEGAL', 'FALSE', instrumentid 
@@ -129,6 +126,21 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_pr
       AND a.instrumentID = b.instrumentID;
     """
     steps.append(('Populating KeyOriginalValue', sql_kov_assign))
+    
+    # 12. SYNC IMAGE PATH TO RELATED RECORDS (New Step)
+    # Syncs image path from Header to Legal, Name, Reference using the KeyOriginalValue link
+    if image_path_prefix:
+        sql_sync_related = """
+        UPDATE a 
+        SET stech_image_path = b.stech_image_path 
+        FROM GenericDataImport a 
+        INNER JOIN GenericDataImport b ON a.keyOriginalValue = b.OriginalValue 
+        WHERE b.fn LIKE '%header%' 
+          AND (a.fn LIKE '%legal%' OR a.fn LIKE '%name%' OR a.fn LIKE '%ref%') 
+          AND b.stech_image_path IS NOT NULL 
+          AND b.stech_image_path <> '';
+        """
+        steps.append(('Propagating Image Paths to Related Records', sql_sync_related))
 
     # --- EXTERNAL TABLES ---
     raw_manifest = """
@@ -154,6 +166,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_pr
     
     return steps
 
+# ... (Rest of file remains unchanged)
 @initial_prep_bp.route('/api/tools/initial-prep/preview', methods=['POST'])
 @login_required
 def preview_prep():
