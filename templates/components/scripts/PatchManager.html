@@ -1,4 +1,30 @@
 <script>
+    // Global variable, but we don't rely on it being set at load time anymore
+    var patchModalInstance = null;
+
+    function getPatchModal() {
+        // 1. If we already have the instance, return it
+        if (patchModalInstance) return patchModalInstance;
+
+        // 2. Try to find the element
+        const el = document.getElementById('patchModal');
+        if (!el) {
+            console.error("CRITICAL ERROR: element #patchModal not found in DOM.");
+            alert("System Error: The Patch Manager HTML is missing from the page. Please ensure modals.html is included.");
+            return null;
+        }
+
+        // 3. Create the Bootstrap instance
+        try {
+            patchModalInstance = new bootstrap.Modal(el);
+            return patchModalInstance;
+        } catch (e) {
+            console.error("Bootstrap Error:", e);
+            alert("System Error: Could not initialize Bootstrap modal.");
+            return null;
+        }
+    }
+
     function openPatchModal() {
         // 1. Check Debug Mode
         const debugToggle = document.getElementById('debugModeToggle');
@@ -7,49 +33,72 @@
             return;
         }
 
-        // 2. Fetch Version info for Badge
+        // 2. Get (or create) the Modal Instance
+        const modal = getPatchModal();
+        if (!modal) return; // Error already alerted in getPatchModal
+
+        // 3. Fetch Version info
         fetch('/api/admin/version')
             .then(r => r.json())
             .then(d => {
-                if(d.version) document.getElementById('currentVersionBadge').innerText = 'v' + d.version;
+                const badge = document.getElementById('currentVersionBadge');
+                if(d.version && badge) badge.innerText = 'v' + d.version;
             })
             .catch(e => console.log("Ver Check Fail", e));
 
-        // 3. Open Modal
-        closeAllModals();
-        if(patchModal) patchModal.show();
+        // 4. Open Modal
+        if (typeof closeAllModals === 'function') closeAllModals();
+        modal.show();
         
-        // 4. Reset UI
-        document.getElementById('patchFileInput').value = '';
-        document.getElementById('patchContentInput').value = '';
-        document.getElementById('patchModeSwitch').checked = false; // Default to unchecked (Text Paste)
-        togglePatchMode();
+        // 5. Reset UI Safely
+        const fileInput = document.getElementById('patchFileInput');
+        const contentInput = document.getElementById('patchContentInput');
+        const modeSwitch = document.getElementById('patchModeSwitch');
+        const errorDiv = document.getElementById('patchError');
+        const logDiv = document.getElementById('patchLogOutput');
+
+        if(fileInput) fileInput.value = '';
+        if(contentInput) contentInput.value = '';
         
-        document.getElementById('patchError').innerHTML = '';
-        document.getElementById('patchLogOutput').classList.add('d-none');
-        document.getElementById('patchLogOutput').innerText = '';
+        // Reset switch to "Upload" (or default)
+        if(modeSwitch) {
+            modeSwitch.checked = false; // Default to Text Paste
+            togglePatchMode();
+        }
+        
+        if(errorDiv) errorDiv.innerHTML = '';
+        if(logDiv) {
+            logDiv.classList.add('d-none');
+            logDiv.innerText = '';
+        }
     }
 
     function closePatchModal() {
-        if(patchModal) patchModal.hide();
+        const modal = getPatchModal();
+        if (modal) modal.hide();
     }
 
     function togglePatchMode() {
-        const isUpload = document.getElementById('patchModeSwitch').checked;
+        const switchEl = document.getElementById('patchModeSwitch');
+        if(!switchEl) return;
+
+        const isUpload = switchEl.checked;
         const pasteCont = document.getElementById('pasteContainer');
         const uploadCont = document.getElementById('uploadContainer');
         
         if (isUpload) {
-            pasteCont.classList.add('d-none');
-            uploadCont.classList.remove('d-none');
+            if(pasteCont) pasteCont.classList.add('d-none');
+            if(uploadCont) uploadCont.classList.remove('d-none');
         } else {
-            pasteCont.classList.remove('d-none');
-            uploadCont.classList.add('d-none');
+            if(pasteCont) pasteCont.classList.remove('d-none');
+            if(uploadCont) uploadCont.classList.add('d-none');
         }
     }
 
     function submitPatchFile() {
-        const isUpload = document.getElementById('patchModeSwitch').checked;
+        const switchEl = document.getElementById('patchModeSwitch');
+        const isUpload = switchEl ? switchEl.checked : false;
+        
         const fileInput = document.getElementById('patchFileInput');
         const contentInput = document.getElementById('patchContentInput');
         const errorDiv = document.getElementById('patchError');
@@ -59,7 +108,7 @@
 
         if (isUpload) {
             if (!fileInput.files.length) {
-                errorDiv.innerHTML = '<span class="text-danger">Please select a .diff file</span>';
+                errorDiv.innerHTML = '<span class="text-danger">Please select a .json patch file</span>';
                 return;
             }
             formData.append('file', fileInput.files[0]);
@@ -71,7 +120,7 @@
             formData.append('patch_content', contentInput.value);
         }
 
-        // Show Full Screen Loader
+        // Loader Logic
         const loader = document.getElementById('globalLoader');
         if(loader) {
             loader.style.display = 'flex';
@@ -80,7 +129,7 @@
                 <h4 class="text-white">Processing Update...</h4>
                 <ul class="text-muted text-start small mt-2" style="list-style: none;">
                     <li><i class="bi bi-check2 text-success me-2"></i>Creating Backup...</li>
-                    <li><i class="bi bi-check2 text-success me-2"></i>Applying Patches...</li>
+                    <li><i class="bi bi-check2 text-success me-2"></i>Applying Anchors...</li>
                     <li><i class="bi bi-arrow-repeat text-warning me-2"></i>Restarting Server...</li>
                 </ul>
             `;
@@ -93,7 +142,6 @@
         .then(r => r.json())
         .then(d => {
             if (d.success) {
-                // SUCCESS STATE
                 if(loader) {
                     loader.innerHTML = `
                         <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;"></div>
@@ -101,22 +149,14 @@
                         <p class="text-success">Restarting System...</p>
                     `;
                 }
-                
-                // Wait 5 seconds for backend to restart, then reload page
-                setTimeout(() => {
-                    window.location.reload();
-                }, 5000);
-
+                setTimeout(() => { window.location.reload(); }, 5000);
             } else {
-                // FAILURE STATE
                 if(loader) {
                     loader.style.display = 'none';
-                    loader.innerHTML = ''; // Clear loader content
+                    loader.innerHTML = '';
                 }
-                
                 errorDiv.innerHTML = `<span class="text-danger fw-bold">Update Failed:</span> ${d.message}`;
-                
-                if (d.logs) {
+                if (d.logs && logDiv) {
                     logDiv.classList.remove('d-none');
                     logDiv.innerText = d.logs;
                 }
@@ -124,7 +164,7 @@
         })
         .catch(e => {
             if(loader) loader.style.display = 'none';
-            errorDiv.innerHTML = `<span class="text-danger">Connection Error: ${e}</span>`;
+            if(errorDiv) errorDiv.innerHTML = `<span class="text-danger">Connection Error: ${e}</span>`;
         });
     }
 </script>
