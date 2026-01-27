@@ -18,42 +18,48 @@
         if(!mnImgMgr) {
             mnImgMgr = new ImageManager({
                 prefix: 'mn',
-                // Reuse generic image endpoint or existing one if path logic is same.
-                // Since this uses normal instrument logic, we can likely reuse 'inst-corrections/images' 
-                // IF we map the record correctly. 
-                // Actually, let's use the same endpoint as Instrument Corrections since logic is 'get images for this record'.
-                // Or create a generic one? For now, we reuse the InstCorrections one because it accepts 'instrument_id' if we mod it, 
-                // OR we just use the file logic.
-                // Let's reuse additions one? No.
-                // We will reuse the 'inst-corrections' image fetcher logic but passing instrument ID is key.
-                // Actually, the simplest is to reuse the 'unindexed-images' or similar if we have the file path.
-                // BUT: We don't have the file path on the missing record (it's a name record).
-                // We need to fetch images by InstrumentID.
-                // Let's use the API endpoint from InstrumentTypeCorrections but tailored?
-                // Wait, 'get_images_for_record' in Additions uses value.
-                // 'get_images' in InstType uses 'record_id' (instrument id).
                 apiEndpoint: '/api/tools/inst-corrections/images' 
             });
         }
         mnImgMgr.resetUI();
         
-        // Init Tool (Tagging)
+        if(missingNamesModal) missingNamesModal.show();
+        
+        document.getElementById('mnListStatus').innerText = 'Initializing...';
         fetch('/api/tools/missing-names/init', {
             method:'POST', headers:{'Content-Type':'application/json'}, 
             body:JSON.stringify({county_id:id})
-        }).then(r=>r.json()).then(d => { 
-            if(d.success) mnFetchList(); 
+        })
+        .then(r => r.json())
+        .then(d => { 
+            if(d.success) {
+                mnFetchList(); 
+            } else {
+                document.getElementById('mnListStatus').innerText = 'Error';
+                alert("Tool Initialization Failed: " + (d.message || "Unknown Error"));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('mnListStatus').innerText = 'Connection Error';
+            alert("Network/Server Error: " + err);
         });
-
-        if(missingNamesModal) missingNamesModal.show();
     }
 
     function mnFetchList() {
-        document.getElementById('mnListStatus').innerText = 'Loading...';
+        document.getElementById('mnListStatus').innerText = 'Loading Records...';
         fetch('/api/tools/missing-names/list', {
             method:'POST', headers:{'Content-Type':'application/json'}, 
             body:JSON.stringify({county_id:mnCountyId})
-        }).then(r=>r.json()).then(d => {
+        })
+        .then(r => r.json())
+        .then(d => {
+            if(!d.success) {
+                document.getElementById('mnListStatus').innerText = 'Error Loading List';
+                alert("Error loading list: " + d.message);
+                return;
+            }
+
             const l = document.getElementById('mnRecordList'); l.innerHTML = '';
             document.getElementById('mnListStatus').innerText = `${d.records.length} Records Found`;
             
@@ -61,6 +67,8 @@
                 const item = document.createElement('div'); 
                 item.className='p-2 border-bottom text-white mn-item small'; 
                 item.style.cursor = 'pointer';
+                
+                // REVERTED: List now shows Instrument ID (#123) as requested
                 item.innerHTML = `
                     <div class="d-flex justify-content-between">
                         <span class="badge bg-secondary">${r.type}</span>
@@ -71,8 +79,10 @@
                 l.appendChild(item);
             });
             
-            // Auto load first
             if(d.records.length > 0) mnLoadRecord(d.records[0], l.firstChild);
+        })
+        .catch(err => {
+            document.getElementById('mnListStatus').innerText = 'List Fetch Error';
         });
     }
 
@@ -82,22 +92,17 @@
         if(el) el.classList.add('bg-danger');
 
         document.getElementById('mnTypeDisplay').innerText = r.type;
-        document.getElementById('mnInstIdDisplay').innerText = r.inst_id;
+        
+        // TOP DISPLAY: Shows KeyOriginalValue (requires 'mnKeyDisplay' in the Modal HTML)
+        const keyDisplay = document.getElementById('mnKeyDisplay');
+        if(keyDisplay) keyDisplay.innerText = r.key_val || '---';
+        
         document.getElementById('mnInput').value = '';
         document.getElementById('mnReverseToggle').checked = false;
 
-        // Load Images by Instrument ID (Using existing InstCorrection API which expects record_id = row id, 
-        // BUT that endpoint fetches by id. 
-        // We can pass our record ID. The endpoint looks up instrumentid from the row.
-        // GenericDataImport ID is unique. 
-        // /api/tools/inst-corrections/images looks up by ID. This works perfectly.
         mnImgMgr.load({
             county_id: mnCountyId,
-            record_id: r.id, // This is the ID of the Name record. 
-            // NOTE: The backend endpoint for inst-corrections/images does:
-            // "SELECT instrumentid FROM GenericDataImport WHERE id = :id"
-            // Then selects images for that instrument. 
-            // Since this is a name record in same table/instrument, it works.
+            record_id: r.id, 
             base_path: mnBasePath
         });
     }
