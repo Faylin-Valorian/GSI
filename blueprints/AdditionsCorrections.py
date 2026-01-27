@@ -17,15 +17,18 @@ except ImportError:
 
 additions_bp = Blueprint('additions_corrections', __name__)
 
+# [GSI_BLOCK: ac_get_tables]
 def get_tables(county_name):
     return {
         'corrections': f"{county_name}_Additions_Corrections",
         'additions': f"{county_name}_keli_additions"
     }
+# [GSI_END: ac_get_tables]
 
 @additions_bp.route('/api/tools/additions-corrections/init', methods=['POST'])
 @login_required
 def init_tool():
+    # [GSI_BLOCK: ac_init_tool]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     
     county_id = request.json.get('county_id')
@@ -75,10 +78,12 @@ def init_tool():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: ac_init_tool]
 
 @additions_bp.route('/api/tools/additions-corrections/list', methods=['POST'])
 @login_required
 def get_correction_list():
+    # [GSI_BLOCK: ac_get_list]
     county_id = request.json.get('county_id')
     hide_completed = request.json.get('hide_completed', True)
     
@@ -100,10 +105,12 @@ def get_correction_list():
             'corrected': r.CorrectedCol05Varchar 
         } for r in results]
     })
+    # [GSI_END: ac_get_list]
 
 @additions_bp.route('/api/tools/additions-corrections/images', methods=['POST'])
 @login_required
 def get_images_for_record():
+    # [GSI_BLOCK: ac_get_images]
     county_id = request.json.get('county_id')
     original_val = request.json.get('value')
     relative_base_path = request.json.get('base_path') 
@@ -148,10 +155,12 @@ def get_images_for_record():
         'images': images,
         'header_text': header_text
     })
+    # [GSI_END: ac_get_images]
 
 @additions_bp.route('/api/tools/additions-corrections/search', methods=['POST'])
 @login_required
 def search_additions():
+    # [GSI_BLOCK: ac_search]
     data = request.json
     term = data.get('term', '')
     county_id = data.get('county_id')
@@ -193,10 +202,12 @@ def search_additions():
     except Exception as e:
         print(f"Search Error: {e}")
         return jsonify([])
+    # [GSI_END: ac_search]
 
 @additions_bp.route('/api/tools/additions-corrections/save', methods=['POST'])
 @login_required
 def save_correction():
+    # [GSI_BLOCK: ac_save]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     c = db.session.get(IndexingCounties, data['county_id'])
@@ -213,3 +224,4 @@ def save_correction():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: ac_save]

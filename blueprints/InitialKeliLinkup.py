@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 initial_linkup_bp = Blueprint('initial_keli_linkup', __name__)
 
+# [GSI_BLOCK: linkup_generator]
 def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book_end=None, use_path=False, image_path_prefix='', linkup_mode='neither', split_images=False):
     """
     Generates the SQL script steps for the Initial Keli Linkup Tool.
@@ -98,11 +99,12 @@ def generate_linkup_sql(county_name, use_book_range=False, book_start=None, book
     steps.append(process_sql(sql_13, 'Syncing Stech Paths to Instruments'))
     
     return steps
+# [GSI_END: linkup_generator]
 
 @initial_linkup_bp.route('/api/tools/initial-keli-linkup/defaults/<int:county_id>', methods=['GET'])
 @login_required
 def get_linkup_defaults(county_id):
-    # (Same as before)
+    # [GSI_BLOCK: linkup_defaults]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     try:
         c = db.session.get(IndexingCounties, county_id)
@@ -147,10 +149,12 @@ def get_linkup_defaults(county_id):
             }
         })
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: linkup_defaults]
 
 @initial_linkup_bp.route('/api/tools/initial-keli-linkup/preview', methods=['POST'])
 @login_required
 def preview_linkup():
+    # [GSI_BLOCK: linkup_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -164,10 +168,12 @@ def preview_linkup():
     )
     full_script = "\n".join([s[1] for s in steps])
     return jsonify({'success': True, 'sql': full_script})
+    # [GSI_END: linkup_preview]
 
 @initial_linkup_bp.route('/api/tools/initial-keli-linkup/download-sql', methods=['POST'])
 @login_required
 def download_sql():
+    # [GSI_BLOCK: linkup_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     data = request.json
     c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -184,10 +190,12 @@ def download_sql():
             
     filename = f"Keli_Linkup_{c.county_name}.sql"
     return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    # [GSI_END: linkup_download]
 
 @initial_linkup_bp.route('/api/tools/initial-keli-linkup/execute', methods=['POST'])
 @login_required
 def execute_linkup():
+    # [GSI_BLOCK: linkup_execute]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -215,3 +223,4 @@ def execute_linkup():
             yield json.dumps({'type': 'error', 'message': format_error(e)}) + '\n'
 
     return Response(stream_with_context(generate_stream()), mimetype='application/json')
+    # [GSI_END: linkup_execute]

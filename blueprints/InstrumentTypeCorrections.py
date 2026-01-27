@@ -17,15 +17,18 @@ except ImportError:
 
 inst_type_bp = Blueprint('instrument_type_corrections', __name__)
 
+# [GSI_BLOCK: inst_get_tables]
 def get_tables(county_name):
     return {
         'corrections': f"{county_name}_Instrument_Type_Corrections",
         'inst_types': f"{county_name}_keli_instrument_types"
     }
+# [GSI_END: inst_get_tables]
 
 @inst_type_bp.route('/api/tools/inst-corrections/init', methods=['POST'])
 @login_required
 def init_tool():
+    # [GSI_BLOCK: inst_init_tool]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     
     county_id = request.json.get('county_id')
@@ -74,10 +77,12 @@ def init_tool():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: inst_init_tool]
 
 @inst_type_bp.route('/api/tools/inst-corrections/list', methods=['POST'])
 @login_required
 def get_correction_list():
+    # [GSI_BLOCK: inst_get_list]
     county_id = request.json.get('county_id')
     hide_completed = request.json.get('hide_completed', True)
     
@@ -99,10 +104,12 @@ def get_correction_list():
             'corrected': r.CorrectedCol03Varchar 
         } for r in results]
     })
+    # [GSI_END: inst_get_list]
 
 @inst_type_bp.route('/api/tools/inst-corrections/images', methods=['POST'])
 @login_required
 def get_images_for_record():
+    # [GSI_BLOCK: inst_get_images]
     county_id = request.json.get('county_id')
     original_val = request.json.get('value')
     relative_base_path = request.json.get('base_path') 
@@ -143,10 +150,12 @@ def get_images_for_record():
         'images': images,
         'header_text': header_text
     })
+    # [GSI_END: inst_get_images]
 
 @inst_type_bp.route('/api/tools/inst-corrections/view-image', methods=['GET'])
 @login_required
 def view_correction_image():
+    # [GSI_BLOCK: inst_view_image]
     if current_user.role != 'admin': return "Unauthorized", 403
     file_path = request.args.get('path')
     if not file_path: return "No path provided", 400
@@ -162,10 +171,12 @@ def view_correction_image():
             img_io.seek(0)
             return send_file(img_io, mimetype='image/jpeg')
     except Exception as e: return f"Error processing image: {str(e)}", 500
+    # [GSI_END: inst_view_image]
 
 @inst_type_bp.route('/api/tools/inst-corrections/search', methods=['POST'])
 @login_required
 def search_types():
+    # [GSI_BLOCK: inst_search]
     data = request.json
     term = data.get('term', '')
     county_id = data.get('county_id')
@@ -185,24 +196,19 @@ def search_types():
         if not columns: return jsonify([])
 
         # 2. Identify Target Columns
-        # Name: 'name' or 'insttypename'
         name_col = next((c for c in columns if 'insttypename' == c.lower()), None)
         if not name_col: name_col = next((c for c in columns if 'name' == c.lower()), None)
         if not name_col: name_col = columns[0] # Fallback
         
-        # Description: 'description' or 'desc'
         desc_col = next((c for c in columns if 'description' == c.lower()), None)
         if not desc_col: desc_col = next((c for c in columns if 'desc' == c.lower()), None)
 
-        # Record Type: Explicit 'record_type'
         type_col = next((c for c in columns if 'record_type' == c.lower()), None)
         if not type_col: type_col = next((c for c in columns if 'recordtype' == c.lower()), None)
 
-        # Active
         active_col = next((c for c in columns if 'active' == c.lower()), None)
 
         # 3. Build Select & Where
-        # We MUST explicitly select the columns in the right order for the fetchall() mapping below
         select_cols = [f"[{name_col}]"]
         if desc_col: select_cols.append(f"[{desc_col}]")
         if type_col: select_cols.append(f"[{type_col}]")
@@ -220,36 +226,29 @@ def search_types():
         # 4. Map Results
         out = []
         for r in results:
-            # Row index 0 is always Name
             val_name = r[0]
-            
-            # Row index 1 is Description (if it exists)
             val_desc = ''
             current_idx = 1
             if desc_col:
                 val_desc = r[current_idx] if r[current_idx] else ''
                 current_idx += 1
             
-            # Row index 2 (or 1) is Record Type (if it exists)
             val_type = ''
             if type_col:
                 val_type = r[current_idx] if r[current_idx] else ''
             
-            out.append({
-                'name': val_name, 
-                'desc': val_desc, 
-                'type': val_type
-            })
+            out.append({'name': val_name, 'desc': val_desc, 'type': val_type})
             
         return jsonify(out)
 
     except Exception as e:
-        # In production, log this: current_app.logger.error(str(e))
         return jsonify([])
+    # [GSI_END: inst_search]
 
 @inst_type_bp.route('/api/tools/inst-corrections/save', methods=['POST'])
 @login_required
 def save_correction():
+    # [GSI_BLOCK: inst_save]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     c = db.session.get(IndexingCounties, data['county_id'])
@@ -262,3 +261,4 @@ def save_correction():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: inst_save]

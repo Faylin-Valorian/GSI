@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 
 initial_prep_bp = Blueprint('initial_preparation', __name__)
 
+# [GSI_BLOCK: prep_sql_generator]
 def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_prefix=''):
     """
     Generates the SQL script steps for the Initial Preparation Tool.
@@ -127,8 +128,7 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_pr
     """
     steps.append(('Populating KeyOriginalValue', sql_kov_assign))
     
-    # 12. SYNC IMAGE PATH TO RELATED RECORDS (New Step)
-    # Syncs image path from Header to Legal, Name, Reference using the KeyOriginalValue link
+    # 12. SYNC IMAGE PATH TO RELATED RECORDS
     if image_path_prefix:
         sql_sync_related = """
         UPDATE a 
@@ -165,11 +165,12 @@ def generate_prep_sql(county_name, book_start=None, book_end=None, image_path_pr
     steps.append(('Creating TownshipRange Externals', rename_table(raw_tr, 'KeliTownshipRangeExternals', 'TownshipRange_Externals')))
     
     return steps
+# [GSI_END: prep_sql_generator]
 
-# ... (Rest of file remains unchanged)
 @initial_prep_bp.route('/api/tools/initial-prep/preview', methods=['POST'])
 @login_required
 def preview_prep():
+    # [GSI_BLOCK: prep_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -178,10 +179,12 @@ def preview_prep():
     steps = generate_prep_sql(c.county_name, data.get('book_start'), data.get('book_end'), data.get('image_path_prefix'))
     full_script = "\n".join([s[1] for s in steps])
     return jsonify({'success': True, 'sql': full_script})
+    # [GSI_END: prep_preview]
 
 @initial_prep_bp.route('/api/tools/initial-prep/download-sql', methods=['POST'])
 @login_required
 def download_sql():
+    # [GSI_BLOCK: prep_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     data = request.json
     c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -195,10 +198,12 @@ def download_sql():
             
     filename = f"Initial_Prep_{c.county_name}.sql"
     return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    # [GSI_END: prep_download]
 
 @initial_prep_bp.route('/api/tools/initial-prep/execute', methods=['POST'])
 @login_required
 def execute_prep():
+    # [GSI_BLOCK: prep_execute]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -221,10 +226,12 @@ def execute_prep():
             yield json.dumps({'type': 'error', 'message': format_error(e)}) + '\n'
 
     return Response(stream_with_context(generate_stream()), mimetype='application/json')
+    # [GSI_END: prep_execute]
 
 @initial_prep_bp.route('/api/tools/initial-prep/get-defaults/<int:county_id>', methods=['GET'])
 @login_required
 def get_prep_defaults(county_id):
+    # [GSI_BLOCK: prep_defaults]
     if current_user.role != 'admin': return jsonify({'success': False})
     try:
         c = db.session.get(IndexingCounties, county_id)
@@ -255,3 +262,4 @@ def get_prep_defaults(county_id):
             'found': path_found
         })
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: prep_defaults]

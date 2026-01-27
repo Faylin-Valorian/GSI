@@ -16,6 +16,7 @@ except ImportError:
 
 unindexed_bp = Blueprint('unindexed', __name__)
 
+# [GSI_BLOCK: unindexed_utils]
 def get_unindexed_table(county_name):
     """Returns the name of the dynamic unindexed images table."""
     return f"{county_name}_unindexed_images"
@@ -46,10 +47,12 @@ def normalize_path_for_comparison(path_str):
     if start_index != -1:
         return "/".join(p.lower() for p in parts[start_index:])
     return "/".join(p.lower() for p in parts)
+# [GSI_END: unindexed_utils]
 
 @unindexed_bp.route('/api/edata/scan-unindexed', methods=['POST'])
 @login_required
 def scan_unindexed_images():
+    # [GSI_BLOCK: unindexed_scan]
     try:
         county_id = request.json.get('county_id')
         scan_path = request.json.get('scan_path')
@@ -125,10 +128,12 @@ def scan_unindexed_images():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': format_error(e)})
+    # [GSI_END: unindexed_scan]
 
 @unindexed_bp.route('/api/edata/unindexed-list/<int:county_id>', methods=['GET'])
 @login_required
 def get_unindexed_list(county_id):
+    # [GSI_BLOCK: unindexed_get_list]
     try:
         c = db.session.get(IndexingCounties, county_id)
         if not c: return jsonify([])
@@ -148,10 +153,12 @@ def get_unindexed_list(county_id):
             'require_indexing': bool(r.require_indexing)
         } for r in rows])
     except: return jsonify([])
+    # [GSI_END: unindexed_get_list]
 
 @unindexed_bp.route('/api/edata/unindexed-image-data', methods=['POST'])
 @login_required
 def get_unindexed_image_data():
+    # [GSI_BLOCK: unindexed_get_data]
     try:
         img_id = request.json.get('record_id')
         county_id = request.json.get('county_id')
@@ -173,10 +180,12 @@ def get_unindexed_image_data():
             }]
         })
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: unindexed_get_data]
 
 @unindexed_bp.route('/api/edata/update-image-status', methods=['POST'])
 @login_required
 def update_image_status():
+    # [GSI_BLOCK: unindexed_update_status]
     try:
         data = request.json
         img_id = data.get('id')
@@ -191,10 +200,12 @@ def update_image_status():
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: unindexed_update_status]
 
 @unindexed_bp.route('/api/edata/view-image/<int:id>', methods=['GET'])
 @login_required
 def view_local_image(id):
+    # [GSI_BLOCK: unindexed_view_local]
     """Diagnostically views a local image from the dynamic table."""
     try:
         if not Image: return "Server missing Image library", 500
@@ -221,3 +232,4 @@ def view_local_image(id):
             img_io.seek(0)
             return make_response(send_file(img_io, mimetype='image/jpeg'))
     except Exception as e: return f"Server Error: {str(e)}", 500
+    # [GSI_END: unindexed_view_local]

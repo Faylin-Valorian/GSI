@@ -7,6 +7,7 @@ from utils import format_error
 
 open_drive_bp = Blueprint('open_drive', __name__)
 
+# [GSI_BLOCK: drive_generator]
 def generate_drive_sql(data):
     """Generates the SQL script to map a network drive via xp_cmdshell."""
     letter = data.get('letter', 'Z:')
@@ -34,35 +35,42 @@ def generate_drive_sql(data):
 
     yield "\n-- 3. Verify Mapping\n"
     yield f"EXEC xp_cmdshell 'dir {letter}';\nGO\n"
+# [GSI_END: drive_generator]
 
 @open_drive_bp.route('/api/tools/open-drive/preview', methods=['POST'])
 @login_required
 def preview_drive():
+    # [GSI_BLOCK: drive_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json or {}
+    
+    # DEBUG CHECK: Hide SQL if debug is OFF
+    if not data.get('debug'):
+        return jsonify({'success': True, 'sql': '-- Preview Hidden. Enable Debug Mode to view SQL generation.'})
+
     try:
         sql = "".join(list(generate_drive_sql(data)))
         return jsonify({'success': True, 'sql': sql})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: drive_preview]
 
 @open_drive_bp.route('/api/tools/open-drive/download-sql', methods=['POST'])
 @login_required
 def download_drive_sql():
+    # [GSI_BLOCK: drive_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     data = request.json or {}
     return Response(stream_with_context(generate_drive_sql(data)), mimetype='application/sql', 
                    headers={'Content-Disposition': 'attachment; filename=Map_Drive.sql'})
+    # [GSI_END: drive_download]
 
 @open_drive_bp.route('/api/tools/open-drive/run', methods=['POST'])
 @login_required
 def run_drive():
+    # [GSI_BLOCK: drive_run]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json or {}
-    
-    # Security Note: This executes raw shell commands constructed from input.
-    # In a production environment, this should be strictly validated or avoided.
-    # Assuming trusted admin use for this tool.
     
     letter = data.get('letter', 'Z:')
     path = data.get('path', '')
@@ -77,15 +85,13 @@ def run_drive():
     cmd += ' /persistent:yes'
 
     try:
-        # 1. Enable xp_cmdshell
         db.session.execute(text("EXEC sp_configure 'show advanced options', 1; RECONFIGURE;"))
         db.session.execute(text("EXEC sp_configure 'xp_cmdshell', 1; RECONFIGURE;"))
         
-        # 2. Map Drive
-        # Note: xp_cmdshell output comes back as rows. We just want to execute.
         db.session.execute(text(f"EXEC xp_cmdshell '{cmd}'"))
         db.session.commit()
         
         return jsonify({'success': True, 'message': f"Drive {letter} mapped successfully (or command issued)."})
     except Exception as e:
         return jsonify({'success': False, 'message': format_error(e)})
+    # [GSI_END: drive_run]

@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 
 import_edata_errors_bp = Blueprint('import_edata_errors', __name__)
 
+# [GSI_BLOCK: import_edata_constants]
 # Standard Schema
 CREATE_TABLE_SQL = """
 CREATE TABLE [{table_name}] (
@@ -32,10 +33,12 @@ CREATE TABLE [{table_name}] (
     [checked] varchar(50)
 )
 """
+# [GSI_END: import_edata_constants]
 
 @import_edata_errors_bp.route('/api/tools/import-edata-errors/download-sql', methods=['GET'])
 @login_required
 def download_sql():
+    # [GSI_BLOCK: import_edata_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     
     county_id = request.args.get('county_id')
@@ -68,10 +71,12 @@ def download_sql():
 
     filename = f"Import_Errors_{c.county_name}.sql"
     return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    # [GSI_END: import_edata_download]
 
 @import_edata_errors_bp.route('/api/tools/import-edata-errors/preview', methods=['POST'])
 @login_required
 def preview_import():
+    # [GSI_BLOCK: import_edata_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     data = request.json
@@ -106,10 +111,12 @@ def preview_import():
         sql_output += f"BULK INSERT [{table_name}] FROM '{file_full_path}' WITH (FORMAT = 'CSV', FIRSTROW = 2, FIELDTERMINATOR = ',', ROWTERMINATOR = '\\n', TABLOCK)\nGO\n\n"
         
     return jsonify({'success': True, 'sql': sql_output})
+    # [GSI_END: import_edata_preview]
 
 @import_edata_errors_bp.route('/api/tools/import-edata-errors/init', methods=['POST'])
 @login_required
 def init_import():
+    # [GSI_BLOCK: import_edata_init]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     county_id = data.get('county_id')
@@ -126,10 +133,12 @@ def init_import():
         return jsonify({'success': True, 'path': path, 'file_count': len(files), 'files': files})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: import_edata_init]
 
 @import_edata_errors_bp.route('/api/tools/import-edata-errors/execute', methods=['POST'])
 @login_required
 def execute_import():
+    # [GSI_BLOCK: import_edata_execute]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     county_id = data.get('county_id')
@@ -230,3 +239,4 @@ def execute_import():
             connection.close()
 
     return Response(stream_with_context(generate_stream()), mimetype='application/json')
+    # [GSI_END: import_edata_execute]

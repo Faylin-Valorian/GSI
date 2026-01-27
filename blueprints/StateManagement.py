@@ -8,13 +8,16 @@ from utils import format_error, ensure_folders
 
 state_mgmt_bp = Blueprint('state_mgmt', __name__)
 
+# [GSI_BLOCK: state_list]
 @state_mgmt_bp.route('/api/admin/states/list', methods=['GET'])
 @login_required
 def list_states():
     if current_user.role != 'admin': return jsonify([])
     states = IndexingStates.query.order_by(IndexingStates.state_name).all()
     return jsonify([{'id': s.id, 'name': s.state_name, 'fips': s.fips_code, 'status': s.is_enabled} for s in states])
+# [GSI_END: state_list]
 
+# [GSI_BLOCK: state_toggle]
 @state_mgmt_bp.route('/api/admin/states/toggle', methods=['POST'])
 @login_required
 def toggle_state():
@@ -33,7 +36,9 @@ def toggle_state():
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False})
+# [GSI_END: state_toggle]
 
+# [GSI_BLOCK: state_seed]
 @state_mgmt_bp.route('/api/admin/seed-db', methods=['POST'])
 @login_required
 def seed_database():
@@ -109,3 +114,4 @@ def seed_database():
         return jsonify({'success': True, 'message': f'Seeding Complete. +{added_states} States, +{added_counties} Counties.'})
     except Exception as e:
         return jsonify({'success': False, 'message': f"Seeding Error: {str(e)}"})
+# [GSI_END: state_seed]

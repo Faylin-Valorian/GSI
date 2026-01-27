@@ -11,6 +11,7 @@ missing_names_bp = Blueprint('missing_names_corrections', __name__)
 @missing_names_bp.route('/api/tools/missing-names/init', methods=['POST'])
 @login_required
 def init_tool():
+    # [GSI_BLOCK: mn_init_tool]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     
     try:
@@ -28,12 +29,13 @@ def init_tool():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: mn_init_tool]
 
 @missing_names_bp.route('/api/tools/missing-names/list', methods=['POST'])
 @login_required
 def get_list():
+    # [GSI_BLOCK: mn_get_list]
     # Fetch records
-    # UPDATED: Added keyOriginalValue to SELECT
     sql = """
     SELECT id, col02varchar as type, col03varchar as name, instrumentid, keyOriginalValue
     FROM GenericDataImport
@@ -51,15 +53,17 @@ def get_list():
                 'type': r.type or 'Unknown', 
                 'name': r.name, 
                 'inst_id': r.instrumentid,
-                'key_val': r.keyOriginalValue # Added this
+                'key_val': r.keyOriginalValue
             } for r in results]
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: mn_get_list]
 
 @missing_names_bp.route('/api/tools/missing-names/save', methods=['POST'])
 @login_required
 def save_correction():
+    # [GSI_BLOCK: mn_save]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     record_id = data.get('id')
@@ -113,10 +117,12 @@ def save_correction():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: mn_save]
 
 @missing_names_bp.route('/api/tools/missing-names/skip', methods=['POST'])
 @login_required
 def skip_record():
+    # [GSI_BLOCK: mn_skip]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     record_id = data.get('id')
@@ -180,3 +186,4 @@ def skip_record():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: mn_skip]

@@ -12,19 +12,17 @@ from werkzeug.utils import secure_filename
 
 edata_errors_bp = Blueprint('edata_errors', __name__)
 
-# --- QUERY CONSTANTS ---
-
-# 1. Standard Column List
+# [GSI_BLOCK: edata_errors_constants]
 CSV_COLS = """'"ID","FN","OriginalValue","col01varchar","col02varchar","col03varchar","col04varchar","col05varchar","col06varchar","col07varchar","col08varchar","col09varchar","col10varchar","key_id","book","page_number","stech_image_path","keli_image_path","beginning_page","ending_page","record_series_internal_id","record_series_external_id","instrument_type_internal_id","instrument_type_external_id","grantor_suffix_internal_id","grantee_suffix_internal_id","manual_page_count","legal_type","addition_internal_id","addition_external_id","township_range_internal_id","township_range_external_id","col20other","uf1","uf2","uf3","leftovers","instTypeOriginal","keyOriginalValue","deleteFlag","change_script_locations","instrumentid","checked"'"""
 
 DATA_COLS = """'"' + cast(ID as varchar) + '","' + FN + '","' + OriginalValue + '","' + col01varchar + '","' + col02varchar + '","' + col03varchar + '","' + col04varchar + '","' + col05varchar + '","' + col06varchar + '","' + col07varchar + '","' + col08varchar + '","' + col09varchar + '","' + col10varchar + '","' + key_id + '","' + book + '","' + page_number + '","' + stech_image_path + '","' + keli_image_path + '","' + beginning_page + '","' + ending_page + '","' + record_series_internal_id + '","' + record_series_external_id + '","' + instrument_type_internal_id + '","' + instrument_type_external_id + '","' + grantor_suffix_internal_id + '","' + grantee_suffix_internal_id + '","' + manual_page_count + '","' + legal_type + '","' + addition_internal_id + '","' + addition_external_id + '","' + township_range_internal_id + '","' + township_range_external_id + '","' + col20other + '","' + uf1 + '","' + uf2 + '","' + uf3 + '","' + leftovers + '","' + isnull(instTypeOriginal,'') + '","' + keyOriginalValue + '","' + deleteFlag + '","' + change_script_locations + '","' + cast(instrumentid as varchar) + '","0"'"""
 
-# 3. Base Query Template
 BASE_SQL = f"""select {CSV_COLS} as strng, 0 as ord, 0 as instrumentid 
 union select {DATA_COLS} as strng, 1 as ord, instrumentid 
 from GenericDataImport """
+# [GSI_END: edata_errors_constants]
 
-# --- STANDARD QUERIES ---
+# [GSI_BLOCK: edata_errors_queries]
 QUERIES = {
     # --- BATCH 1 ---
     "headerNonNumericPageNumber.csv": """
@@ -178,8 +176,9 @@ SPLIT_OVERRIDES = {
         where fn like '%header%' and deleteFlag = 'FALSE' and fn = ''
     """
 }
+# [GSI_END: edata_errors_queries]
 
-# --- HELPER: FORMAT TOWNSHIPS ---
+# [GSI_BLOCK: edata_errors_utils]
 def parse_townships(townships_str):
     formatted = "''"
     if townships_str:
@@ -194,10 +193,12 @@ def parse_townships(townships_str):
             parts = [f"'{t.strip()}'" for t in townships_str.split(',') if t.strip()]
             if parts: formatted = ", ".join(parts)
     return formatted
+# [GSI_END: edata_errors_utils]
 
 @edata_errors_bp.route('/api/tools/edata-errors/preview', methods=['POST'])
 @login_required
 def preview_edata_errors():
+    # [GSI_BLOCK: edata_errors_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     data = request.json
@@ -206,6 +207,10 @@ def preview_edata_errors():
     book_end = data.get('book_end', '999999')
     townships = data.get('townships', '')
     is_split_mode = data.get('split_images', False)
+    
+    # DEBUG CHECK: Hide SQL if debug is OFF
+    if not data.get('debug'):
+        return jsonify({'success': True, 'sql': '-- Preview Hidden. Enable Debug Mode to view SQL generation.'})
 
     c = db.session.get(IndexingCounties, county_id)
     if not c: return jsonify({'success': False, 'message': 'County not found'})
@@ -242,10 +247,12 @@ def preview_edata_errors():
         full_script += current_sql + "\n\n"
 
     return jsonify({'success': True, 'sql': full_script})
+    # [GSI_END: edata_errors_preview]
 
 @edata_errors_bp.route('/api/tools/edata-errors/execute', methods=['POST'])
 @login_required
 def execute_edata_errors():
+    # [GSI_BLOCK: edata_errors_execute]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     data = request.json
@@ -323,10 +330,12 @@ def execute_edata_errors():
             yield json.dumps({'type': 'error', 'message': format_error(e)}) + '\n'
 
     return Response(stream_with_context(generate_stream()), mimetype='application/json')
+    # [GSI_END: edata_errors_execute]
 
 @edata_errors_bp.route('/api/tools/edata-errors/get-defaults/<int:county_id>', methods=['GET'])
 @login_required
 def get_edata_defaults(county_id):
+    # [GSI_BLOCK: edata_errors_defaults]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     try:
         c = db.session.get(IndexingCounties, county_id)
@@ -354,3 +363,4 @@ def get_edata_defaults(county_id):
         return jsonify({'success': True, 'book_start': book_start, 'book_end': book_end, 'townships': townships_str})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: edata_errors_defaults]

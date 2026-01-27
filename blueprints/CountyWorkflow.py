@@ -9,6 +9,7 @@ from utils import format_error
 
 workflow_bp = Blueprint('workflow', __name__)
 
+# [GSI_BLOCK: workflow_popup]
 @workflow_bp.route('/api/county/<int:id>/popup', methods=['GET'])
 @login_required
 def get_county_popup(id):
@@ -35,7 +36,9 @@ def get_county_popup(id):
         occupied_by=occupier.username if occupier else None,
         time=int(time.time()) # For cache busting images
     )
+# [GSI_END: workflow_popup]
 
+# [GSI_BLOCK: workflow_set_working]
 @workflow_bp.route('/api/user/set-working', methods=['POST'])
 @login_required
 def set_working():
@@ -55,7 +58,9 @@ def set_working():
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
+# [GSI_END: workflow_set_working]
 
+# [GSI_BLOCK: workflow_set_active]
 @workflow_bp.route('/api/county/<int:id>/set-global-active', methods=['POST'])
 @login_required
 def set_global_active(id):
@@ -67,7 +72,9 @@ def set_global_active(id):
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False})
+# [GSI_END: workflow_set_active]
 
+# [GSI_BLOCK: workflow_save_notes]
 @workflow_bp.route('/api/county/<int:id>/save-notes', methods=['POST'])
 @login_required
 def save_notes(id):
@@ -77,7 +84,9 @@ def save_notes(id):
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False})
+# [GSI_END: workflow_save_notes]
 
+# [GSI_BLOCK: workflow_upload]
 @workflow_bp.route('/api/county/<int:id>/upload', methods=['POST'])
 @login_required
 def upload_image(id):
@@ -91,3 +100,4 @@ def upload_image(id):
     else: img.image_path = fname
     db.session.commit()
     return jsonify({'success': True, 'url': url_for('static', filename=f'images/{fname}')})
+# [GSI_END: workflow_upload]

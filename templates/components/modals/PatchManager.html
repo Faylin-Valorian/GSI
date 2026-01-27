@@ -1,53 +1,66 @@
-<div class="modal fade" id="patchModal" tabindex="-1" style="z-index: 1090;">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content custom-panel border-warning">
+<div class="modal fade" id="patchManagerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            
             <div class="modal-header border-secondary">
-                <h5 class="modal-title text-warning">
-                    <i class="bi bi-cpu-fill me-2"></i>System Updater
-                    <span id="currentVersionBadge" class="badge bg-secondary text-white ms-2 font-monospace" style="font-size: 0.7rem;">v...</span>
+                <h5 class="modal-title text-uppercase fw-bold text-warning">
+                    <i class="bi bi-cpu me-2"></i>System Patch Manager
                 </h5>
-                <button type="button" class="btn-close btn-close-white" onclick="closePatchModal()"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             
             <div class="modal-body">
-                <div class="alert alert-dark border-secondary small text-muted mb-3 d-flex align-items-center">
-                    <i class="bi bi-exclamation-triangle-fill text-warning fs-4 me-3"></i>
-                    <div>
-                        <strong>Warning:</strong> Automated Process.<br>
-                        1. System Backup (/versions)<br>
-                        2. Apply Patch (.diff)<br>
-                        3. Server Restart
-                    </div>
-                </div>
-
-                <div class="d-flex justify-content-end mb-2">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="patchModeSwitch" onchange="togglePatchMode()">
-                        <label class="form-check-label small text-muted" for="patchModeSwitch">Upload File</label>
-                    </div>
-                </div>
                 
-                <div id="pasteContainer" class="mb-3">
-                    <label class="form-label small text-muted">Paste Patch Content</label>
-                    <textarea class="form-control bg-black text-light border-secondary font-monospace small" id="patchContentInput" rows="10" placeholder="Paste diff content here..."></textarea>
+                <div class="alert alert-info d-flex align-items-center mb-3">
+                    <i class="bi bi-info-circle-fill me-2 fs-4"></i>
+                    <div>
+                        <strong>Current Version:</strong> <span id="pmCurrentVersion" class="fw-bold text-white">Loading...</span><br>
+                        <span class="small">Applying a patch will create a full backup and restart the server.</span>
+                    </div>
                 </div>
 
-                <div id="uploadContainer" class="mb-3 d-none">
-                    <label class="form-label small text-muted">Upload Patch File (.diff)</label>
-                    <input class="form-control bg-black text-light border-secondary" type="file" id="patchFileInput" accept=".diff">
+                <ul class="nav nav-tabs border-secondary mb-3" id="patchTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active text-white" id="upload-tab" data-bs-toggle="tab" data-bs-target="#pmUpload" type="button">Upload File</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-white" id="manual-tab" data-bs-toggle="tab" data-bs-target="#pmManual" type="button">Manual Input</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    
+                    <div class="tab-pane fade show active" id="pmUpload">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Select Patch File (.json)</label>
+                            <input class="form-control bg-black text-white border-secondary" type="file" id="pmFile" accept=".json">
+                        </div>
+                    </div>
+
+                    <div class="tab-pane fade" id="pmManual">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small text-uppercase fw-bold">Paste JSON Patch Content</label>
+                            <textarea class="form-control bg-black text-warning border-secondary font-monospace small" id="pmContent" rows="10" placeholder='{
+    "blueprints/MyFile.py": {
+        "block_id": "    def new_code():\n        pass"
+    }
+}'></textarea>
+                        </div>
+                    </div>
+
                 </div>
 
-                <div id="patchError" class="text-center mb-2"></div>
-                <div id="patchLogOutput" class="d-none bg-black border border-secondary p-2 rounded small font-monospace text-muted" 
-                     style="max-height: 150px; overflow-y: auto; white-space: pre-wrap; font-size: 0.75rem;"></div>
+                <div id="pmLogArea" class="mt-3 p-2 bg-black border border-secondary rounded font-monospace small text-success" style="height: 150px; overflow-y: auto; display: none; white-space: pre-wrap;"></div>
+
             </div>
             
             <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" onclick="closePatchModal()">Cancel</button>
-                <button type="button" class="btn btn-warning fw-bold" onclick="submitPatchFile()">
-                    <i class="bi bi-cloud-arrow-up-fill me-2"></i>Update System
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning fw-bold" onclick="pmApplyPatch()">
+                    <i class="bi bi-lightning-charge-fill me-1"></i>APPLY PATCH
                 </button>
             </div>
+
         </div>
     </div>
 </div>

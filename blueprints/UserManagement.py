@@ -8,6 +8,7 @@ from utils import format_error
 
 user_mgmt_bp = Blueprint('user_mgmt', __name__)
 
+# [GSI_BLOCK: user_list]
 @user_mgmt_bp.route('/api/admin/users/list', methods=['GET'])
 @login_required
 def list_users():
@@ -21,7 +22,9 @@ def list_users():
         'role': u.role, 
         'status': 'active' if not u.is_locked else 'locked'
     } for u in users])
+# [GSI_END: user_list]
 
+# [GSI_BLOCK: user_edit]
 @user_mgmt_bp.route('/api/admin/users/edit', methods=['POST'])
 @login_required
 def edit_user():
@@ -41,7 +44,9 @@ def edit_user():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
     return jsonify({'success': False, 'message': 'User not found'})
+# [GSI_END: user_edit]
 
+# [GSI_BLOCK: user_toggle_role]
 @user_mgmt_bp.route('/api/admin/user/<int:id>/toggle-role', methods=['POST'])
 @login_required
 def toggle_user_role(id):
@@ -53,7 +58,9 @@ def toggle_user_role(id):
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': 'User not found'})
+# [GSI_END: user_toggle_role]
 
+# [GSI_BLOCK: user_delete]
 @user_mgmt_bp.route('/api/admin/user/<int:id>/delete', methods=['POST'])
 @login_required
 def delete_user(id):
@@ -65,7 +72,9 @@ def delete_user(id):
         db.session.commit()
         return jsonify({'success': True})
     return jsonify({'success': False, 'message': 'User not found'})
+# [GSI_END: user_delete]
 
+# [GSI_BLOCK: user_reset_pw]
 @user_mgmt_bp.route('/api/admin/users/reset-password', methods=['POST'])
 @login_required
 def reset_user_password():
@@ -79,3 +88,4 @@ def reset_user_password():
         db.session.commit()
         return jsonify({'success': True, 'temp_password': temp})
     return jsonify({'success': False})
+# [GSI_END: user_reset_pw]

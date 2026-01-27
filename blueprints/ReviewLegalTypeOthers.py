@@ -16,16 +16,19 @@ except ImportError:
 
 review_legal_bp = Blueprint('review_legal_others', __name__)
 
+# [GSI_BLOCK: review_legal_get_tables]
 def get_tables(county_name):
     return {
         'data': 'GenericDataImport',
         'tr': f"{county_name}_keli_township_ranges",
         'adds': f"{county_name}_keli_additions"
     }
+# [GSI_END: review_legal_get_tables]
 
 @review_legal_bp.route('/api/tools/legal-others/init', methods=['POST'])
 @login_required
 def init_tool():
+    # [GSI_BLOCK: review_legal_init]
     """Fetches records where fn LIKE '%legal%' AND legal_type is 'Other' or 'O'."""
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
@@ -78,10 +81,12 @@ def init_tool():
 
     except Exception as e:
         return jsonify({'success': False, 'message': f"System Error: {str(e)}"})
+    # [GSI_END: review_legal_init]
 
 @review_legal_bp.route('/api/tools/legal-others/images', methods=['POST'])
 @login_required
 def get_images():
+    # [GSI_BLOCK: review_legal_get_images]
     try:
         record_id = request.json.get('record_id')
         
@@ -104,18 +109,17 @@ def get_images():
         return jsonify({'success': True, 'images': images})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: review_legal_get_images]
 
 @review_legal_bp.route('/api/tools/legal-others/view-image', methods=['GET'])
 @login_required
 def view_image():
+    # [GSI_BLOCK: review_legal_view_image]
     """Proxy endpoint to view images from arbitrary local paths (Admin Only)."""
     if current_user.role != 'admin': return "Unauthorized", 403
     
     file_path = request.args.get('path')
     if not file_path: return "No path provided", 400
-    
-    # Simple security check (expand if needed)
-    # if '..' in file_path: return "Invalid path", 403
     
     file_path = os.path.abspath(file_path)
     if not os.path.exists(file_path):
@@ -135,10 +139,12 @@ def view_image():
                 
     except Exception as e:
         return f"Error processing image: {str(e)}", 500
+    # [GSI_END: review_legal_view_image]
 
 @review_legal_bp.route('/api/tools/legal-others/search-tr', methods=['POST'])
 @login_required
 def search_tr():
+    # [GSI_BLOCK: review_legal_search_tr]
     try:
         data = request.json
         c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -149,10 +155,12 @@ def search_tr():
         res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
         return jsonify([r[0] for r in res])
     except: return jsonify([])
+    # [GSI_END: review_legal_search_tr]
 
 @review_legal_bp.route('/api/tools/legal-others/search-adds', methods=['POST'])
 @login_required
 def search_adds():
+    # [GSI_BLOCK: review_legal_search_adds]
     try:
         data = request.json
         c = db.session.get(IndexingCounties, data.get('county_id'))
@@ -162,10 +170,12 @@ def search_adds():
         res = db.session.execute(text(sql), {'term': f"%{data.get('term','')}%"}).fetchall()
         return jsonify([r[0] for r in res])
     except: return jsonify([])
+    # [GSI_END: review_legal_search_adds]
 
 @review_legal_bp.route('/api/tools/legal-others/save', methods=['POST'])
 @login_required
 def save_record():
+    # [GSI_BLOCK: review_legal_save]
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     data = request.json
     try:
@@ -186,3 +196,4 @@ def save_record():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: review_legal_save]

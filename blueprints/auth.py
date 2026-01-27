@@ -1,97 +1,104 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user, login_required, current_user
-from extensions import db
 from models import Users
-import random
+from extensions import db
 
 auth_bp = Blueprint('auth', __name__)
-ALLOWED_REGISTRATION_DOMAIN = 'sutterfieldtechnologies.net'
 
+# [GSI_BLOCK: auth_login]
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))  # FIXED: index -> dashboard
+        
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        u = Users.query.filter_by(username=username).first()
         
-        if u and u.check_password(password):
-            if u.is_locked:
-                flash("Account is LOCKED.")
+        user = Users.query.filter_by(username=username).first()
+        
+        if user and check_password_hash(user.password_hash, password):
+            if not user.is_active:
+                flash('Account is inactive. Please contact administrator.', 'danger')
                 return render_template('login.html')
-            if not u.is_verified:
-                session['pending_user_id'] = u.id
-                return redirect(url_for('auth.verify_code'))
                 
-            login_user(u)
-            if u.is_temporary_password:
-                return redirect(url_for('auth.force_password_change'))
-            return redirect(url_for('dashboard'))
-        flash("Invalid credentials")
+            login_user(user)
+            return redirect(url_for('dashboard'))  # FIXED: index -> dashboard
+        else:
+            flash('Invalid username or password', 'danger')
+            
     return render_template('login.html')
+# [GSI_END: auth_login]
 
+# [GSI_BLOCK: auth_register]
+@auth_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))  # FIXED: index -> dashboard
+        
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if password != confirm_password:
+            flash('Passwords do not match', 'danger')
+            return render_template('register.html')
+            
+        if Users.query.filter_by(username=username).first():
+            flash('Username already exists', 'danger')
+            return render_template('register.html')
+            
+        new_user = Users(
+            username=username,
+            password_hash=generate_password_hash(password),
+            role='user', 
+            is_active=False # Pending admin approval
+        )
+        
+        db.session.add(new_user)
+        db.session.commit()
+        
+        flash('Registration successful! Please wait for admin approval.', 'success')
+        return redirect(url_for('auth.login'))
+        
+    return render_template('register.html')
+# [GSI_END: auth_register]
+
+# [GSI_BLOCK: auth_logout]
 @auth_bp.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
+# [GSI_END: auth_logout]
 
-@auth_bp.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-
-        if email.split('@')[-1] != ALLOWED_REGISTRATION_DOMAIN:
-            flash(f"Restricted to {ALLOWED_REGISTRATION_DOMAIN}")
-            return render_template('register.html')
-
-        if Users.query.filter((Users.username == username) | (Users.email == email)).first():
-            flash("User already exists")
-            return render_template('register.html')
-
-        role = 'admin' if Users.query.count() == 0 else 'user'
-        code = str(random.randint(100000, 999999))
-        
-        # --- DEBUG OUTPUT FOR DEVELOPMENT ---
-        print(f" --- DEBUG TOKEN: {code} --- ")
-        
-        u = Users(username=username, email=email, is_verified=False, verification_code=code, role=role)
-        u.set_password(password)
-        db.session.add(u)
-        db.session.commit()
-        
-        session['pending_user_id'] = u.id
-        return redirect(url_for('auth.verify_code'))
-    return render_template('register.html')
-
-@auth_bp.route('/verify', methods=['GET', 'POST'])
-def verify_code():
-    if request.method == 'POST':
-        code = request.form.get('code')
-        uid = session.get('pending_user_id')
-        if not uid: return redirect(url_for('auth.login'))
-
-        u = db.session.get(Users, uid)
-        if u and u.verification_code == code:
-            u.is_verified = True
-            u.verification_code = None
-            db.session.commit()
-            flash("Verified!")
-            return redirect(url_for('auth.login'))
-        flash("Invalid Code.")
-    return render_template('verify.html')
-
-@auth_bp.route('/change-password', methods=['GET', 'POST'])
+# [GSI_BLOCK: auth_verify]
+@auth_bp.route('/verify-password', methods=['POST'])
 @login_required
-def force_password_change():
-    if not current_user.is_temporary_password: return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        if request.form.get('new_password') != request.form.get('confirm_password'):
-            flash("Mismatch")
-            return render_template('change_password.html')
-        current_user.set_password(request.form.get('new_password'))
-        current_user.is_temporary_password = False
-        db.session.commit()
-        return redirect(url_for('dashboard'))
-    return render_template('change_password.html')
+def verify_password():
+    data = request.json
+    password = data.get('password')
+    
+    if check_password_hash(current_user.password_hash, password):
+        return jsonify({'success': True})
+    return jsonify({'success': False})
+# [GSI_END: auth_verify]
+
+# [GSI_BLOCK: auth_change_pw]
+@auth_bp.route('/change-password', methods=['POST'])
+@login_required
+def change_password():
+    data = request.json
+    current_pw = data.get('current_password')
+    new_pw = data.get('new_password')
+    
+    if not check_password_hash(current_user.password_hash, current_pw):
+        return jsonify({'success': False, 'message': 'Incorrect current password'})
+        
+    current_user.password_hash = generate_password_hash(new_pw)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Password updated successfully'})
+# [GSI_END: auth_change_pw]

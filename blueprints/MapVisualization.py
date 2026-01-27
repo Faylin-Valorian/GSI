@@ -7,6 +7,7 @@ from models import IndexingStates, IndexingCounties, Users
 
 map_viz_bp = Blueprint('map_viz', __name__)
 
+# [GSI_BLOCK: map_viz_states]
 @map_viz_bp.route('/api/map/states', methods=['GET'])
 @login_required
 def get_state_shapes():
@@ -29,7 +30,9 @@ def get_state_shapes():
             filtered.append(f)
             
     return jsonify({"type": "FeatureCollection", "features": filtered})
+# [GSI_END: map_viz_states]
 
+# [GSI_BLOCK: map_viz_counties]
 @map_viz_bp.route('/api/map/counties', methods=['GET'])
 @login_required
 def get_county_shapes():
@@ -92,3 +95,4 @@ def get_county_shapes():
             filtered.append(f)
 
     return jsonify({"type": "FeatureCollection", "features": filtered})
+# [GSI_END: map_viz_counties]

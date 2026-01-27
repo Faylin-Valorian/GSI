@@ -10,6 +10,7 @@ from utils import format_error
 
 setup_edata_bp = Blueprint('setup_edata', __name__)
 
+# [GSI_BLOCK: edata_parser]
 def parse_line_waterfall(line):
     """
     Replicates the logic of tvf_ParseGenericRow:
@@ -52,10 +53,12 @@ def parse_line_waterfall(line):
         o_cols = o_cols[:20]
         
     return c_cols, o_cols, remainder
+# [GSI_END: edata_parser]
 
 @setup_edata_bp.route('/api/tools/setup-edata/download-sql', methods=['POST'])
 @login_required
 def download_sql():
+    # [GSI_BLOCK: edata_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     
     # FIXED: Read from JSON body (POST) instead of URL args (GET)
@@ -96,10 +99,12 @@ def download_sql():
 
     filename = f"Setup_eData_{c.county_name}.sql"
     return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    # [GSI_END: edata_download]
 
 @setup_edata_bp.route('/api/tools/setup-edata/preview', methods=['POST'])
 @login_required
 def preview_generic_import():
+    # [GSI_BLOCK: edata_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
 
     data = request.json
@@ -159,10 +164,12 @@ def preview_generic_import():
         sql_preview += f"\n-- Error reading file: {str(e)}"
 
     return jsonify({'success': True, 'sql': sql_preview})
+    # [GSI_END: edata_preview]
 
 @setup_edata_bp.route('/api/tools/setup-edata', methods=['POST'])
 @login_required
 def run_generic_import():
+    # [GSI_BLOCK: edata_run]
     req_data = request.json
     user_role = current_user.role
 
@@ -328,3 +335,4 @@ def run_generic_import():
             yield json.dumps({'type': 'complete', 'message': msg}) + '\n'
 
     return Response(stream_with_context(generate()), mimetype='application/json')
+    # [GSI_END: edata_run]

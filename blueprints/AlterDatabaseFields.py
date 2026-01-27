@@ -8,6 +8,7 @@ from extensions import db
 
 alter_db_bp = Blueprint('alter_db', __name__)
 
+# [GSI_BLOCK: alter_db_constants]
 CONFIG_FILE = 'alter_db_config.json'
 
 # --- FACTORY DEFAULTS ---
@@ -41,7 +42,9 @@ DEFAULT_NEW_FIELDS = [
     {'name': 'keyOriginalValue', 'type': 'VARCHAR(255)', 'default': ''},
     {'name': 'deleteFlag', 'type': 'VARCHAR(10)', 'default': ''}
 ]
+# [GSI_END: alter_db_constants]
 
+# [GSI_BLOCK: alter_db_config]
 def load_config():
     path = os.path.join(current_app.root_path, CONFIG_FILE)
     if os.path.exists(path):
@@ -53,10 +56,12 @@ def load_config():
 def save_config(data):
     path = os.path.join(current_app.root_path, CONFIG_FILE)
     with open(path, 'w') as f: json.dump(data, f, indent=4)
+# [GSI_END: alter_db_config]
 
 @alter_db_bp.route('/api/tools/alter-db/init', methods=['GET'])
 @login_required
 def init_tool():
+    # [GSI_BLOCK: alter_db_init]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     try:
         inspector = inspect(db.engine)
@@ -100,10 +105,12 @@ def init_tool():
         return jsonify({'success': True, 'fields': field_list, 'new_fields': adds_list})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+    # [GSI_END: alter_db_init]
 
 @alter_db_bp.route('/api/tools/alter-db/preview', methods=['POST'])
 @login_required
 def preview_sql():
+    # [GSI_BLOCK: alter_db_preview]
     data = request.json
     renames = data.get('renames', {})
     new_fields = data.get('new_fields', [])
@@ -140,10 +147,12 @@ def preview_sql():
         sql_parts.append("\n-- 2. New Columns (None Detected)")
 
     return jsonify({'success': True, 'sql': "\n\n".join(sql_parts)})
+    # [GSI_END: alter_db_preview]
 
 @alter_db_bp.route('/api/tools/alter-db/download-sql', methods=['POST'])
 @login_required
 def download_sql():
+    # [GSI_BLOCK: alter_db_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     data = request.json
     renames = data.get('renames', {})
@@ -170,15 +179,19 @@ def download_sql():
             yield "END\nGO\n\n"
 
     return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': 'attachment; filename=Schema_Update.sql'})
+    # [GSI_END: alter_db_download]
 
 @alter_db_bp.route('/api/tools/alter-db/execute', methods=['POST'])
 @login_required
 def execute_sql():
+    # [GSI_BLOCK: alter_db_execute]
     return jsonify({'success': False, 'message': "Use /run endpoint for execution"}) 
+    # [GSI_END: alter_db_execute]
 
 @alter_db_bp.route('/api/tools/alter-db/run', methods=['POST'])
 @login_required
 def run_migration():
+    # [GSI_BLOCK: alter_db_run]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json
     renames = data.get('renames', {})
@@ -204,3 +217,4 @@ def run_migration():
         return jsonify({'success': True, 'message': "Schema updated successfully."})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: alter_db_run]

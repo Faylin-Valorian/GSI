@@ -14,6 +14,7 @@ setup_keli_bp = Blueprint('setup_keli', __name__)
 @setup_keli_bp.route('/api/tools/setup-keli/download-sql', methods=['GET'])
 @login_required
 def download_sql():
+    # [GSI_BLOCK: keli_download]
     if current_user.role != 'admin': return Response("Unauthorized", 403)
     
     county_id = request.args.get('county_id')
@@ -51,10 +52,12 @@ def download_sql():
 
     filename = f"Setup_Keli_{c.county_name}.sql"
     return Response(stream_with_context(generate()), mimetype='application/sql', headers={'Content-Disposition': f'attachment; filename={filename}'})
+    # [GSI_END: keli_download]
 
 @setup_keli_bp.route('/api/tools/setup-keli/preview', methods=['POST'])
 @login_required
 def preview_keli_import():
+    # [GSI_BLOCK: keli_preview]
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     
     data = request.json
@@ -105,10 +108,12 @@ def preview_keli_import():
             sql_output += f"-- Error reading {filename}: {str(e)}\n\n"
             
     return jsonify({'success': True, 'sql': sql_output})
+    # [GSI_END: keli_preview]
 
 @setup_keli_bp.route('/api/tools/setup-keli', methods=['POST'])
 @login_required
 def run_keli_import():
+    # [GSI_BLOCK: keli_run]
     req_data = request.json
     user_role = current_user.role
 
@@ -243,3 +248,4 @@ def run_keli_import():
             yield json.dumps({'type': 'complete', 'message': msg}) + '\n'
 
     return Response(stream_with_context(generate()), mimetype='application/json')
+    # [GSI_END: keli_run]
