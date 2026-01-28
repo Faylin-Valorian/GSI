@@ -1,10 +1,18 @@
 import os
 import json
-from flask import Blueprint, request, jsonify, current_app
+import io
+import urllib.parse
+from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_login import login_required, current_user
 from sqlalchemy import text
 from extensions import db
 from models import IndexingCounties
+
+# Try to import PIL for image serving
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
 
 missing_names_bp = Blueprint('missing_names_corrections', __name__)
 
@@ -35,30 +43,117 @@ def init_tool():
 @login_required
 def get_list():
     # [GSI_BLOCK: mn_get_list]
-    # Fetch records
-    sql = """
-    SELECT id, col02varchar as type, col03varchar as name, instrumentid, keyOriginalValue
-    FROM GenericDataImport
-    WHERE fn LIKE '%Name%' 
-      AND (col03varchar IS NULL OR LEN(LTRIM(RTRIM(col03varchar))) = 0)
-      AND deleteFlag = 'FALSE'
-    ORDER BY instrumentid
-    """
     try:
-        results = db.session.execute(text(sql)).fetchall()
-        return jsonify({
-            'success': True,
-            'records': [{
+        # 1. Fetch Missing Records
+        sql_missing = """
+        SELECT id, col02varchar as type, col03varchar as name, instrumentid, keyOriginalValue
+        FROM GenericDataImport
+        WHERE fn LIKE '%Name%' 
+          AND (col03varchar IS NULL OR LEN(LTRIM(RTRIM(col03varchar))) = 0)
+          AND deleteFlag = 'FALSE'
+        ORDER BY instrumentid
+        """
+        missing_rows = db.session.execute(text(sql_missing)).fetchall()
+        
+        if not missing_rows:
+            return jsonify({'success': True, 'records': []})
+
+        # 2. Fetch Related Valid Names (Optimized Bulk Fetch)
+        sql_related = """
+        SELECT instrumentid, col02varchar as type, col03varchar as name
+        FROM GenericDataImport
+        WHERE fn LIKE '%Name%'
+          AND deleteFlag = 'FALSE'
+          AND col03varchar IS NOT NULL 
+          AND LEN(LTRIM(RTRIM(col03varchar))) > 0
+          AND instrumentid IN (
+                SELECT DISTINCT instrumentid 
+                FROM GenericDataImport 
+                WHERE fn LIKE '%Name%' 
+                  AND (col03varchar IS NULL OR LEN(LTRIM(RTRIM(col03varchar))) = 0)
+                  AND deleteFlag = 'FALSE'
+          )
+        """
+        related_rows = db.session.execute(text(sql_related)).fetchall()
+
+        # 3. Map InstrumentID -> List of Names
+        related_map = {}
+        for row in related_rows:
+            if row.instrumentid:
+                if row.instrumentid not in related_map: related_map[row.instrumentid] = []
+                # Format: "Grantor: John Doe"
+                related_map[row.instrumentid].append(f"{row.type or 'Unknown'}: {row.name}")
+
+        # 4. Merge Data
+        records = []
+        for r in missing_rows:
+            inst_id = r.instrumentid
+            # Join multiple names with a pipe
+            rel_info = " | ".join(related_map.get(inst_id, [])) if inst_id else ""
+            
+            records.append({
                 'id': r.id, 
                 'type': r.type or 'Unknown', 
-                'name': r.name, 
-                'inst_id': r.instrumentid,
-                'key_val': r.keyOriginalValue
-            } for r in results]
-        })
+                'name': r.name,
+                'inst_id': inst_id,
+                'key_val': r.keyOriginalValue,
+                'related_names': rel_info
+            })
+
+        return jsonify({'success': True, 'records': records})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
     # [GSI_END: mn_get_list]
+
+@missing_names_bp.route('/api/tools/missing-names/images', methods=['POST'])
+@login_required
+def get_images():
+    # [GSI_BLOCK: mn_get_images]
+    try:
+        record_id = request.json.get('record_id')
+        
+        # Fetch path directly from the record
+        sql = "SELECT stech_image_path FROM GenericDataImport WHERE id = :id"
+        row = db.session.execute(text(sql), {'id': record_id}).fetchone()
+        
+        if not row or not row[0]:
+            return jsonify({'success': False, 'images': [], 'message': 'No image path found.'})
+        
+        full_path = row[0]
+        safe_path = urllib.parse.quote(full_path)
+        
+        images = [{
+            'src': f"/api/tools/missing-names/view-image?path={safe_path}",
+            'name': os.path.basename(full_path)
+        }]
+        
+        return jsonify({'success': True, 'images': images})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    # [GSI_END: mn_get_images]
+
+@missing_names_bp.route('/api/tools/missing-names/view-image', methods=['GET'])
+@login_required
+def view_image():
+    # [GSI_BLOCK: mn_view_image]
+    if current_user.role != 'admin': return "Unauthorized", 403
+    file_path = request.args.get('path')
+    if not file_path: return "No path provided", 400
+    
+    file_path = os.path.abspath(file_path)
+    if not os.path.exists(file_path): return "File not found", 404
+    
+    try:
+        if not Image: return "PIL not installed", 500
+        with Image.open(file_path) as image:
+            if image.mode in ('P', 'CMYK', 'RGBA', 'LA', 'I', 'I;16', '1'):
+                image = image.convert('RGB')
+            img_io = io.BytesIO()
+            image.save(img_io, 'JPEG', quality=85)
+            img_io.seek(0)
+            return send_file(img_io, mimetype='image/jpeg')
+    except Exception as e: return f"Error processing image: {str(e)}", 500
+    # [GSI_END: mn_view_image]
 
 @missing_names_bp.route('/api/tools/missing-names/save', methods=['POST'])
 @login_required

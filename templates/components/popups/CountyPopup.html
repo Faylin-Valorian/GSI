@@ -72,6 +72,8 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-edata-{{ id }}">eData Setup</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-keli-{{ id }}">Keli Setup</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-indexing-{{ id }}">Indexing Tools</button></li>
+        
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-errors-{{ id }}" onclick="renderCountyErrors({{ id }})">eData Errors</button></li>
     </ul>
 
     <div class="tab-content">
@@ -142,6 +144,22 @@
                 <button class="btn btn-sm btn-outline-secondary w-100 text-start mb-2" onclick="openMissingNamesTool({{ id }}, '{{ state_name }}', '{{ name }}')">
                     <i class="bi bi-person-x me-2"></i>Missing Names Corrections
                 </button>
+            </div>
+        </div>
+
+        
+        <div class="tab-pane fade" id="tab-errors-{{ id }}">
+            <div class="mb-2">
+                <select class="form-select form-select-sm" id="errorCat_{{ id }}" onchange="renderCountyErrors({{ id }})">
+                    <option value="Header" selected>Header</option>
+                    <option value="Image">Image</option>
+                    <option value="Legal">Legal</option>
+                    <option value="Name">Name</option>
+                    <option value="Reference">Reference</option>
+                </select>
+            </div>
+            <div id="errorBtnContainer_{{ id }}" class="d-grid gap-2 overflow-auto custom-scrollbar" style="max-height: 250px; padding-right: 5px;">
+                
             </div>
         </div>
     </div>

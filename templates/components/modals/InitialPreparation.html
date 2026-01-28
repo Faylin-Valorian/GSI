@@ -1,3 +1,4 @@
+
 {% from 'components/parts/PreviewArea.html' import preview_area %}
 <div class="modal fade" id="initialPrepModal" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -47,7 +48,7 @@
             </div>
             <div class="modal-footer border-secondary justify-content-between">
                 <div><button type="button" class="btn btn-outline-warning btn-sm" id="btnPrepPreview" onclick="prepMgr.toggle()"><i class="bi bi-file-earmark-code me-1"></i>Generate Preview</button></div>
-                <div><button type="button" class="btn btn-secondary" onclick="closeInitialPrepModal()">Close</button><button type="button" class="btn btn-info fw-bold text-dark" onclick="runPrepTool()" id="btnRunPrep"><i class="bi bi-play-fill me-1"></i>Run Preparation</button></div>
+                <div><button type="button" class="btn btn-secondary" onclick="closeInitialPrepModal">Close</button><button type="button" class="btn btn-info fw-bold text-dark" onclick="runPrepTool()" id="btnRunPrep"><i class="bi bi-play-fill me-1"></i>Run Preparation</button></div>
             </div>
         </div>
     </div>

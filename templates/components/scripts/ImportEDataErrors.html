@@ -1,3 +1,4 @@
+
 <script>
     var currentImportEdeCountyId = null; 
     let importEdeMgr = null;
@@ -43,7 +44,8 @@
         
         const pBar = document.getElementById('importEdeProgressBar'); pBar.style.width = '0%';
         
-        fetch('/api/tools/import-edata-errors/run', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
+        // FIXED: Changed endpoint from /run to /execute
+        fetch('/api/tools/import-edata-errors/execute', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ county_id: currentImportEdeCountyId })})
         .then(async response => {
             const reader = response.body.getReader(); const decoder = new TextDecoder();
             while(true) {

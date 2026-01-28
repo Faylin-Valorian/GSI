@@ -18,7 +18,7 @@
         if(!mnImgMgr) {
             mnImgMgr = new ImageManager({
                 prefix: 'mn',
-                apiEndpoint: '/api/tools/inst-corrections/images' 
+                apiEndpoint: '/api/tools/missing-names/images' 
             });
         }
         mnImgMgr.resetUI();
@@ -68,7 +68,6 @@
                 item.className='p-2 border-bottom text-white mn-item small'; 
                 item.style.cursor = 'pointer';
                 
-                // REVERTED: List now shows Instrument ID (#123) as requested
                 item.innerHTML = `
                     <div class="d-flex justify-content-between">
                         <span class="badge bg-secondary">${r.type}</span>
@@ -93,9 +92,16 @@
 
         document.getElementById('mnTypeDisplay').innerText = r.type;
         
-        // TOP DISPLAY: Shows KeyOriginalValue (requires 'mnKeyDisplay' in the Modal HTML)
+        // Key Display
         const keyDisplay = document.getElementById('mnKeyDisplay');
         if(keyDisplay) keyDisplay.innerText = r.key_val || '---';
+        
+        // NEW: Related Names Display
+        const relDisplay = document.getElementById('mnRelatedInfo');
+        if(relDisplay) {
+            relDisplay.innerText = r.related_names ? r.related_names : "";
+            relDisplay.title = r.related_names || "No related names";
+        }
         
         document.getElementById('mnInput').value = '';
         document.getElementById('mnReverseToggle').checked = false;

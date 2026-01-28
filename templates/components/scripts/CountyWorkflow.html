@@ -78,4 +78,42 @@
             });
         }
     }
+
+    // ==========================================
+    // eDATA ERRORS TAB LOGIC
+    // ==========================================
+    
+    const errorDefinitions = {
+        "Header": ["Non Numeric Page Number", "Duplicate Book & Page", "Duplicate Instrument Number", "Incorrect Record Series", "Incorrect Instrument Number Length", "Missing Beginning Page Number", "Missing Book Number", "Missing Instrument Number", "Missing Record Series", "Non Numeric Instrument Number", "Valid Book Range"],
+        "Image": ["Duplicate Book & Page", "Incorrect Book Length", "Incorrect Page Length", "Incorrect Path Length", "Non Numeric Page Number", "Non Numeric Book Number", "Missing Page Number", "Missing Book Number"],
+        "Legal": ["Incorrect Section Number", "Incorrect Township & Range", "Incorrect Quarter Section", "Missing Section Number", "Missing Township & Range", "Missing Quarter Section"],
+        "Name": ["Duplicate Names"],
+        "Reference": ["Not Within Book Range"]
+    };
+
+    window.renderCountyErrors = function(id) {
+        const sel = document.getElementById('errorCat_' + id);
+        const con = document.getElementById('errorBtnContainer_' + id);
+        if (!sel || !con) return;
+
+        const cat = sel.value;
+        const list = errorDefinitions[cat] || [];
+        let h = '';
+
+        if (list.length === 0) {
+            h = '<div class="text-muted small text-center my-2">No errors defined.</div>';
+        } else {
+            list.forEach(e => {
+                // Use btn-outline-secondary to match the theme color scheme defined in CSS
+                h += `<button class="btn btn-sm btn-outline-secondary text-start" onclick="openErrorTool('${cat}', '${e}', ${id})"><i class="bi bi-bug me-2"></i>${e}</button>`;
+            });
+        }
+        con.innerHTML = h;
+    };
+
+    window.openErrorTool = function(cat, err, id) {
+        console.log(`Open Error Tool: [${cat}] ${err} (County: ${id})`);
+        // TODO: Wire this to your actual error correction modal when ready
+        showNotification(`Opening ${err}...`, "info");
+    };
 </script>
