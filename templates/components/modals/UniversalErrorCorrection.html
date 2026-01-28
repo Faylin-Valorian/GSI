@@ -1,0 +1,63 @@
+{% from "components/parts/ImageViewer.html" import image_viewer %}
+
+<div class="modal fade" id="universalErrorModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog" style="margin: 0; position: absolute; right: 0; top: 0; bottom: 0; width: auto; left: 60px; max-width: none !important;">
+        <div class="modal-content border-0 rounded-0 h-100" style="background-color: #1a1a1a; color: #fff; border-left: 1px solid #333 !important;">
+            <div class="modal-header border-secondary py-2 flex-shrink-0" style="background: #222;">
+                <div class="d-flex align-items-center">
+                    <div class="bg-danger bg-opacity-25 text-danger rounded p-1 me-2"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                    <div>
+                        <h5 class="modal-title text-uppercase fw-bold text-white mb-0" id="uecModalTitle">Error Correction</h5>
+                        <span class="text-muted x-small" id="uecModalSubtitle">---</span>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-success" onclick="uecSaveChanges()">
+                        <i class="bi bi-save me-1"></i>Save Changes
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            
+            <div class="modal-body p-0 d-flex h-100" style="overflow: hidden;">
+                <div class="d-flex flex-column border-end border-secondary h-100" style="width: 280px; background: #1f1f1f;">
+                    <div class="p-2 border-bottom border-secondary bg-dark d-flex justify-content-between align-items-center">
+                        <span class="text-muted small text-uppercase fw-bold">Error Queue</span>
+                        <span class="badge bg-secondary" id="uecCount">0</span>
+                    </div>
+                    <div id="uecList" class="flex-grow-1 overflow-auto p-0 custom-scrollbar"></div>
+                </div>
+
+                <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000;">
+                    
+                    <div class="flex-grow-1" style="min-height: 0; overflow: hidden; position: relative;">
+                        {{ image_viewer('uec') }}
+                    </div>
+
+                    <div class="p-3 bg-dark border-top border-secondary flex-shrink-0" style="height: auto; min-height: 220px; z-index: 10;">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-info fw-bold font-monospace" id="uecRecordLabel">No Record Selected</span>
+                            <span class="text-success small fw-bold" id="uecSaveStatus"></span>
+                        </div>
+
+                        <div class="row g-2">
+                            {% for i in range(1, 9) %}
+                            <div class="col-md-3">
+                                <div class="form-floating">
+                                    <input type="text" class="form-control form-control-sm bg-black text-white border-secondary uec-input" 
+                                           id="uecCol0{{ i }}" placeholder="Col {{ i }}" data-col="col0{{ i }}varchar">
+                                    <label for="uecCol0{{ i }}" class="text-muted">Column {{ i }}</label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-2 d-flex justify-content-end">
+                             <small class="text-muted fst-italic">Changes are saved to the error table.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

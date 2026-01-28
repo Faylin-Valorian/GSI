@@ -11,14 +11,11 @@ class Users(db.Model, UserMixin):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(50), default='user')
     
-    # EXACT MATCH TO SQL:
     is_verified = db.Column(db.Boolean, default=False)
     verification_code = db.Column(db.String(6), nullable=True)
     is_locked = db.Column(db.Boolean, default=False)
     is_temporary_password = db.Column(db.Boolean, default=False)
     current_working_county_id = db.Column(db.Integer, db.ForeignKey('indexing_counties.id'), nullable=True)
-
-    # REMOVED: status (Does not exist in DB)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -39,11 +36,12 @@ class IndexingCounties(db.Model):
     __tablename__ = 'indexing_counties'
     id = db.Column(db.Integer, primary_key=True)
     county_name = db.Column(db.String(100), nullable=False)
-    geo_id = db.Column(db.String(50), unique=True, nullable=False) # Matches SQL 'geo_id'
+    geo_id = db.Column(db.String(50), unique=True, nullable=False) 
     state_fips = db.Column(db.String(10), nullable=False)
     is_active = db.Column(db.Boolean, default=False)
     is_enabled = db.Column(db.Boolean, default=False)
     is_locked = db.Column(db.Boolean, default=False)
+    is_split_job = db.Column(db.Boolean, default=False) # [NEW]
     notes = db.Column(db.Text, nullable=True)
 
 class CountyImages(db.Model):
@@ -55,4 +53,3 @@ class CountyImages(db.Model):
 class GenericDataImport(db.Model):
     __tablename__ = 'GenericDataImport'
     id = db.Column(db.Integer, primary_key=True)
-    # Managed dynamically

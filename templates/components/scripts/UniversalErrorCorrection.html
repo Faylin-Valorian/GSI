@@ -1,0 +1,164 @@
+{% include "components/scripts/ImageManager.html" %}
+
+<script>
+    var uecState = {
+        countyId: null,
+        errorKey: null,
+        currentRecord: null,
+        imgManager: null
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if(typeof ImageManager !== 'undefined') {
+            uecState.imgManager = new ImageManager({
+                prefix: 'uec',
+                apiEndpoint: '/api/tools/edata-errors/get-image' // We will add this endpoint
+            });
+        }
+    });
+
+    function openUniversalErrorTool(countyId, errorKey, title) {
+        uecState.countyId = countyId;
+        uecState.errorKey = errorKey;
+        
+        // UI Setup
+        document.getElementById('uecModalTitle').innerText = title || 'Error Correction';
+        document.getElementById('uecModalSubtitle').innerText = errorKey;
+        document.getElementById('uecRecordLabel').innerText = 'Loading...';
+        document.getElementById('uecList').innerHTML = '<div class="text-center p-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
+        
+        // Clear Inputs
+        document.querySelectorAll('.uec-input').forEach(i => i.value = '');
+
+        // Show Modal
+        const modalEl = document.getElementById('universalErrorModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+
+        // Reset Image Viewer
+        if(uecState.imgManager) uecState.imgManager.resetUI();
+
+        // Fetch Data
+        uecFetchQueue();
+    }
+
+    function uecFetchQueue() {
+        fetch('/api/tools/edata-errors/records', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                county_id: uecState.countyId,
+                error_key: uecState.errorKey
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            const list = document.getElementById('uecList');
+            document.getElementById('uecCount').innerText = data.records ? data.records.length : 0;
+            list.innerHTML = '';
+
+            if(!data.success || !data.records || data.records.length === 0) {
+                list.innerHTML = '<div class="text-muted p-2 small text-center">No records found.</div>';
+                return;
+            }
+
+            data.records.forEach(rec => {
+                const item = document.createElement('div');
+                item.className = 'p-2 border-bottom border-secondary text-white small uec-item text-truncate';
+                item.style.cursor = 'pointer';
+                item.innerText = rec.desc || `ID: ${rec.id}`;
+                item.onclick = () => uecLoadRecord(rec);
+                list.appendChild(item);
+            });
+
+            // Auto-load first
+            if(data.records.length > 0) uecLoadRecord(data.records[0]);
+        })
+        .catch(err => {
+            document.getElementById('uecList').innerHTML = `<div class="text-danger p-2 small">Error: ${err}</div>`;
+        });
+    }
+
+    function uecLoadRecord(record) {
+        uecState.currentRecord = record;
+        
+        // Highlight in list
+        document.querySelectorAll('.uec-item').forEach(el => el.classList.remove('bg-primary'));
+        // (Simple highlighting logic, could be improved with IDs)
+        
+        document.getElementById('uecRecordLabel').innerText = `ID: ${record.id} | ${record.desc}`;
+
+        // Load Fields
+        // We fetch full details if the list payload was partial, but let's assume list has what we need or we fetch details
+        // To be safe and generic, let's fetch the full single record to ensure we have all columns
+        fetch('/api/tools/edata-errors/record-details', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                county_id: uecState.countyId,
+                error_key: uecState.errorKey,
+                record_id: record.id
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success && data.record) {
+                const r = data.record;
+                for(let i=1; i<=8; i++) {
+                    const key = `col0${i}varchar`;
+                    const el = document.getElementById(`uecCol0${i}`);
+                    if(el) el.value = r[key] || '';
+                }
+                
+                // Load Image
+                if(uecState.imgManager) {
+                    uecState.imgManager.load({
+                        // We pass params that the API will understand
+                        county_id: uecState.countyId,
+                        error_key: uecState.errorKey,
+                        record_id: record.id
+                    });
+                }
+            }
+        });
+    }
+
+    function uecSaveChanges() {
+        if(!uecState.currentRecord) return;
+        
+        const payload = {
+            county_id: uecState.countyId,
+            error_key: uecState.errorKey,
+            record_id: uecState.currentRecord.id,
+            fields: {}
+        };
+
+        for(let i=1; i<=8; i++) {
+            const key = `col0${i}varchar`;
+            const el = document.getElementById(`uecCol0${i}`);
+            if(el) payload.fields[key] = el.value;
+        }
+
+        const statusEl = document.getElementById('uecSaveStatus');
+        statusEl.innerText = 'Saving...';
+        statusEl.className = 'text-warning small fw-bold';
+
+        fetch('/api/tools/edata-errors/save-record', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                statusEl.innerText = 'Saved Successfully';
+                statusEl.className = 'text-success small fw-bold';
+                setTimeout(() => statusEl.innerText = '', 2000);
+            } else {
+                statusEl.innerText = 'Save Failed';
+                statusEl.className = 'text-danger small fw-bold';
+                alert(data.message);
+            }
+        });
+    }
+</script>

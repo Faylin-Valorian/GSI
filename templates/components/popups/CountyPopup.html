@@ -23,22 +23,37 @@
         <div>
             <h6 class="mb-0 fw-bold text-uppercase">{{ name }}</h6>
             
-            {% if is_mine %}
-                <span class="small fw-bold text-primary">WORKING ON (YOU)</span>
-            {% elif occupied_by %}
-                <span class="small fw-bold text-warning">LOCKED BY: {{ occupied_by|upper }}</span>
-            {% elif not is_active %}
-                <span class="small fw-bold text-danger">INACTIVE (Admin Only)</span>
-            {% else %}
-                <span class="small fw-bold text-success">AVAILABLE</span>
-            {% endif %}
+            <div class="d-flex flex-column">
+                {% if is_mine %}
+                    <span class="small fw-bold text-primary">WORKING ON (YOU)</span>
+                {% elif occupied_by %}
+                    <span class="small fw-bold text-warning">LOCKED BY: {{ occupied_by|upper }}</span>
+                {% elif not is_active %}
+                    <span class="small fw-bold text-danger">INACTIVE (Admin Only)</span>
+                {% else %}
+                    <span class="small fw-bold text-success">AVAILABLE</span>
+                {% endif %}
+
+                <span class="small fw-bold text-uppercase {% if is_split_job %}text-warning{% else %}text-muted opacity-25{% endif %}" 
+                      style="font-size: 0.7rem; transition: all 0.3s;">
+                    <i class="bi bi-layout-split me-1"></i>Split Image Job
+                </span>
+            </div>
         </div>
         
-        <div class="form-check form-switch m-0">
-            <input class="form-check-input" type="checkbox" role="switch" 
-                {% if is_mine %}checked{% endif %}
-                {% if (occupied_by or not is_active) and not is_mine %}disabled{% endif %}
-                onchange="toggleWork({{ id }}, this.checked)">
+        <div class="d-flex flex-column align-items-end gap-1">
+            <div class="form-check form-switch m-0" title="Toggle Working Status">
+                <input class="form-check-input" type="checkbox" role="switch" 
+                    {% if is_mine %}checked{% endif %}
+                    {% if (occupied_by or not is_active) and not is_mine %}disabled{% endif %}
+                    onchange="toggleWork({{ id }}, this.checked)">
+            </div>
+            
+            <div class="form-check form-switch m-0" title="Toggle Split Job Mode">
+                <input class="form-check-input" type="checkbox" role="switch" id="splitJobSwitch_{{ id }}"
+                    {% if is_split_job %}checked{% endif %}
+                    onchange="initSplitJobToggle({{ id }}, this)">
+            </div>
         </div>
     </div>
 
@@ -67,13 +82,13 @@
         </div>
     </div>
 
-    <ul class="nav nav-tabs nav-fill popup-nav-tabs mb-2" role="tablist">
+    <ul class="nav nav-tabs nav-fill popup-tabs mb-2 flex-wrap" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-db-{{ id }}">Database Setup</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-edata-{{ id }}">eData Setup</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-keli-{{ id }}">Keli Setup</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-indexing-{{ id }}">Indexing Tools</button></li>
         
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-errors-{{ id }}" onclick="renderCountyErrors({{ id }})">eData Errors</button></li>
+        <li class="nav-item" style="flex-basis: 100%;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-errors-{{ id }}" onclick="renderCountyErrors({{ id }})">eData Errors</button></li>
     </ul>
 
     <div class="tab-content">
@@ -90,7 +105,7 @@
 
         <div class="tab-pane fade" id="tab-edata-{{ id }}">
             <div class="row g-2">
-                <div class="col-6">
+                <div class="col-12">
                     <div class="d-grid gap-2">
                         <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openEDataModal({{ id }}, '{{ state_name }}', '{{ name }}')">
                             <i class="bi bi-table me-1"></i>Setup eData
@@ -101,18 +116,8 @@
                          <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openInitialPrepTool({{ id }})">
                             <i class="bi bi-magic me-1"></i>Initial Prep
                         </button>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="d-grid gap-2">
                         <button class="btn btn-sm btn-outline-secondary text-start" onclick="openLinkupModal({{ id }})">
                             <i class="bi bi-link-45deg me-1"></i>Linkup
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary text-start" onclick="openEdataErrorsModal({{ id }})">
-                            <i class="bi bi-exclamation-triangle me-1"></i>Errors
-                        </button>
-                        <button class="btn btn-sm btn-outline-secondary text-start" onclick="openImportEDataErrorsModal({{ id }})">
-                            <i class="bi bi-box-arrow-in-down me-1"></i>Imp Errors
                         </button>
                     </div>
                 </div>
@@ -149,17 +154,59 @@
 
         
         <div class="tab-pane fade" id="tab-errors-{{ id }}">
-            <div class="mb-2">
-                <select class="form-select form-select-sm" id="errorCat_{{ id }}" onchange="renderCountyErrors({{ id }})">
+            <div class="input-group input-group-sm mb-2">
+                <select class="form-select" id="errorCat_{{ id }}" onchange="renderCountyErrors({{ id }})">
                     <option value="Header" selected>Header</option>
                     <option value="Image">Image</option>
                     <option value="Legal">Legal</option>
                     <option value="Name">Name</option>
                     <option value="Reference">Reference</option>
                 </select>
+                <button class="btn btn-primary" type="button" id="btnScan_{{ id }}" onclick="initScanConfirmation({{ id }})">
+                    <i class="bi bi-search me-1"></i>Scan
+                </button>
             </div>
+            
+            <div id="scanSpinner_{{ id }}" class="d-none text-center my-2">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="small ms-2 text-muted" id="scanStatus_{{ id }}">Scanning...</span>
+            </div>
+
             <div id="errorBtnContainer_{{ id }}" class="d-grid gap-2 overflow-auto custom-scrollbar" style="max-height: 250px; padding-right: 5px;">
-                
+                </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmSplitModal_{{ id }}" tabindex="-1" aria-hidden="true" style="background: rgba(0,0,0,0.5); z-index: 1060;">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content bg-dark border-secondary text-white shadow-lg">
+                <div class="modal-header border-secondary py-2">
+                    <h6 class="modal-title fw-bold text-warning"><i class="bi bi-exclamation-triangle me-2"></i>Confirm Change</h6>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="mb-0 small" id="confirmSplitText_{{ id }}">Are you sure you want to modify the Split Job setting?</p>
+                </div>
+                <div class="modal-footer border-secondary py-1 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="finalizeSplitToggle({{ id }}, false)">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-warning" onclick="finalizeSplitToggle({{ id }}, true)">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmScanModal_{{ id }}" tabindex="-1" aria-hidden="true" style="background: rgba(0,0,0,0.5); z-index: 1060;">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content bg-dark border-secondary text-white shadow-lg">
+                <div class="modal-header border-secondary py-2">
+                    <h6 class="modal-title fw-bold text-primary"><i class="bi bi-search me-2"></i>Confirm Scan</h6>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="mb-0 small">This will drop existing error tables and rescan the GenericDataImport table.<br><br>Continue?</p>
+                </div>
+                <div class="modal-footer border-secondary py-1 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="finalizeScan({{ id }})">Start Scan</button>
+                </div>
             </div>
         </div>
     </div>

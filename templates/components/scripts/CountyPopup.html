@@ -1,0 +1,275 @@
+<script>
+    // ... (openCountyPopup, toggleWork remain the same) ...
+    window.openCountyPopup = function(props) {
+        const id = props.db_id || props.id;
+        if (!id) { console.error("Popup Error: No ID found", props); return; }
+        
+        fetch(`/api/county/${id}/popup`)
+            .then(r => { if(!r.ok) throw new Error("Failed to load"); return r.text(); })
+            .then(html => {
+                let modalId = 'dynamicCountyModal';
+                let modalEl = document.getElementById(modalId);
+                
+                if (!modalEl) {
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                                <div class="modal-content text-bg-dark border-secondary shadow" id="${modalId}Content"></div>
+                            </div>
+                        </div>`;
+                    document.body.appendChild(div.firstElementChild);
+                    modalEl = document.getElementById(modalId);
+                }
+
+                document.getElementById(modalId + 'Content').innerHTML = html;
+                const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                bsModal.show();
+                
+                if(window.renderCountyErrors) window.renderCountyErrors(id);
+                
+                modalEl.addEventListener('hidden.bs.modal', function(){}, {once:true});
+            })
+            .catch(err => { console.error(err); });
+    };
+
+    function toggleWork(countyId, isChecked) {
+        fetch('/api/county/toggle-work', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: countyId, status: isChecked })
+        }).then(response => response.json())
+          .then(data => {
+            if (data.success) openCountyPopup({id: countyId});
+            else {
+                console.error(data.message);
+                if(event && event.target) event.target.checked = !isChecked;
+            }
+        });
+    }
+
+    // --- SPLIT JOB TOGGLE ---
+    let pendingSplitToggle = { id: null, state: null, el: null };
+
+    window.initSplitJobToggle = function(id, el) {
+        const isChecked = el.checked;
+        pendingSplitToggle = { id: id, state: isChecked, el: el };
+        
+        const modalEl = document.getElementById(`confirmSplitModal_${id}`);
+        const textEl = document.getElementById(`confirmSplitText_${id}`);
+        const action = isChecked ? "ENABLE" : "DISABLE";
+        
+        if(textEl) textEl.innerText = `Are you sure you want to ${action} Split Job Mode for this county?`;
+        
+        if(modalEl) {
+            const bsModal = new bootstrap.Modal(modalEl);
+            bsModal.show();
+        }
+    };
+
+    window.finalizeSplitToggle = function(id, confirmed) {
+        const modalEl = document.getElementById(`confirmSplitModal_${id}`);
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+
+        if (confirmed && pendingSplitToggle.id === id) {
+            fetch('/api/county/toggle-split', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ county_id: id, status: pendingSplitToggle.state })
+            }).then(r => r.json()).then(data => {
+                if(data.success) openCountyPopup({id: id}); 
+                else {
+                    console.error("Failed:", data.message);
+                    if(pendingSplitToggle.el) pendingSplitToggle.el.checked = !pendingSplitToggle.state;
+                }
+            }).catch(e => {
+                console.error("Connection Error", e);
+                if(pendingSplitToggle.el) pendingSplitToggle.el.checked = !pendingSplitToggle.state;
+            });
+        } else {
+            if(pendingSplitToggle.el) pendingSplitToggle.el.checked = !pendingSplitToggle.state;
+        }
+        pendingSplitToggle = { id: null, state: null, el: null };
+    };
+
+    function saveNotes(countyId, notes) {
+        fetch('/api/county/save-notes', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: countyId, notes: notes })
+        });
+    }
+
+    function triggerUpload(id, isMine) {
+        if(isMine) document.getElementById('upload-' + id).click();
+    }
+
+    function uploadImage(id, input) {
+        if (input.files && input.files[0]) {
+            const formData = new FormData();
+            formData.append('image', input.files[0]);
+            formData.append('county_id', id);
+
+            fetch('/api/county/upload-image', {
+                method: 'POST', body: formData
+            }).then(r => r.json()).then(data => {
+                if(data.success) openCountyPopup({id: id});
+            });
+        }
+    }
+
+    // --- ERROR SCANNING ---
+    (function(){
+        const ERROR_MAP = {
+            'Header': {
+                'Non Numeric Page Number': 'headerNonNumericPageNumber',
+                'Duplicate Book & Page': 'headerDuplicateBookPageNumber',
+                'Duplicate Instrument Number': 'headerDuplicateInstrumentNumber',
+                'Incorrect Record Series': 'headerIncorrectRecordSeries',
+                'Incorrect Inst. Number Length': 'headerInstrumentNumberSixDigits',
+                'Missing Beginning Page': 'headerMissingBeginningPageNumber',
+                'Missing Book Number': 'headerMissingBookNumber',
+                'Missing Instrument Number': 'headerMissingInstrumentNumber',
+                'Missing Record Series': 'headerMissingRecordSeries',
+                'Non Numeric Inst. Number': 'headerNonNumericInstrumentNumber',
+                'Valid Book Range': 'headerValidBookRange'
+            },
+            'Image': {
+                'Duplicate Book & Page': 'imageDuplicateBookPageNumber',
+                'Incorrect Book Length': 'imageIncorrectBookLength',
+                'Incorrect Page Length': 'imageIncorrectPageLength',
+                'Incorrect Path Length': 'imageIncorrectPathLength',
+                'Non Numeric Page Number': 'imageNonNumericPageNumber',
+                'Non Numeric Book Number': 'PENDING',
+                'Missing Page Number': 'PENDING',
+                'Missing Book Number': 'PENDING'
+            },
+            'Legal': {
+                'Incorrect Section Number': 'legalOutOfRangeSection',
+                'Incorrect Township & Range': 'legalOutOfCountyTownshipRanges',
+                'Incorrect Quarter Section': 'legalOutOfRangeQuarterSections',
+                'Missing Section Number': 'PENDING',
+                'Missing Township & Range': 'PENDING',
+                'Missing Quarter Section': 'PENDING'
+            },
+            'Name': {
+                'Duplicate Names': 'nameDuplicateNames',
+                'Missing Grantor/Grantee': 'nameMissingGrantorGranteeNames'
+            },
+            'Reference': {
+                'Not Within Book Range': 'refRecordedNotWithinBookRange'
+            }
+        };
+
+        window.renderCountyErrors = function(id) {
+            const container = document.getElementById(`errorBtnContainer_${id}`);
+            const catSelect = document.getElementById(`errorCat_${id}`);
+            if(!container || !catSelect) return;
+
+            const category = catSelect.value;
+            container.innerHTML = '<div class="text-center text-muted small"><div class="spinner-border spinner-border-sm"></div> Checking status...</div>';
+
+            fetch(`/api/tools/edata-errors/status/${id}`)
+                .then(r => r.json())
+                .then(data => {
+                    container.innerHTML = ''; 
+                    const activeErrors = new Set(data.active_errors || []);
+                    const errors = ERROR_MAP[category] || {};
+
+                    for (const [label, key] of Object.entries(errors)) {
+                        const btn = document.createElement('button');
+                        btn.className = 'btn btn-sm btn-outline-danger text-start';
+                        const isPending = key === 'PENDING';
+                        const hasError = activeErrors.has(key);
+                        btn.disabled = !hasError;
+                        
+                        if (isPending) {
+                            btn.innerHTML = `<i class="bi bi-cone-striped me-2"></i>${label} (Dev)`;
+                            btn.disabled = true;
+                        } else {
+                            const icon = hasError ? 'bi-exclamation-circle-fill' : 'bi-check-circle';
+                            btn.innerHTML = `<i class="bi ${icon} me-2"></i>${label}`;
+                            if (hasError) {
+                                btn.onclick = () => openUniversalErrorTool(id, key, label);
+                            }
+                        }
+                        container.appendChild(btn);
+                    }
+                })
+                .catch(err => {
+                    container.innerHTML = `<div class="text-danger small">Error loading status: ${err}</div>`;
+                });
+        };
+
+        // [NEW] Open Confirmation Modal
+        window.initScanConfirmation = function(id) {
+            const modalEl = document.getElementById(`confirmScanModal_${id}`);
+            if(modalEl) {
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
+            }
+        };
+
+        // [NEW] Execute Scan Logic
+        window.finalizeScan = function(id) {
+            // Hide modal
+            const modalEl = document.getElementById(`confirmScanModal_${id}`);
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
+
+            const btn = document.getElementById(`btnScan_${id}`);
+            const spinner = document.getElementById(`scanSpinner_${id}`);
+            const statusSpan = document.getElementById(`scanStatus_${id}`);
+
+            btn.disabled = true;
+            spinner.classList.remove('d-none');
+            statusSpan.innerText = "Initializing...";
+
+            fetch(`/api/tools/edata-errors/get-defaults/${id}`).then(r=>r.json()).then(defaults => {
+                const payload = {
+                    county_id: id,
+                    book_start: defaults.book_start || '000000',
+                    book_end: defaults.book_end || '999999',
+                    townships: defaults.townships || ''
+                };
+
+                fetch('/api/tools/edata-errors/scan', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                }).then(response => {
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    function read() {
+                        reader.read().then(({ done, value }) => {
+                            if (done) {
+                                btn.disabled = false;
+                                spinner.classList.add('d-none');
+                                renderCountyErrors(id); 
+                                return;
+                            }
+                            const chunk = decoder.decode(value, {stream: true});
+                            const lines = chunk.split('\n');
+                            lines.forEach(line => {
+                                if(!line.trim()) return;
+                                try {
+                                    const d = JSON.parse(line);
+                                    if(d.type === 'progress') statusSpan.innerText = `Scanning... ${d.percent}%`;
+                                    if(d.type === 'error') console.error(d.message);
+                                } catch(e) {}
+                            });
+                            read();
+                        });
+                    }
+                    read();
+                }).catch(e => {
+                    btn.disabled = false;
+                    spinner.classList.add('d-none');
+                    alert("Scan Failed: " + e);
+                });
+            });
+        };
+    })();
+</script>

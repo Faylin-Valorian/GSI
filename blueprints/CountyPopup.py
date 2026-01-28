@@ -32,52 +32,59 @@ def get_county_popup(id):
         notes=c.notes or "",
         image_url=img_url,
         is_active=c.is_active,
+        is_split_job=c.is_split_job, # [NEW] Pass split status to template
         is_mine=(current_user.current_working_county_id == id),
         occupied_by=occupier.username if occupier else None,
         time=int(time.time()) # For cache busting images
     )
 # [GSI_END: workflow_popup]
 
-# [GSI_BLOCK: workflow_set_working]
-@workflow_bp.route('/api/user/set-working', methods=['POST'])
+# [GSI_BLOCK: workflow_toggle_work]
+@workflow_bp.route('/api/county/toggle-work', methods=['POST'])
 @login_required
-def set_working():
+def toggle_work():
     try:
         cid = request.json.get('county_id')
-        active = request.json.get('active')
+        status = request.json.get('status')
         
-        if active:
+        if status:
             # Check lock
             conflict = Users.query.filter(Users.current_working_county_id == cid, Users.id != current_user.id).first()
             if conflict: return jsonify({'success': False, 'message': f'Locked by {conflict.username}'})
             current_user.current_working_county_id = cid
         else:
-            if current_user.current_working_county_id == cid:
+            if current_user.current_working_county_id == int(cid):
                 current_user.current_working_county_id = None
                 
         db.session.commit()
         return jsonify({'success': True})
     except Exception as e: return jsonify({'success': False, 'message': str(e)})
-# [GSI_END: workflow_set_working]
+# [GSI_END: workflow_toggle_work]
 
-# [GSI_BLOCK: workflow_set_active]
-@workflow_bp.route('/api/county/<int:id>/set-global-active', methods=['POST'])
+# [GSI_BLOCK: workflow_toggle_split]
+@workflow_bp.route('/api/county/toggle-split', methods=['POST'])
 @login_required
-def set_global_active(id):
-    # Allows Admin to toggle status from the popup
+def toggle_split():
+    # Only Admin or authorized users should change job configuration
     if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'})
-    c = db.session.get(IndexingCounties, id)
-    if c:
-        c.is_active = not c.is_active
-        db.session.commit()
-        return jsonify({'success': True})
-    return jsonify({'success': False})
-# [GSI_END: workflow_set_active]
+    try:
+        cid = request.json.get('county_id')
+        status = request.json.get('status')
+        
+        c = db.session.get(IndexingCounties, cid)
+        if c:
+            c.is_split_job = status
+            db.session.commit()
+            return jsonify({'success': True})
+        return jsonify({'success': False, 'message': 'County not found'})
+    except Exception as e: return jsonify({'success': False, 'message': str(e)})
+# [GSI_END: workflow_toggle_split]
 
 # [GSI_BLOCK: workflow_save_notes]
-@workflow_bp.route('/api/county/<int:id>/save-notes', methods=['POST'])
+@workflow_bp.route('/api/county/save-notes', methods=['POST'])
 @login_required
-def save_notes(id):
+def save_notes():
+    id = request.json.get('county_id')
     c = db.session.get(IndexingCounties, id)
     if c:
         c.notes = request.json.get('notes')
@@ -87,11 +94,16 @@ def save_notes(id):
 # [GSI_END: workflow_save_notes]
 
 # [GSI_BLOCK: workflow_upload]
-@workflow_bp.route('/api/county/<int:id>/upload', methods=['POST'])
+@workflow_bp.route('/api/county/upload-image', methods=['POST'])
 @login_required
-def upload_image(id):
+def upload_image():
     if 'file' not in request.files: return jsonify({'success': False})
+    
+    id = request.form.get('county_id')
     f = request.files['file']
+    
+    if not id: return jsonify({'success': False, 'message': 'No county ID provided'})
+
     fname = secure_filename(f"county_{id}_{f.filename}")
     f.save(os.path.join(current_app.config['UPLOAD_FOLDER'], fname))
     

@@ -21,7 +21,7 @@ from blueprints.UserManagement import user_mgmt_bp
 
 # --- NEW SPLIT BLUEPRINTS ---
 from blueprints.MapVisualization import map_viz_bp
-from blueprints.CountyWorkflow import workflow_bp
+from blueprints.CountyPopup import workflow_bp 
 from blueprints.SystemTools import sys_bp
 
 from blueprints.OpenDriveConnection import open_drive_bp
@@ -35,7 +35,6 @@ from blueprints.InitialPreparation import initial_prep_bp
 from blueprints.InstrumentTypeCorrections import inst_type_bp
 from blueprints.InitialKeliLinkup import initial_linkup_bp
 from blueprints.EDataErrors import edata_errors_bp
-from blueprints.ImportEDataErrors import import_edata_errors_bp
 from blueprints.ReviewLegalTypeOthers import review_legal_bp
 from blueprints.AdditionsCorrections import additions_bp
 from blueprints.MissingNamesCorrections import missing_names_bp
@@ -44,12 +43,10 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=2)
 
-# Configure Upload Folder for County Badge Images
 app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'images')
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# --- ENCRYPTION HELPER ---
 KEY_FILE = 'secret.key'
 def load_key():
     if not os.path.exists(KEY_FILE):
@@ -57,13 +54,11 @@ def load_key():
         with open(KEY_FILE, 'wb') as key_file: key_file.write(key)
     return open(KEY_FILE, 'rb').read()
 
-# Initialize cipher (global)
 cipher = Fernet(load_key())
 
 def encrypt_password(password): return cipher.encrypt(password.encode()).decode()
 def decrypt_password(encrypted): return cipher.decrypt(encrypted.encode()).decode()
 
-# --- DB CONFIG LOAD HELPERS ---
 def load_db_config():
     config_path = os.path.join(app.root_path, 'db_config.json')
     if not os.path.exists(config_path): return None
@@ -74,7 +69,6 @@ def get_db_uri(cfg):
     conn_str = f"DRIVER={driver};SERVER={cfg['server']};DATABASE={cfg['database']};UID={cfg['user']};PWD={decrypt_password(cfg['password'])}"
     return f"mssql+pyodbc:///?odbc_connect={requests.utils.quote(conn_str)}"
 
-# --- APP INIT & AUTO-RESET LOGIC ---
 db_config = None
 try:
     db_config = load_db_config()
@@ -84,37 +78,27 @@ try:
         db.init_app(app)
 except Exception as e:
     print(f" >>> CONFIG/KEY ERROR: {e}")
-    print(" >>> Resetting configuration to force setup...")
     if os.path.exists('db_config.json'): os.remove('db_config.json')
     if os.path.exists('secret.key'): os.remove('secret.key')
     cipher = Fernet(load_key())
     db_config = None
 
-if not db_config:
-    print(" >>> NO DATABASE CONFIG FOUND (or reset). Redirecting to setup.")
-
-# --- INITIALIZE LOGIN MANAGER ---
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'auth.login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    if 'SQLALCHEMY_DATABASE_URI' not in app.config:
-        return None
+    if 'SQLALCHEMY_DATABASE_URI' not in app.config: return None
     return db.session.get(Users, int(user_id))
 
-# --- REGISTER BLUEPRINTS ---
 app.register_blueprint(auth_bp)
 app.register_blueprint(state_mgmt_bp)
 app.register_blueprint(county_mgmt_bp)
 app.register_blueprint(user_mgmt_bp)
-
-# New Split Blueprints (Replaces geo_bp)
 app.register_blueprint(map_viz_bp)
 app.register_blueprint(workflow_bp)
 app.register_blueprint(sys_bp)
-
 app.register_blueprint(open_drive_bp)
 app.register_blueprint(db_compat_bp)
 app.register_blueprint(setup_edata_bp)
@@ -126,23 +110,18 @@ app.register_blueprint(initial_prep_bp)
 app.register_blueprint(inst_type_bp)
 app.register_blueprint(edata_errors_bp)
 app.register_blueprint(initial_linkup_bp) 
-app.register_blueprint(import_edata_errors_bp)
 app.register_blueprint(review_legal_bp)
 app.register_blueprint(additions_bp)
 app.register_blueprint(missing_names_bp)
 
-# --- MIDDLEWARE: FORCE SETUP ---
 @app.before_request
 def check_db_config():
     config_path = os.path.join(app.root_path, 'db_config.json')
     is_configured = os.path.exists(config_path)
     allowed_endpoints = ['first_time_setup', 'restart_app']
-    if request.endpoint and ('static' in request.endpoint or request.endpoint in allowed_endpoints):
-        return
-    if not is_configured:
-        return redirect(url_for('first_time_setup'))
+    if request.endpoint and ('static' in request.endpoint or request.endpoint in allowed_endpoints): return
+    if not is_configured: return redirect(url_for('first_time_setup'))
 
-# --- ROUTES ---
 @app.route('/')
 @login_required
 def dashboard():
