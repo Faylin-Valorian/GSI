@@ -11,49 +11,52 @@
                         <span class="text-muted x-small" id="uecModalSubtitle">---</span>
                     </div>
                 </div>
-                <div class="d-flex gap-2">
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-sm btn-outline-warning" id="uecEditBtn" disabled onclick="uecEnableEditing()">
+                        <i class="bi bi-pencil me-1"></i>Edit Row
+                    </button>
+                    
                     <button class="btn btn-sm btn-outline-success" onclick="uecSaveChanges()">
-                        <i class="bi bi-save me-1"></i>Save Changes
+                        <i class="bi bi-save me-1"></i>Save
                     </button>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
             </div>
             
             <div class="modal-body p-0 d-flex h-100" style="overflow: hidden;">
-                <div class="d-flex flex-column border-end border-secondary h-100" style="width: 280px; background: #1f1f1f;">
+                <div class="d-flex flex-column border-end border-secondary h-100" style="width: 250px; background: #1f1f1f;">
                     <div class="p-2 border-bottom border-secondary bg-dark d-flex justify-content-between align-items-center">
-                        <span class="text-muted small text-uppercase fw-bold">Error Queue</span>
+                        <span class="text-muted small text-uppercase fw-bold">Queue</span>
                         <span class="badge bg-secondary" id="uecCount">0</span>
                     </div>
                     <div id="uecList" class="flex-grow-1 overflow-auto p-0 custom-scrollbar"></div>
                 </div>
 
-                <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000;">
+                <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000; position: relative;">
                     
-                    <div class="flex-grow-1" style="min-height: 0; overflow: hidden; position: relative;">
+                    <div id="uecTopPane" class="d-flex flex-column" style="height: 50%; min-height: 50px; position: relative; overflow: hidden; border-bottom: 1px solid #333;">
                         {{ image_viewer('uec') }}
                     </div>
 
-                    <div class="p-3 bg-dark border-top border-secondary flex-shrink-0" style="height: auto; min-height: 220px; z-index: 10;">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span class="text-info fw-bold font-monospace" id="uecRecordLabel">No Record Selected</span>
-                            <span class="text-success small fw-bold" id="uecSaveStatus"></span>
-                        </div>
+                    <div id="uecResizer" style="height: 8px; background: #333; cursor: row-resize; flex-shrink: 0; z-index: 100; border-top: 1px solid #444; border-bottom: 1px solid #222;"></div>
 
-                        <div class="row g-2">
-                            {% for i in range(1, 9) %}
-                            <div class="col-md-3">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control form-control-sm bg-black text-white border-secondary uec-input" 
-                                           id="uecCol0{{ i }}" placeholder="Col {{ i }}" data-col="col0{{ i }}varchar">
-                                    <label for="uecCol0{{ i }}" class="text-muted">Column {{ i }}</label>
-                                </div>
-                            </div>
-                            {% endfor %}
+                    <div id="uecBottomPane" class="bg-dark d-flex flex-column" style="flex-grow: 1; min-height: 100px; overflow: hidden;">
+                        <div class="p-1 border-bottom border-secondary d-flex justify-content-between align-items-center bg-black">
+                            <small class="text-muted ms-2">Context View (10 Before / 10 After)</small>
+                            <span class="text-success small fw-bold me-2" id="uecSaveStatus"></span>
                         </div>
                         
-                        <div class="mt-2 d-flex justify-content-end">
-                             <small class="text-muted fst-italic">Changes are saved to the error table.</small>
+                        <div class="table-responsive flex-grow-1 custom-scrollbar">
+                            <table class="table table-dark table-sm table-hover table-bordered mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-secondary text-center sticky-top">
+                                    <tr>
+                                        <th style="width: 60px;">ID</th>
+                                        <th>Col 1</th><th>Col 2</th><th>Col 3</th><th>Col 4</th>
+                                        <th>Col 5</th><th>Col 6</th><th>Col 7</th><th>Col 8</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uecTableBody"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

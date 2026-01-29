@@ -30,149 +30,33 @@ from GenericDataImport """
 
 # [GSI_BLOCK: edata_errors_queries]
 QUERIES = {
-    # --- BATCH 1 ---
-    "headerNonNumericPageNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in 
-			(select instrumentid from GenericDataImport where fn like '%header%' and isnumeric(left(col05varchar,len(rtrim(col05varchar))))=0)
-		and col05varchar not in
-			(select col05varchar from GenericDataImport where fn like '%header%' and deleteFlag = 'FALSE' and right(col05varchar,1) like '%[A-Z]')
-        order by ord, instrumentid
-    """,
-
-    "headerDuplicateBookPageNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and col04varchar + col05varchar in 
-            (select col04varchar + col05varchar from GenericDataImport where fn like '%header%' group by col04varchar + col05varchar having count(col04varchar + col05varchar) > 1)
-        order by ord, instrumentid
-    """,
-
-    "headerDuplicateInstrumentNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and col02varchar + col04varchar in 
-            (select distinct col02varchar + col04varchar from GenericDataImport where fn like '%header%' and col02varchar != '' and deleteFlag = 'FALSE' group by col02varchar, col04varchar HAVING count(col02varchar) > 1)
-        order by ord, instrumentid
-    """,
-
-    "headerIncorrectRecordSeries.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and left(col06varchar,4) in 
-            (select distinct left(col06varchar,4) from GenericDataImport where fn like '%header%' group by left(col06varchar,4) having count(left(col06varchar,4)) <= 100)
-        order by ord, instrumentid
-    """,
-
-    "headerInstrumentNumberSixDigits.csv": """
-        where fn LIKE '%header%' and deleteFlag = 'FALSE' AND RIGHT('0000000' + col02varchar,7-isnumeric(col02varchar)) LIKE '%[A-Z]' and col02varchar not in
-            (select col02varchar from GenericDataImport where fn like '%header%' and deleteFlag = 'FALSE' and right(col02varchar,1) like '%[A-Z]')
-        order by ord, instrumentid
-    """,
-
-    "headerMissingBeginningPageNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in 
-            (select instrumentid from GenericDataImport where fn like '%header%' and col05varchar < '000000')
-        order by ord, instrumentid
-    """,
-
-    "headerMissingBookNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in 
-            (select instrumentid from GenericDataImport where fn like '%header%' and col04varchar < '000000')
-        order by ord, instrumentid
-    """,
-
-    "headerMissingInstrumentNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and col02varchar = ''
-        order by ord, instrumentid
-    """,
-
-    "headerMissingRecordSeries.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and record_series_external_id = '' and left(col06varchar,4) not in
-            (select name from fromkellprorecord_series)
-        order by ord, instrumentid
-    """,
-
-    "headerNonNumericInstrumentNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in 
-			(select instrumentid from GenericDataImport where fn like '%header%' and col02varchar != '' and isnumeric(left(col02varchar,len(rtrim(col02varchar)))) = 0 and isnumeric(col02varchar) = 0)
-		and col02varchar not in
-			(select col02varchar from GenericDataImport where fn like '%header%' and deleteFlag = 'FALSE' and right(col02varchar,1) like '%[A-Z]')
-        order by ord, instrumentid
-    """,
-
-    # --- BATCH 2 ---
-    "legalOutOfRangeSection.csv": """
-        where fn like '%legal%' and deleteFlag = 'FALSE' and col02varchar != '' and col02varchar != '?' and cast(col02varchar as int) not between 1 and 36
-			or fn like '%legal%' and deleteFlag = 'FALSE' and col02varchar != '' and col02varchar = '?'
-        order by ord, instrumentid
-    """,
-
-    "headerValidBookRange.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and right('000000' + col04varchar,6) not between '{0}' and '{1}'
-        order by ord, instrumentid
-    """,
-
-    "imageDuplicateBookPageNumber.csv": """
-        where fn like '%image%' and deleteFlag = 'FALSE' and book + page_number in 
-			(select book + page_number from GenericDataImport where fn like '%image%' group by book + page_number having count(col04varchar + col05varchar) > 1)
-        order by ord, instrumentid
-    """,
-
-    "imageIncorrectBookLength.csv": """
-        where fn like '%image%' and deleteFlag = 'FALSE' and len(SUBSTRING(col03varchar, 0, 7)) != 6
-        order by ord, instrumentid
-    """,
-
-    "imageIncorrectPageLength.csv": """
-        where fn like '%image%' and deleteFlag = 'FALSE' and len(RIGHT('0000' + col02varchar, 5 - isnumeric(col02varchar))) not between 4 and 5
-        order by ord, instrumentid
-    """,
-
-    "imageIncorrectPathLength.csv": """
-        where fn like '%image%' and deleteFlag = 'FALSE' and len(reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)),'FIT.',''))) != 0 and col03varchar not in
-			(select col03varchar from GenericDataImport where fn like '%image%' and right(replace(col03varchar, '.TIF', ''),2) like '%[_][0-9]')
-        order by ord, instrumentid
-    """,
-
-    "imageNonNumericPageNumber.csv": """
-        where fn like '%image%' and deleteFlag = 'FALSE' and isnumeric(left(col02varchar,len(rtrim(col02varchar))))=0 and isnumeric(col02varchar)=0 and col02varchar not in
-			(select col02varchar from GenericDataImport where fn like '%image%' and deleteFlag = 'FALSE' and right(col02varchar,1) like '%[A-Z]')
-        order by ord, instrumentid
-    """,
-
-    "legalOutOfCountyTownshipRanges.csv": """
-        where fn like '%legal%' and deleteFlag = 'FALSE' and col03varchar + col04varchar != '' and col03varchar + ',' + col04varchar not in ({0})
-        order by ord, instrumentid
-    """,
-
-    "legalOutOfRangeQuarterSections.csv": """
-        where fn like '%legal%' and deleteFlag = 'FALSE' and col08varchar != '' and col08varchar not in ('N2', 'S2', 'E2', 'W2', 'NE', 'NW', 'SE', 'SW')
-        order by ord, instrumentid
-    """,
-
-    # --- BATCH 3 ---
-    "nameDuplicateNames.csv": """
-        where fn like '%name%' and deleteFlag = 'FALSE' and col03varchar + cast(instrumentid as varchar) in
-			(select distinct col03varchar + cast(instrumentid as varchar) from GenericDataImport where fn like '%name%' group by col02varchar, col03varchar, instrumentid having count(col03varchar + cast(instrumentid as varchar)) > 1)
-        order by ord, instrumentid
-    """,
-
-    "nameMissingGrantorGranteeNames.csv": """
-        where fn like '%name%' and deleteFlag = 'FALSE' and col03varchar = ''
-        order by ord, instrumentid
-    """,
-
-    "refRecordedNotWithinBookRange.csv": """
-        where fn LIKE '%ref%' and deleteFlag = 'FALSE' AND col20other != '' AND col02varchar NOT IN 
-			(SELECT DISTINCT RIGHT('000000' + col04varchar,6) FROM GenericDataImport WHERE fn LIKE '%header%')
-        order by ord, instrumentid
-    """
+    "headerNonNumericPageNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in (select instrumentid from GenericDataImport where fn like '%header%' and isnumeric(left(col05varchar,len(rtrim(col05varchar))))=0) and col05varchar not in (select col05varchar from GenericDataImport where fn like '%header%' and deleteFlag = 'FALSE' and right(col05varchar,1) like '%[A-Z]') order by ord, instrumentid",
+    "headerDuplicateBookPageNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and col04varchar + col05varchar in (select col04varchar + col05varchar from GenericDataImport where fn like '%header%' group by col04varchar + col05varchar having count(col04varchar + col05varchar) > 1) order by ord, instrumentid",
+    "headerDuplicateInstrumentNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and col02varchar + col04varchar in (select distinct col02varchar + col04varchar from GenericDataImport where fn like '%header%' and col02varchar != '' and deleteFlag = 'FALSE' group by col02varchar, col04varchar HAVING count(col02varchar) > 1) order by ord, instrumentid",
+    "headerIncorrectRecordSeries.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and left(col06varchar,4) in (select distinct left(col06varchar,4) from GenericDataImport where fn like '%header%' group by left(col06varchar,4) having count(left(col06varchar,4)) <= 100) order by ord, instrumentid",
+    "headerInstrumentNumberSixDigits.csv": "where fn LIKE '%header%' and deleteFlag = 'FALSE' AND RIGHT('0000000' + col02varchar,7-isnumeric(col02varchar)) LIKE '%[A-Z]' and col02varchar not in (select col02varchar from GenericDataImport where fn like '%header%' and deleteFlag = 'FALSE' and right(col02varchar,1) like '%[A-Z]') order by ord, instrumentid",
+    "headerMissingBeginningPageNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in (select instrumentid from GenericDataImport where fn like '%header%' and col05varchar < '000000') order by ord, instrumentid",
+    "headerMissingBookNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in (select instrumentid from GenericDataImport where fn like '%header%' and col04varchar < '000000') order by ord, instrumentid",
+    "headerMissingInstrumentNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and col02varchar = '' order by ord, instrumentid",
+    "headerMissingRecordSeries.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and record_series_external_id = '' and left(col06varchar,4) not in (select name from fromkellprorecord_series) order by ord, instrumentid",
+    "headerNonNumericInstrumentNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and instrumentid in (select instrumentid from GenericDataImport where fn like '%header%' and col02varchar != '' and isnumeric(left(col02varchar,len(rtrim(col02varchar)))) = 0 and isnumeric(col02varchar) = 0) and col02varchar not in (select col02varchar from GenericDataImport where fn like '%header%' and deleteFlag = 'FALSE' and right(col02varchar,1) like '%[A-Z]') order by ord, instrumentid",
+    "legalOutOfRangeSection.csv": "where fn like '%legal%' and deleteFlag = 'FALSE' and col02varchar != '' and col02varchar != '?' and cast(col02varchar as int) not between 1 and 36 or fn like '%legal%' and deleteFlag = 'FALSE' and col02varchar != '' and col02varchar = '?' order by ord, instrumentid",
+    "headerValidBookRange.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and right('000000' + col04varchar,6) not between '{0}' and '{1}' order by ord, instrumentid",
+    "imageDuplicateBookPageNumber.csv": "where fn like '%image%' and deleteFlag = 'FALSE' and book + page_number in (select book + page_number from GenericDataImport where fn like '%image%' group by book + page_number having count(col04varchar + col05varchar) > 1) order by ord, instrumentid",
+    "imageIncorrectBookLength.csv": "where fn like '%image%' and deleteFlag = 'FALSE' and len(SUBSTRING(col03varchar, 0, 7)) != 6 order by ord, instrumentid",
+    "imageIncorrectPageLength.csv": "where fn like '%image%' and deleteFlag = 'FALSE' and len(RIGHT('0000' + col02varchar, 5 - isnumeric(col02varchar))) not between 4 and 5 order by ord, instrumentid",
+    "imageIncorrectPathLength.csv": "where fn like '%image%' and deleteFlag = 'FALSE' and len(reverse(replace(substring(reverse(col03varchar),0,charindex('_',col03varchar)),'FIT.',''))) != 0 and col03varchar not in (select col03varchar from GenericDataImport where fn like '%image%' and right(replace(col03varchar, '.TIF', ''),2) like '%[_][0-9]') order by ord, instrumentid",
+    "imageNonNumericPageNumber.csv": "where fn like '%image%' and deleteFlag = 'FALSE' and isnumeric(left(col02varchar,len(rtrim(col02varchar))))=0 and isnumeric(col02varchar)=0 and col02varchar not in (select col02varchar from GenericDataImport where fn like '%image%' and deleteFlag = 'FALSE' and right(col02varchar,1) like '%[A-Z]') order by ord, instrumentid",
+    "legalOutOfCountyTownshipRanges.csv": "where fn like '%legal%' and deleteFlag = 'FALSE' and col03varchar + col04varchar != '' and col03varchar + ',' + col04varchar not in ({0}) order by ord, instrumentid",
+    "legalOutOfRangeQuarterSections.csv": "where fn like '%legal%' and deleteFlag = 'FALSE' and col08varchar != '' and col08varchar not in ('N2', 'S2', 'E2', 'W2', 'NE', 'NW', 'SE', 'SW') order by ord, instrumentid",
+    "nameDuplicateNames.csv": "where fn like '%name%' and deleteFlag = 'FALSE' and col03varchar + cast(instrumentid as varchar) in (select distinct col03varchar + cast(instrumentid as varchar) from GenericDataImport where fn like '%name%' group by col02varchar, col03varchar, instrumentid having count(col03varchar + cast(instrumentid as varchar)) > 1) order by ord, instrumentid",
+    "nameMissingGrantorGranteeNames.csv": "where fn like '%name%' and deleteFlag = 'FALSE' and col03varchar = '' order by ord, instrumentid",
+    "refRecordedNotWithinBookRange.csv": "where fn LIKE '%ref%' and deleteFlag = 'FALSE' AND col20other != '' AND col02varchar NOT IN (SELECT DISTINCT RIGHT('000000' + col04varchar,6) FROM GenericDataImport WHERE fn LIKE '%header%') order by ord, instrumentid"
 }
 
-# --- SPLIT IMAGE OVERRIDES ---
 SPLIT_OVERRIDES = {
-    "headerDuplicateBookPageNumber.csv": """
-        where fn like '%image%' and deleteFlag = 'FALSE' and keyOriginalValue in 
-            (select OriginalValue from GenericDataImport where fn like '%header%' group by OriginalValue, col04varchar + col05varchar having count(col04varchar + col05varchar) > 1)
-        order by ord, instrumentid
-    """,
-    "headerDuplicateBookPageNumber.csv": """
-        where fn like '%header%' and deleteFlag = 'FALSE' and fn = ''
-    """
+    "headerDuplicateBookPageNumber.csv": "where fn like '%image%' and deleteFlag = 'FALSE' and keyOriginalValue in (select OriginalValue from GenericDataImport where fn like '%header%' group by OriginalValue, col04varchar + col05varchar having count(col04varchar + col05varchar) > 1) order by ord, instrumentid",
+    "headerDuplicateBookPageNumber.csv": "where fn like '%header%' and deleteFlag = 'FALSE' and fn = ''"
 }
 # [GSI_END: edata_errors_queries]
 
@@ -191,20 +75,18 @@ def parse_townships(townships_str):
             parts = [f"'{t.strip()}'" for t in townships_str.split(',') if t.strip()]
             if parts: formatted = ", ".join(parts)
     return formatted
+# [GSI_END: edata_errors_utils]
 
 # [GSI_BLOCK: edata_errors_api]
 def get_safe_table_name(county_id, error_key):
-    # Security: Ensure error_key is valid
     valid_key = False
     for k in QUERIES.keys():
         if k.replace('.csv', '') == error_key:
             valid_key = True
             break
     if not valid_key: return None
-    
     c = db.session.get(IndexingCounties, county_id)
     if not c: return None
-    
     return f"{c.county_name}_eData_Errors_{error_key}"
 
 @edata_errors_bp.route('/api/tools/edata-errors/records', methods=['POST'])
@@ -216,7 +98,6 @@ def get_error_records():
         table_name = get_safe_table_name(data.get('county_id'), data.get('error_key'))
         if not table_name: return jsonify({'success': False, 'message': 'Invalid context'})
         
-        # Check if table exists
         insp = inspect(db.engine)
         if table_name not in insp.get_table_names():
             return jsonify({'success': True, 'records': []})
@@ -229,25 +110,62 @@ def get_error_records():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-@edata_errors_bp.route('/api/tools/edata-errors/record-details', methods=['POST'])
+@edata_errors_bp.route('/api/tools/edata-errors/context', methods=['POST'])
 @login_required
-def get_error_record_details():
+def get_error_context():
+    # [UPDATED] Explicitly selects stech_image_path for all context rows
     if current_user.role != 'admin': return jsonify({'success': False}), 403
     try:
         data = request.json
-        table_name = get_safe_table_name(data.get('county_id'), data.get('error_key'))
-        if not table_name: return jsonify({'success': False})
+        target_id = data.get('record_id')
+        if not target_id: return jsonify({'success': False})
+
+        sql_context = """
+            SELECT * FROM (
+                SELECT TOP 10 id, col01varchar, col02varchar, col03varchar, col04varchar, 
+                       col05varchar, col06varchar, col07varchar, col08varchar, stech_image_path 
+                FROM GenericDataImport WHERE id < :tid ORDER BY id DESC
+            ) as prev
+            UNION ALL
+            SELECT TOP 1 id, col01varchar, col02varchar, col03varchar, col04varchar, 
+                   col05varchar, col06varchar, col07varchar, col08varchar, stech_image_path
+            FROM GenericDataImport WHERE id = :tid
+            UNION ALL
+            SELECT * FROM (
+                SELECT TOP 10 id, col01varchar, col02varchar, col03varchar, col04varchar, 
+                       col05varchar, col06varchar, col07varchar, col08varchar, stech_image_path
+                FROM GenericDataImport WHERE id > :tid ORDER BY id ASC
+            ) as next
+            ORDER BY id
+        """
         
-        sql = f"""SELECT col01varchar, col02varchar, col03varchar, col04varchar, 
-                  col05varchar, col06varchar, col07varchar, col08varchar 
-                  FROM [{table_name}] WHERE id = :id"""
-        res = db.session.execute(text(sql), {'id': data.get('record_id')}).mappings().fetchone()
+        res = db.session.execute(text(sql_context), {'tid': target_id}).mappings().fetchall()
         
-        if res:
-            return jsonify({'success': True, 'record': dict(res)})
-        return jsonify({'success': False, 'message': 'Record not found'})
+        rows = []
+        for r in res:
+            row_dict = dict(r)
+            # Encode path safely for frontend use
+            if row_dict.get('stech_image_path'):
+                row_dict['safe_image_url'] = urllib.parse.quote(row_dict['stech_image_path'])
+                row_dict['image_name'] = os.path.basename(row_dict['stech_image_path'])
+            rows.append(row_dict)
+
+        return jsonify({'success': True, 'rows': rows})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+# [NEW] Image Viewer Route to serve images via API
+@edata_errors_bp.route('/api/tools/edata-errors/view-image', methods=['GET'])
+@login_required
+def view_image():
+    if current_user.role != 'admin': return "Unauthorized", 403
+    path = request.args.get('path')
+    if not path:
+        return "Image not found", 404
+    # Basic security check - ensure it's an image
+    if not os.path.exists(path):
+        return "Image file not found on server", 404
+    return send_file(path)
 
 @edata_errors_bp.route('/api/tools/edata-errors/save-record', methods=['POST'])
 @login_required
@@ -259,10 +177,10 @@ def save_error_record():
         if not table_name: return jsonify({'success': False})
         
         fields = data.get('fields', {})
+        record_id = data.get('record_id')
         
-        # Build Update SQL dynamically for cols 1-8
         set_clauses = []
-        params = {'id': data.get('record_id')}
+        params = {'id': record_id}
         
         for i in range(1, 9):
             col = f"col0{i}varchar"
@@ -270,41 +188,47 @@ def save_error_record():
                 set_clauses.append(f"{col} = :p{i}")
                 params[f"p{i}"] = fields[col]
         
-        if not set_clauses: return jsonify({'success': True}) # Nothing to update
+        if not set_clauses: return jsonify({'success': True})
         
         sql = f"UPDATE [{table_name}] SET {', '.join(set_clauses)} WHERE id = :id"
+        db.session.execute(text(sql), params)
+        
+        sql_gen = f"UPDATE GenericDataImport SET {', '.join(set_clauses)} WHERE id = :id"
+        db.session.execute(text(sql_gen), params)
+        
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)})
+
+@edata_errors_bp.route('/api/tools/edata-errors/save-generic', methods=['POST'])
+@login_required
+def save_generic_record():
+    if current_user.role != 'admin': return jsonify({'success': False}), 403
+    try:
+        data = request.json
+        fields = data.get('fields', {})
+        record_id = data.get('record_id')
+        
+        set_clauses = []
+        params = {'id': record_id}
+        
+        for i in range(1, 9):
+            col = f"col0{i}varchar"
+            if col in fields:
+                set_clauses.append(f"{col} = :p{i}")
+                params[f"p{i}"] = fields[col]
+        
+        if not set_clauses: return jsonify({'success': True})
+        
+        sql = f"UPDATE GenericDataImport SET {', '.join(set_clauses)} WHERE id = :id"
         db.session.execute(text(sql), params)
         db.session.commit()
         
         return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'message': str(e)})
-
-@edata_errors_bp.route('/api/tools/edata-errors/get-image', methods=['POST'])
-@login_required
-def get_error_image():
-    if current_user.role != 'admin': return jsonify({'success': False}), 403
-    try:
-        data = request.json
-        table_name = get_safe_table_name(data.get('county_id'), data.get('error_key'))
-        if not table_name: return jsonify({'success': False})
-        
-        sql = f"SELECT stech_image_path FROM [{table_name}] WHERE id = :id"
-        res = db.session.execute(text(sql), {'id': data.get('record_id')}).fetchone()
-        
-        if not res or not res[0]:
-            return jsonify({'success': False, 'images': [], 'message': 'No image path found'})
-            
-        full_disk_path = res[0]
-        safe_path = urllib.parse.quote(full_disk_path)
-        
-        images = [{
-            'src': f"/api/tools/legal-others/view-image?path={safe_path}", # Reusing existing viewer proxy
-            'name': os.path.basename(full_disk_path)
-        }]
-        return jsonify({'success': True, 'images': images})
-    except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
 @edata_errors_bp.route('/api/tools/edata-errors/status/<int:county_id>', methods=['GET'])
@@ -348,11 +272,10 @@ def scan_edata_errors():
     book_end = data.get('book_end', '999999')
     townships = data.get('townships', '')
     
-    # [CHANGED] Load Split Setting from DB
     c = db.session.get(IndexingCounties, county_id)
     if not c: return jsonify({'success': False, 'message': 'County not found'})
     
-    is_split_mode = c.is_split_job # Use DB config
+    is_split_mode = c.is_split_job 
 
     formatted_townships = parse_townships(townships)
     
@@ -364,7 +287,6 @@ def scan_edata_errors():
             count = 0
             tables_created = 0
 
-            # Pre-calc replacements
             record_series_tbl = f"{c.county_name}_keli_record_series"
             inst_types_tbl = f"{c.county_name}_keli_instrument_types"
             additions_tbl = f"{c.county_name}_keli_additions"
@@ -378,11 +300,9 @@ def scan_edata_errors():
                     
                     db.session.execute(text(f"IF OBJECT_ID('[{target_table}]', 'U') IS NOT NULL DROP TABLE [{target_table}]"))
                     
-                    # [CHANGED] Apply Split Logic
                     if is_split_mode and filename in SPLIT_OVERRIDES:
                          where_clause = SPLIT_OVERRIDES[filename]
                     
-                    # Removing "order by" for SELECT INTO
                     clean_where = where_clause.split('order by')[0]
                     
                     final_sql = f"SELECT * INTO [{target_table}] FROM GenericDataImport {clean_where}"
