@@ -1,7 +1,6 @@
 <div class="popup-container">
     <style>
         /* ADAPTIVE BUTTONS: High Contrast for Light/Dark Modes */
-        /* Dark Mode: White Text/Borders */
         [data-bs-theme="dark"] .btn-outline-secondary,
         .dark-mode .btn-outline-secondary {
             --bs-btn-color: #f8f9fa;
@@ -9,7 +8,6 @@
             --bs-btn-hover-bg: #f8f9fa;
             --bs-btn-hover-color: #000;
         }
-        /* Light Mode: Black Text/Borders */
         [data-bs-theme="light"] .btn-outline-secondary,
         .light-mode .btn-outline-secondary {
             --bs-btn-color: #000;
@@ -88,7 +86,10 @@
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-keli-{{ id }}">Keli Setup</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-indexing-{{ id }}">Indexing Tools</button></li>
         
-        <li class="nav-item" style="flex-basis: 100%;"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-errors-{{ id }}" onclick="renderCountyErrors({{ id }})">eData Errors</button></li>
+        <li class="w-100"></li>
+
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-errors-{{ id }}" onclick="renderCountyErrors({{ id }})">eData Errors</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-merge-{{ id }}">Merge Data</button></li>
     </ul>
 
     <div class="tab-content">
@@ -118,6 +119,9 @@
                         </button>
                         <button class="btn btn-sm btn-outline-secondary text-start" onclick="openLinkupModal({{ id }})">
                             <i class="bi bi-link-45deg me-1"></i>Linkup
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary text-start" {% if not is_mine %}disabled{% endif %} onclick="openFinalPrepTool({{ id }})">
+                            <i class="bi bi-check-all me-1"></i>Final Prep
                         </button>
                     </div>
                 </div>
@@ -152,7 +156,6 @@
             </div>
         </div>
 
-        
         <div class="tab-pane fade" id="tab-errors-{{ id }}">
             <div class="input-group input-group-sm mb-2">
                 <select class="form-select" id="errorCat_{{ id }}" onchange="renderCountyErrors({{ id }})">
@@ -172,8 +175,29 @@
                 <span class="small ms-2 text-muted" id="scanStatus_{{ id }}">Scanning...</span>
             </div>
 
-            <div id="errorBtnContainer_{{ id }}" class="d-grid gap-2 overflow-auto custom-scrollbar" style="max-height: 250px; padding-right: 5px;">
-                </div>
+            <div id="errorBtnContainer_{{ id }}" class="d-grid gap-2 overflow-auto custom-scrollbar" style="max-height: 250px; padding-right: 5px;"></div>
+        </div>
+
+        <div class="tab-pane fade" id="tab-merge-{{ id }}">
+            <div class="d-grid gap-2">
+                <button class="btn btn-sm btn-outline-secondary text-start opacity-50" disabled>
+                    <i class="bi bi-journals me-2"></i>Merge Instrument Types (Coming Soon)
+                </button>
+                <button class="btn btn-sm btn-outline-secondary text-start opacity-50" disabled>
+                    <i class="bi bi-bank me-2"></i>Merge Legal Type Other (Coming Soon)
+                </button>
+                <button class="btn btn-sm btn-outline-secondary text-start opacity-50" disabled>
+                    <i class="bi bi-plus-square me-2"></i>Merge Additions (Coming Soon)
+                </button>
+                <button class="btn btn-sm btn-outline-secondary text-start opacity-50" disabled>
+                    <i class="bi bi-person-badge me-2"></i>Merge Missing Names (Coming Soon)
+                </button>
+                
+                <button class="btn btn-sm btn-outline-danger text-start fw-bold" onclick="initMergeConfirm({{ id }}, 'edata_errors')">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Merge eData Errors Corrections
+                </button>
+            </div>
+            <div id="mergeResult_{{ id }}" class="mt-2 text-center small"></div>
         </div>
     </div>
 
@@ -206,6 +230,26 @@
                 <div class="modal-footer border-secondary py-1 justify-content-center">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-sm btn-primary" onclick="finalizeScan({{ id }})">Start Scan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmMergeModal_{{ id }}" tabindex="-1" aria-hidden="true" style="background: rgba(0,0,0,0.5); z-index: 1060;">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content bg-dark border-warning text-white shadow-lg">
+                <div class="modal-header border-secondary py-2">
+                    <h6 class="modal-title fw-bold text-warning"><i class="bi bi-database-fill-gear me-2"></i>Confirm Merge</h6>
+                </div>
+                <div class="modal-body text-center py-3">
+                    <p class="mb-0 small">
+                        Are you sure you want to merge these corrections?<br>
+                        <strong>This will overwrite data in the main table.</strong>
+                    </p>
+                </div>
+                <div class="modal-footer border-secondary py-1 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-sm btn-warning fw-bold" onclick="finalizeMerge({{ id }})">Yes, Merge</button>
                 </div>
             </div>
         </div>

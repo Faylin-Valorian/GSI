@@ -8,25 +8,32 @@
         selectedRecordId: null, 
         contextData: [],
         isEditing: false, 
-        imgManager: null
+        imgManager: null,
+        isInternalSelection: false // Flag to prevent recursion loops
     };
 
     document.addEventListener('DOMContentLoaded', () => {
         if(typeof ImageManager !== 'undefined') {
             uecState.imgManager = new ImageManager({
                 prefix: 'uec',
-                apiEndpoint: null 
+                apiEndpoint: null,
+                // [NEW] Handle thumbnail click
+                onSelect: (imgData, index) => {
+                    if(!uecState.isInternalSelection && imgData.recordId) {
+                         uecSelectRow(imgData.recordId, true); // true = called from image
+                    }
+                }
             });
         }
         
         initUecResizer();
     });
 
+    // ... (initUecResizer code remains the same) ...
     function initUecResizer() {
         const resizer = document.getElementById('uecResizer');
-        const topPane = document.getElementById('uecTopPane'); // Image Pane
-        const container = topPane.parentElement;
-
+        const bottomPane = document.getElementById('uecBottomPane'); 
+        const container = resizer.parentElement;
         let isResizing = false;
 
         resizer.addEventListener('mousedown', (e) => {
@@ -38,16 +45,11 @@
         document.addEventListener('mousemove', (e) => {
             if (!isResizing) return;
             const containerRect = container.getBoundingClientRect();
-            // Calculate height relative to top
-            let newHeight = e.clientY - containerRect.top;
+            let newHeight = containerRect.bottom - e.clientY;
             let percentHeight = (newHeight / containerRect.height) * 100;
-            
-            // Relaxed constraints to allow full table expansion
-            // Min 5% for image, Max 95% for image
             if (percentHeight < 5) percentHeight = 5; 
             if (percentHeight > 95) percentHeight = 95;
-
-            topPane.style.height = `${percentHeight}%`;
+            bottomPane.style.height = `${percentHeight}%`;
         });
 
         document.addEventListener('mouseup', () => {
@@ -61,6 +63,7 @@
         });
     }
 
+    // ... (openUniversalErrorTool and uecFetchQueue remain the same) ...
     function openUniversalErrorTool(countyId, errorKey, title) {
         uecState.countyId = countyId;
         uecState.errorKey = errorKey;
@@ -70,7 +73,6 @@
         document.getElementById('uecList').innerHTML = '<div class="text-center p-3 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
         document.getElementById('uecTableBody').innerHTML = '';
         
-        // Reset image UI
         const img = document.getElementById('uecMainImage');
         if(img) { img.style.display = 'none'; img.src = ''; }
         const noImg = document.getElementById('uecNoImage');
@@ -80,14 +82,12 @@
         modal.show();
 
         if(uecState.imgManager) uecState.imgManager.resetUI();
-
         uecFetchQueue();
     }
 
     function uecFetchQueue() {
         fetch('/api/tools/edata-errors/records', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ county_id: uecState.countyId, error_key: uecState.errorKey })
         })
         .then(r => r.json())
@@ -95,12 +95,10 @@
             const list = document.getElementById('uecList');
             document.getElementById('uecCount').innerText = data.records ? data.records.length : 0;
             list.innerHTML = '';
-
             if(!data.success || !data.records || data.records.length === 0) {
                 list.innerHTML = '<div class="text-muted p-2 small text-center">No records found.</div>';
                 return;
             }
-
             data.records.forEach(rec => {
                 const item = document.createElement('div');
                 item.className = 'p-2 border-bottom border-secondary text-white small uec-item text-truncate';
@@ -109,7 +107,6 @@
                 item.onclick = () => uecLoadContext(rec.id);
                 list.appendChild(item);
             });
-
             if(data.records.length > 0) uecLoadContext(data.records[0].id);
         });
     }
@@ -122,19 +119,34 @@
         document.getElementById('uecEditBtn').disabled = true;
 
         fetch('/api/tools/edata-errors/context', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ record_id: targetId })
         })
         .then(r => r.json())
         .then(data => {
             if(data.success && data.rows) {
                 uecState.contextData = data.rows;
-                uecRenderTable();
                 
-                // Auto-load image for target
-                const targetRow = data.rows.find(r => r.id === targetId);
-                if(targetRow) uecLoadImage(targetRow);
+                // [NEW] Populate Image Manager with ALL context images
+                if(uecState.imgManager) {
+                    const imgs = data.rows.map(r => ({
+                        src: r.safe_image_url ? `/api/tools/edata-errors/view-image?path=${r.safe_image_url}` : null,
+                        name: `ID: ${r.id}`,
+                        recordId: r.id
+                    }));
+                    uecState.imgManager.images = imgs;
+                    uecState.imgManager.renderThumbnails();
+                    
+                    // Select the target image initially
+                    const idx = data.rows.findIndex(r => r.id === targetId);
+                    if(idx >= 0) {
+                        uecState.isInternalSelection = true;
+                        uecState.imgManager.select(idx);
+                        uecState.isInternalSelection = false;
+                    }
+                }
+                
+                uecRenderTable();
             } else {
                 document.getElementById('uecTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-danger">Failed to load context.</td></tr>';
             }
@@ -144,7 +156,6 @@
     function uecRenderTable() {
         const tbody = document.getElementById('uecTableBody');
         tbody.innerHTML = '';
-
         uecState.contextData.forEach(row => {
             const isTarget = (row.id === uecState.targetRecordId);
             const isSelected = (row.id === uecState.selectedRecordId);
@@ -157,9 +168,7 @@
             tr.onclick = () => uecSelectRow(row.id);
 
             const editMode = isTarget || (isSelected && uecState.isEditing);
-
             let html = `<td class="text-center">${row.id}</td>`;
-            
             for(let i=1; i<=8; i++) {
                 const val = row[`col0${i}varchar`] || '';
                 if(editMode) {
@@ -175,15 +184,21 @@
         });
     }
 
-    function uecSelectRow(id) {
-        if(uecState.selectedRecordId === id) return;
+    function uecSelectRow(id, fromImage = false) {
+        if(uecState.selectedRecordId === id && !fromImage) return;
         
         uecState.selectedRecordId = id;
         uecState.isEditing = false;
         
-        // Immediately load image on click
-        const rowData = uecState.contextData.find(r => r.id === id);
-        if(rowData) uecLoadImage(rowData);
+        // Sync Image Manager if clicked from table
+        if(uecState.imgManager && !fromImage) {
+            const idx = uecState.contextData.findIndex(r => r.id === id);
+            if(idx >= 0) {
+                uecState.isInternalSelection = true;
+                uecState.imgManager.select(idx);
+                uecState.isInternalSelection = false;
+            }
+        }
         
         const isTarget = (id === uecState.targetRecordId);
         document.getElementById('uecEditBtn').disabled = isTarget; 
@@ -191,33 +206,11 @@
         uecRenderTable();
     }
 
+    // ... (rest of functions: uecEnableEditing, uecSaveChanges remain the same) ...
     function uecEnableEditing() {
         if(uecState.selectedRecordId === uecState.targetRecordId) return;
         uecState.isEditing = true;
         uecRenderTable();
-    }
-
-    function uecLoadImage(row) {
-        if(!row.safe_image_url) {
-            document.getElementById('uecMainImage').style.display = 'none';
-            document.getElementById('uecNoImage').classList.remove('d-none');
-            return;
-        }
-
-        const viewerImg = document.getElementById('uecMainImage');
-        const noImg = document.getElementById('uecNoImage');
-        
-        if(viewerImg) {
-            viewerImg.src = `/api/tools/edata-errors/view-image?path=${row.safe_image_url}`;
-            viewerImg.style.display = 'block'; 
-            
-            if(noImg) noImg.classList.add('d-none');
-
-            // [FIX] Correct method calls for the ImageManager instance
-            if(uecState.imgManager && typeof uecState.imgManager.resetZoom === 'function') {
-                uecState.imgManager.resetZoom(); 
-            }
-        }
     }
 
     function uecSaveChanges() {
@@ -248,23 +241,17 @@
             : '/api/tools/edata-errors/save-generic';
 
         fetch(endpoint, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
         })
         .then(r => r.json())
         .then(data => {
             if(data.success) {
                 statusEl.innerText = 'Saved!';
                 statusEl.className = 'text-success small fw-bold me-2';
-                
                 const row = uecState.contextData.find(r => r.id === saveId);
                 if(row) {
-                    for(const [k, v] of Object.entries(payload.fields)) {
-                        row[k] = v;
-                    }
+                    for(const [k, v] of Object.entries(payload.fields)) row[k] = v;
                 }
-                
                 uecState.isEditing = false;
                 uecRenderTable();
                 setTimeout(() => statusEl.innerText = '', 2000);

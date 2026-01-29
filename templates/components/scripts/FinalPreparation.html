@@ -1,0 +1,78 @@
+<script>
+    let currentFpCountyId = null;
+
+    function openFinalPrepTool(countyId) {
+        currentFpCountyId = countyId;
+        const modal = new bootstrap.Modal(document.getElementById('finalPrepModal'));
+        modal.show();
+        
+        // Reset UI
+        document.getElementById('fpLog').style.display = 'none';
+        document.getElementById('fpLog').innerHTML = '';
+        document.getElementById('btnRunFp').disabled = false;
+
+        // Try to fetch defaults if possible (using existing eData endpoint)
+        fetch(`/api/tools/edata-errors/get-defaults/${countyId}`).then(r=>r.json()).then(d=>{
+            if(d.success) {
+                if(d.book_start) document.getElementById('fpBookStart').value = d.book_start;
+                if(d.book_end) document.getElementById('fpBookEnd').value = d.book_end;
+            }
+        });
+    }
+
+    function runFinalPrep() {
+        const btn = document.getElementById('btnRunFp');
+        const logBox = document.getElementById('fpLog');
+        
+        btn.disabled = true;
+        logBox.style.display = 'block';
+        logBox.innerHTML = '<div class="text-info">Initializing...</div>';
+
+        const payload = {
+            county_id: currentFpCountyId,
+            book_start: document.getElementById('fpBookStart').value,
+            book_end: document.getElementById('fpBookEnd').value
+        };
+
+        fetch('/api/tools/final-preparation/execute', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        }).then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function read() {
+                reader.read().then(({ done, value }) => {
+                    if (done) {
+                        btn.disabled = false;
+                        logBox.innerHTML += '<div class="text-success fw-bold mt-2">Done.</div>';
+                        logBox.scrollTop = logBox.scrollHeight;
+                        return;
+                    }
+                    const chunk = decoder.decode(value, {stream: true});
+                    const lines = chunk.split('\n');
+                    lines.forEach(line => {
+                        if(!line.trim()) return;
+                        try {
+                            const d = JSON.parse(line);
+                            if(d.type === 'log') {
+                                logBox.innerHTML += `<div>${d.message}</div>`;
+                            } else if(d.type === 'error') {
+                                logBox.innerHTML += `<div class="text-danger">ERROR: ${d.message}</div>`;
+                            } else if(d.type === 'complete') {
+                                logBox.innerHTML += `<div class="text-success fw-bold">${d.message}</div>`;
+                            }
+                            logBox.scrollTop = logBox.scrollHeight;
+                        } catch(e) {}
+                    });
+                    read();
+                });
+            }
+            read();
+        }).catch(e => {
+            btn.disabled = false;
+            logBox.innerHTML += `<div class="text-danger">Connection Error: ${e}</div>`;
+        });
+    }
+</script>

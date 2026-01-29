@@ -34,13 +34,13 @@
 
                 <div class="d-flex flex-column flex-grow-1 h-100" style="background: #000; position: relative;">
                     
-                    <div id="uecTopPane" class="d-flex flex-column" style="height: 50%; min-height: 50px; position: relative; overflow: hidden; border-bottom: 1px solid #333;">
+                    <div id="uecTopPane" class="d-flex flex-column" style="flex-grow: 1; min-height: 50px; position: relative; overflow: hidden; border-bottom: 1px solid #333;">
                         {{ image_viewer('uec') }}
                     </div>
 
                     <div id="uecResizer" style="height: 8px; background: #333; cursor: row-resize; flex-shrink: 0; z-index: 100; border-top: 1px solid #444; border-bottom: 1px solid #222;"></div>
 
-                    <div id="uecBottomPane" class="bg-dark d-flex flex-column" style="flex-grow: 1; min-height: 100px; overflow: hidden;">
+                    <div id="uecBottomPane" class="bg-dark d-flex flex-column" style="height: 50%; min-height: 100px; overflow: hidden;">
                         <div class="p-1 border-bottom border-secondary d-flex justify-content-between align-items-center bg-black">
                             <small class="text-muted ms-2">Context View (10 Before / 10 After)</small>
                             <span class="text-success small fw-bold me-2" id="uecSaveStatus"></span>

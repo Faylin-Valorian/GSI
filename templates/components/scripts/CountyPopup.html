@@ -1,5 +1,5 @@
 <script>
-    // ... (openCountyPopup, toggleWork remain the same) ...
+    // --- POPUP OPENING & BASIC MANIPULATION ---
     window.openCountyPopup = function(props) {
         const id = props.db_id || props.id;
         if (!id) { console.error("Popup Error: No ID found", props); return; }
@@ -12,8 +12,10 @@
                 
                 if (!modalEl) {
                     const div = document.createElement('div');
+                    // [FIX] Added z-index: 1051. 
+                    // Standard Bootstrap Modals are 1055. This ensures the Popup stays BEHIND them.
                     div.innerHTML = `
-                        <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
+                        <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true" style="z-index: 1051;">
                             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                                 <div class="modal-content text-bg-dark border-secondary shadow" id="${modalId}Content"></div>
                             </div>
@@ -26,6 +28,7 @@
                 const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
                 bsModal.show();
                 
+                // Initialize specific tab logic if needed
                 if(window.renderCountyErrors) window.renderCountyErrors(id);
                 
                 modalEl.addEventListener('hidden.bs.modal', function(){}, {once:true});
@@ -93,6 +96,7 @@
         pendingSplitToggle = { id: null, state: null, el: null };
     };
 
+    // --- NOTES & UPLOADS ---
     function saveNotes(countyId, notes) {
         fetch('/api/county/save-notes', {
             method: 'POST',
@@ -119,7 +123,7 @@
         }
     }
 
-    // --- ERROR SCANNING ---
+    // --- ERROR SCANNING LOGIC ---
     (function(){
         const ERROR_MAP = {
             'Header': {
@@ -202,7 +206,7 @@
                 });
         };
 
-        // [NEW] Open Confirmation Modal
+        // Confirm Scan Modal
         window.initScanConfirmation = function(id) {
             const modalEl = document.getElementById(`confirmScanModal_${id}`);
             if(modalEl) {
@@ -211,9 +215,8 @@
             }
         };
 
-        // [NEW] Execute Scan Logic
+        // Execute Scan Logic
         window.finalizeScan = function(id) {
-            // Hide modal
             const modalEl = document.getElementById(`confirmScanModal_${id}`);
             const modal = bootstrap.Modal.getInstance(modalEl);
             if(modal) modal.hide();
@@ -272,4 +275,47 @@
             });
         };
     })();
+
+    // --- MERGE DATA LOGIC ---
+    let pendingMerge = { id: null, type: null };
+    
+    window.initMergeConfirm = function(id, type) {
+        pendingMerge = { id: id, type: type };
+        const modalEl = document.getElementById(`confirmMergeModal_${id}`);
+        if(modalEl) {
+            const bsModal = new bootstrap.Modal(modalEl);
+            bsModal.show();
+        }
+    };
+
+    window.finalizeMerge = function(id) {
+        // Hide confirm modal
+        const modalEl = document.getElementById(`confirmMergeModal_${id}`);
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+
+        if(!pendingMerge.id || pendingMerge.id !== id) return;
+
+        const resDiv = document.getElementById(`mergeResult_${id}`);
+        resDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-warning" role="status"></div> Merging...';
+
+        fetch('/api/tools/edata-errors/merge-corrections', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: id, merge_type: pendingMerge.type })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                resDiv.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i>${data.message}</span>`;
+            } else {
+                resDiv.innerHTML = `<span class="text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i>${data.message}</span>`;
+            }
+        })
+        .catch(e => {
+            resDiv.innerHTML = `<span class="text-danger">Error: ${e}</span>`;
+        });
+        
+        pendingMerge = { id: null, type: null };
+    };
 </script>

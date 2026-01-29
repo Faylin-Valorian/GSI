@@ -1,18 +1,19 @@
 <script>
 /**
  * Universal Image Manager
- * Refactored: Fit-Width, Top-Left Alignment, and Robust Click-and-Hold Panning.
+ * Refactored: Fit-Width, Overlay Thumbnails, Click-and-Hold Panning, and Active Toggle Button.
  */
 if (typeof window.ImageManager === 'undefined') {
     window.ImageManager = class {
         constructor(config) {
             this.prefix = config.prefix;
             this.apiEndpoint = config.apiEndpoint;
+            this.onSelectCallback = config.onSelect || null;
             
             // State
             this.images = [];
             this.currentIndex = -1;
-            this.zoomLevel = 1.0; // 1.0 = 100% width
+            this.zoomLevel = 1.0; 
 
             // Bind Elements
             this.viewport = document.getElementById(`${this.prefix}ImageViewport`);
@@ -29,6 +30,9 @@ if (typeof window.ImageManager === 'undefined') {
             document.getElementById(`${this.prefix}BtnZoomIn`).onclick = () => this.zoom(0.2);
             document.getElementById(`${this.prefix}BtnZoomOut`).onclick = () => this.zoom(-0.2);
             document.getElementById(`${this.prefix}BtnReset`).onclick = () => this.resetZoom();
+            
+            const btnToggle = document.getElementById(`${this.prefix}BtnToggleThumbs`);
+            if(btnToggle) btnToggle.onclick = () => this.toggleThumbnails();
 
             // Keyboard Nav
             this.viewport.tabIndex = 0;
@@ -37,24 +41,19 @@ if (typeof window.ImageManager === 'undefined') {
                 if(e.key === 'ArrowLeft') this.prev();
             };
 
-            // --- DRAG TO PAN LOGIC (FIXED) ---
+            // --- DRAG TO PAN LOGIC ---
             this.isDown = false;
             this.startX = 0;
             this.startY = 0;
             this.scrollLeft = 0;
             this.scrollTop = 0;
             
-            // 1. Set default cursor
             this.viewport.style.cursor = 'grab';
 
             this.viewport.addEventListener('mousedown', (e) => {
-                // CRITICAL: Prevent browser from dragging the image element itself
                 e.preventDefault();
-                
                 this.isDown = true;
                 this.viewport.style.cursor = 'grabbing';
-                
-                // Capture start positions
                 this.startX = e.pageX - this.viewport.offsetLeft;
                 this.startY = e.pageY - this.viewport.offsetTop;
                 this.scrollLeft = this.viewport.scrollLeft;
@@ -73,19 +72,35 @@ if (typeof window.ImageManager === 'undefined') {
 
             this.viewport.addEventListener('mousemove', (e) => {
                 if (!this.isDown) return;
-                
-                // Prevent any selection
                 e.preventDefault();
-                
                 const x = e.pageX - this.viewport.offsetLeft;
                 const y = e.pageY - this.viewport.offsetTop;
-                
                 const walkX = (x - this.startX); 
                 const walkY = (y - this.startY);
-                
                 this.viewport.scrollLeft = this.scrollLeft - walkX;
                 this.viewport.scrollTop = this.scrollTop - walkY;
             });
+        }
+
+        // [CHANGED] Update Button State logic
+        toggleThumbnails() {
+            const btn = document.getElementById(`${this.prefix}BtnToggleThumbs`);
+            
+            if(this.strip.classList.contains('d-none')) {
+                // Showing Thumbnails
+                this.strip.classList.remove('d-none');
+                if(btn) {
+                    btn.classList.remove('btn-outline-secondary');
+                    btn.classList.add('btn-light'); // Light up
+                }
+            } else {
+                // Hiding Thumbnails
+                this.strip.classList.add('d-none');
+                if(btn) {
+                    btn.classList.remove('btn-light'); // Dim
+                    btn.classList.add('btn-outline-secondary');
+                }
+            }
         }
 
         load(payload) {
@@ -123,8 +138,10 @@ if (typeof window.ImageManager === 'undefined') {
             this.images.forEach((img, idx) => {
                 const t = document.createElement('img');
                 t.src = img.src;
-                t.className = 'h-100 border border-secondary opacity-50';
+                t.className = 'h-100 border border-secondary opacity-50 shadow-sm';
                 t.style.cursor = 'pointer';
+                t.style.pointerEvents = 'auto'; // Re-enable clicks
+                
                 t.onclick = () => this.select(idx);
                 t.id = `${this.prefix}Thumb_${idx}`;
                 this.strip.appendChild(t);
@@ -136,20 +153,16 @@ if (typeof window.ImageManager === 'undefined') {
             this.currentIndex = index;
             const imgData = this.images[index];
 
-            // Update Main Image
             this.mainImg.src = imgData.src;
             this.mainImg.style.display = 'block';
             
-            // Reset View
             this.resetZoom();
             this.viewport.scrollTop = 0; 
             this.viewport.scrollLeft = 0;
 
-            // Update Meta
             this.lblCount.innerText = `${index + 1} / ${this.images.length}`;
             this.lblName.innerText = imgData.name || 'Image';
 
-            // Update Thumbnails Styles
             [...this.strip.children].forEach((c, i) => {
                 if(i === index) {
                     c.classList.remove('opacity-50', 'border-secondary');
@@ -160,6 +173,10 @@ if (typeof window.ImageManager === 'undefined') {
                     c.classList.remove('opacity-100', 'border-warning');
                 }
             });
+
+            if(this.onSelectCallback) {
+                this.onSelectCallback(imgData, index);
+            }
         }
 
         next() { this.select(this.currentIndex + 1); }
@@ -175,7 +192,6 @@ if (typeof window.ImageManager === 'undefined') {
             this.lblName.innerText = '---';
         }
 
-        // --- Zoom Logic ---
         zoom(amount) {
             this.zoomLevel += amount;
             if (this.zoomLevel < 0.1) this.zoomLevel = 0.1;

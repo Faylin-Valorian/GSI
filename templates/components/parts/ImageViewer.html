@@ -1,21 +1,22 @@
 {% macro image_viewer(prefix) %}
-<div id="{{ prefix }}ViewerContainer" class="d-flex flex-column h-100 w-100" style="background: #000;">
+<div id="{{ prefix }}ViewerContainer" class="d-flex flex-column h-100 w-100 position-relative" style="background: #000;">
     
-    <div class="d-flex justify-content-between align-items-center p-2 border-bottom border-secondary bg-dark flex-shrink-0">
+    <div class="d-flex justify-content-between align-items-center p-2 border-bottom border-secondary bg-dark flex-shrink-0" style="z-index: 101;">
         <div class="d-flex align-items-center gap-2">
             <span id="{{ prefix }}ImageCount" class="badge bg-secondary">0 / 0</span>
             <span id="{{ prefix }}ImageName" class="text-muted small font-monospace text-truncate" style="max-width: 200px;">---</span>
         </div>
-        <div class="btn-group btn-group-sm">
-            <button type="button" id="{{ prefix }}BtnPrev" class="btn btn-outline-secondary"><i class="bi bi-chevron-left"></i></button>
-            <button type="button" id="{{ prefix }}BtnZoomIn" class="btn btn-outline-secondary"><i class="bi bi-zoom-in"></i></button>
-            <button type="button" id="{{ prefix }}BtnZoomOut" class="btn btn-outline-secondary"><i class="bi bi-zoom-out"></i></button>
-            <button type="button" id="{{ prefix }}BtnReset" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></button>
-            <button type="button" id="{{ prefix }}BtnNext" class="btn btn-outline-secondary"><i class="bi bi-chevron-right"></i></button>
+        <div class="btn-group btn-group-sm flex-shrink-0">
+            <button type="button" id="{{ prefix }}BtnPrev" class="btn btn-outline-secondary" title="Previous"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" id="{{ prefix }}BtnZoomIn" class="btn btn-outline-secondary" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
+            <button type="button" id="{{ prefix }}BtnZoomOut" class="btn btn-outline-secondary" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
+            <button type="button" id="{{ prefix }}BtnReset" class="btn btn-outline-secondary" title="Reset View"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button type="button" id="{{ prefix }}BtnToggleThumbs" class="btn btn-light" title="Toggle Thumbnails"><i class="bi bi-card-image"></i></button>
+            <button type="button" id="{{ prefix }}BtnNext" class="btn btn-outline-secondary" title="Next"><i class="bi bi-chevron-right"></i></button>
         </div>
     </div>
 
-    <div id="{{ prefix }}ImageViewport" class="flex-grow-1 position-relative bg-black" style="overflow: auto;">
+    <div id="{{ prefix }}ImageViewport" class="flex-grow-1 position-relative bg-black" style="overflow: hidden;">
         
         <div id="{{ prefix }}NoImage" class="text-muted fst-italic position-absolute top-50 start-50 translate-middle">
             No image selected
@@ -29,7 +30,9 @@
         </div>
     </div>
 
-    <div id="{{ prefix }}ThumbnailStrip" class="border-top border-secondary p-2 d-flex justify-content-center gap-2 bg-dark flex-shrink-0" style="height: 80px; overflow-x: auto; white-space: nowrap;">
+    <div id="{{ prefix }}ThumbnailStrip" 
+         class="d-flex justify-content-center gap-2 p-2 position-absolute bottom-0 start-0 w-100" 
+         style="height: 80px; overflow-x: auto; white-space: nowrap; z-index: 100; pointer-events: none;">
     </div>
 </div>
 {% endmacro %}

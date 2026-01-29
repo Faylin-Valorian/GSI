@@ -1,15 +1,14 @@
 <script>
     let edeErrorsMgr = null;
     let currentEdeErrorsId = null;
+    let currentMergeType = null; // Track which merge button was clicked
 
     function openEdataErrorsModal(id) {
         closeAllModals(); 
         currentEdeErrorsId = id;
         
-        // Ensure hidden field is updated (from your original script)
         if(document.getElementById('eDataCountyId')) document.getElementById('eDataCountyId').value = id;
 
-        // Open Modal
         if(document.getElementById('edataErrorsModal')) {
             const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('edataErrorsModal'));
             modal.show();
@@ -18,8 +17,9 @@
         // Reset UI
         document.getElementById('edeResult').innerHTML = '';
         if(document.getElementById('edeProgressContainer')) document.getElementById('edeProgressContainer').classList.add('d-none');
+        document.getElementById('edeMergeResult').innerHTML = ''; // Reset merge result
 
-        // --- 1. Init Preview Manager (For the new button) ---
+        // Init Preview Manager
         if(!edeErrorsMgr) {
             edeErrorsMgr = new PreviewManager({
                 prefix: 'edeErrors',
@@ -37,8 +37,7 @@
         }
         edeErrorsMgr.reset();
 
-        // --- 2. RESTORED: Auto-Generate Defaults (From your original script) ---
-        // This fetches the book ranges/townships when the tool opens
+        // Get Defaults
         fetch(`/api/tools/edata-errors/get-defaults/${id}`).then(r=>r.json()).then(d=>{
             if(d.success) { 
                 if(document.getElementById('edeBookStart')) document.getElementById('edeBookStart').value = d.book_start; 
@@ -49,20 +48,16 @@
     }
 
     function runEdataErrors() {
+        // (Existing Scan Logic - Unchanged)
         const btn = document.getElementById('btnRunEde'); 
         btn.disabled = true;
-        
-        // Setup UI for run
         document.getElementById('edeProgressContainer').classList.remove('d-none');
         const pBar = document.getElementById('edeProgressBar'); 
         pBar.style.width = '0%';
         document.getElementById('edeLogBox').innerHTML = '';
         document.getElementById('edeResult').innerText = '';
         
-        // Hide preview if running real tool
         if(edeErrorsMgr) edeErrorsMgr.reset();
-        
-        // Use the manager's payload provider so we don't duplicate logic
         const payload = edeErrorsMgr.payloadProvider();
 
         fetch('/api/tools/edata-errors/execute', {
@@ -85,6 +80,39 @@
         });
     }
     
-    // Alias for sidebar compatibility
+    // [NEW] Merge Logic
+    function edeOpenConfirm(type) {
+        currentMergeType = type;
+        const confirmModal = new bootstrap.Modal(document.getElementById('edeConfirmModal'));
+        confirmModal.show();
+    }
+
+    function edeRunMerge() {
+        // Hide confirm modal
+        const confirmModalEl = document.getElementById('edeConfirmModal');
+        const confirmModal = bootstrap.Modal.getInstance(confirmModalEl);
+        confirmModal.hide();
+
+        const resDiv = document.getElementById('edeMergeResult');
+        resDiv.innerHTML = '<div class="spinner-border text-warning" role="status"></div><div class="small text-muted">Merging Data...</div>';
+
+        fetch('/api/tools/edata-errors/merge-corrections', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ county_id: currentEdeErrorsId, merge_type: currentMergeType })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.success) {
+                resDiv.innerHTML = `<div class="alert alert-success small"><i class="bi bi-check-circle-fill me-2"></i>${data.message}</div>`;
+            } else {
+                resDiv.innerHTML = `<div class="alert alert-danger small"><i class="bi bi-exclamation-triangle-fill me-2"></i>${data.message}</div>`;
+            }
+        })
+        .catch(e => {
+            resDiv.innerHTML = `<div class="alert alert-danger small">Error: ${e}</div>`;
+        });
+    }
+
     window.openEDataErrorsModal = openEdataErrorsModal;
 </script>

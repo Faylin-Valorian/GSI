@@ -6,8 +6,11 @@ import io
 from flask import Blueprint, request, Response, stream_with_context, current_app, jsonify, send_file
 from flask_login import login_required, current_user
 from sqlalchemy import text, inspect
+# [FIX 1] Added secure_filename import
+from werkzeug.utils import secure_filename
 from extensions import db
-from models import IndexingCounties
+# [FIX 2] Added IndexingStates to the import from models
+from models import IndexingCounties, IndexingStates
 from utils import format_error
 
 # Try to import PIL for image serving
@@ -154,7 +157,7 @@ def get_error_context():
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-# [NEW] Image Viewer Route to serve images via API
+# [NEW] Image Viewer Route to serve images via API (WITH TIF SUPPORT)
 @edata_errors_bp.route('/api/tools/edata-errors/view-image', methods=['GET'])
 @login_required
 def view_image():
@@ -165,6 +168,24 @@ def view_image():
     # Basic security check - ensure it's an image
     if not os.path.exists(path):
         return "Image file not found on server", 404
+    
+    # [FIX 3] Convert TIF to PNG on the fly so browsers can display it
+    if path.lower().endswith(('.tif', '.tiff')) and Image:
+        try:
+            img = Image.open(path)
+            # Handle specific TIF modes that PNG doesn't support directly
+            if img.mode in ("I", "F"):
+                img = img.convert("RGB")
+            
+            img_io = io.BytesIO()
+            img.save(img_io, 'PNG')
+            img_io.seek(0)
+            return send_file(img_io, mimetype='image/png')
+        except Exception as e:
+            print(f"Image conversion failed: {e}")
+            # If conversion fails, try sending original
+            return send_file(path)
+
     return send_file(path)
 
 @edata_errors_bp.route('/api/tools/edata-errors/save-record', methods=['POST'])
@@ -349,6 +370,7 @@ def get_edata_defaults(county_id):
         if not c: return jsonify({'success': False})
         s = IndexingStates.query.filter_by(fips_code=c.state_fips).first()
         
+        # [FIX 1] Now safe because secure_filename is imported
         path = os.path.join(current_app.root_path, 'data', secure_filename(s.state_name), secure_filename(c.county_name), 'Images')
         book_start, book_end = "", ""
         if os.path.exists(path):
@@ -369,5 +391,60 @@ def get_edata_defaults(county_id):
 
         return jsonify({'success': True, 'book_start': book_start, 'book_end': book_end, 'townships': townships_str})
     except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+    
+@edata_errors_bp.route('/api/tools/edata-errors/merge-corrections', methods=['POST'])
+@login_required
+def merge_edata_corrections():
+    if current_user.role != 'admin': return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    try:
+        data = request.json
+        county_id = data.get('county_id')
+        merge_type = data.get('merge_type') # e.g., 'edata_errors'
+        
+        c = db.session.get(IndexingCounties, county_id)
+        if not c: return jsonify({'success': False, 'message': 'County not found'})
+
+        tables_merged = 0
+        
+        if merge_type == 'edata_errors':
+            # 1. Identify all active error tables for this county
+            insp = inspect(db.engine)
+            all_tables = insp.get_table_names()
+            
+            # QUERIES is defined at top of file
+            for key in QUERIES.keys():
+                clean_name = key.replace('.csv', '')
+                error_table = f"{c.county_name}_eData_Errors_{clean_name}"
+                
+                if error_table in all_tables:
+                    # 2. Construct Merge SQL (Update Main from Error Table)
+                    # We update the main varchar columns and original value
+                    sql = f"""
+                        UPDATE g
+                        SET g.col01varchar = t.col01varchar,
+                            g.col02varchar = t.col02varchar,
+                            g.col03varchar = t.col03varchar,
+                            g.col04varchar = t.col04varchar,
+                            g.col05varchar = t.col05varchar,
+                            g.col06varchar = t.col06varchar,
+                            g.col07varchar = t.col07varchar,
+                            g.col08varchar = t.col08varchar,
+                            g.col09varchar = t.col09varchar,
+                            g.col10varchar = t.col10varchar,
+                            g.OriginalValue = t.OriginalValue
+                        FROM GenericDataImport g
+                        INNER JOIN [{error_table}] t ON g.id = t.id
+                    """
+                    db.session.execute(text(sql))
+                    tables_merged += 1
+            
+            db.session.commit()
+            return jsonify({'success': True, 'message': f'Successfully merged {tables_merged} error tables.'})
+            
+        return jsonify({'success': False, 'message': 'Unknown merge type'})
+
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)})
 # [GSI_END: edata_errors_api]

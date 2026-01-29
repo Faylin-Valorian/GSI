@@ -38,6 +38,8 @@ from blueprints.EDataErrors import edata_errors_bp
 from blueprints.ReviewLegalTypeOthers import review_legal_bp
 from blueprints.AdditionsCorrections import additions_bp
 from blueprints.MissingNamesCorrections import missing_names_bp
+from blueprints.FinalPreparation import final_prep_bp
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-key-change-in-prod'
@@ -113,6 +115,7 @@ app.register_blueprint(initial_linkup_bp)
 app.register_blueprint(review_legal_bp)
 app.register_blueprint(additions_bp)
 app.register_blueprint(missing_names_bp)
+app.register_blueprint(final_prep_bp)
 
 @app.before_request
 def check_db_config():
